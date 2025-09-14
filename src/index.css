@@ -47,6 +47,20 @@ body {
   margin-bottom: 20px;
   box-sizing: border-box; /* Ensures padding doesn't affect width */
 }
+
+.sidebar label {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+}
+
+.sidebar label input {
+  margin-top: 5px;
+}
+
+.sidebar button {
+  margin-bottom: 15px;
+}
 .priority-list {
   flex-grow: 1;
   background-color: #282c34;

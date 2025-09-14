@@ -1,10 +1,14 @@
 /// <reference path="./declarations.d.ts" />
 import React, { useRef, useEffect, useState } from "react";
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { createRoot } from "react-dom/client";
 import "./index.css";
 // Import the placeholder image
 import placeholderImage from "./assets/placeholder-image.jpg";
+
+// Define the API exposed by the preload script
+declare global {
+  interface Window { electronAPI: { saveFile: (dataUrl: string) => Promise<void> } }
+}
 
 // Define the structure of a Word object for TypeScript
 interface Word {
@@ -27,6 +31,16 @@ function App() {
   const [inputValue, setInputValue] = useState("");
   // State for the list of words
   const [words, setWords] = useState<Word[]>([]);
+  // State for customization
+  const [fontFamily, setFontFamily] = useState("Arial");
+  const [fontColor, setFontColor] = useState("#FFFFFF");
+  // State for the background image
+  // State for text shadow
+  const [shadowColor, setShadowColor] = useState("#000000");
+  const [shadowBlur, setShadowBlur] = useState(0);
+  const [shadowOffsetX, setShadowOffsetX] = useState(0);
+  const [shadowOffsetY, setShadowOffsetY] = useState(0);
+
 
   // This single effect handles all canvas drawing and updates when `words` changes.
   useEffect(() => {
@@ -48,19 +62,21 @@ function App() {
       return Math.round(size);
     };
 
-    // Load the background image once.
-    const image = new Image();
-    image.src = placeholderImage;
-
-    image.onload = () => {
+    const redrawCanvas = (image: HTMLImageElement) => {
       // 1. Draw the background image.
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
       // 2. Draw all the words on top.
       const updatedWords = words.map((word, index) => {
         const fontSize = getFontSize(index, words.length);
-        context.font = `${fontSize}px Arial`;
-        context.fillStyle = "white";
+        // Apply shadow properties
+        context.shadowColor = shadowColor;
+        context.shadowBlur = shadowBlur;
+        context.shadowOffsetX = shadowOffsetX;
+        context.shadowOffsetY = shadowOffsetY;
+
+        context.font = `${fontSize}px ${fontFamily}`;
+        context.fillStyle = fontColor;
         context.textAlign = "center";
         context.fillText(word.text, word.x, word.y);
 
@@ -75,7 +91,16 @@ function App() {
       // Update the ref for the click handler
       wordsRef.current = updatedWords;
     };
-  }, [words]); // The dependency array ensures this effect runs when `words` changes
+
+    const image = new Image();
+    image.src = placeholderImage;
+    image.onload = () => redrawCanvas(image);
+    // If the image is already cached by the browser, onload might not fire.
+    // This line ensures the redraw happens even if the src hasn't changed.
+    if (image.complete) {
+      redrawCanvas(image);
+    }
+  }, [words, fontFamily, fontColor, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY]); // Redraw when words, font, color, or image change
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(event.target.value);
@@ -85,13 +110,16 @@ function App() {
     const center_x = canvasWidth / 2;
     const center_y = canvasHeight / 2;
     // Define a radius for the "dead zone" in the center.
-    const deadZoneRadius = 150;
+    const deadZoneRadius = 100;
+    // Define a padding from the edge of the canvas to prevent text cutoff.
+    const padding = 50;
     let x, y, distance;
 
     // Keep generating random points until we find one outside the dead zone.
     do {
-      x = Math.random() * canvasWidth;
-      y = Math.random() * canvasHeight;
+      // Generate coordinates within the padded area.
+      x = padding + Math.random() * (canvasWidth - padding * 2);
+      y = padding + Math.random() * (canvasHeight - padding * 2);
       const dx = x - center_x;
       const dy = y - center_y;
       distance = Math.sqrt(dx * dx + dy * dy);
@@ -119,20 +147,32 @@ function App() {
     }
   };
 
-  const onDragEnd = (result: DropResult) => {
-    // Do nothing if the item was dropped outside the list
-    if (!result.destination) {
-      return;
-    }
+  const handleSaveImage = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    const items = Array.from(words);
-    // Remove the dragged item from its original position
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    // Insert the dragged item into its new position
-    items.splice(result.destination.index, 0, reorderedItem);
+    // Get the canvas content as a PNG data URL
+    const dataUrl = canvas.toDataURL('image/png');
+    // Send the data to the main process to be saved
+    window.electronAPI.saveFile(dataUrl);
+  };
 
-    // Update the state with the new order
-    setWords(items);
+  const applyDefaultShadow = () => {
+    setShadowColor("#000000");
+    setShadowBlur(7);
+    setShadowOffsetX(5);
+    setShadowOffsetY(5);
+  };
+
+  const resetShadow = () => {
+    setShadowColor("#000000");
+    setShadowBlur(0);
+    setShadowOffsetX(0);
+    setShadowOffsetY(0);
+  };
+
+  const handleClearAll = () => {
+    setWords([]);
   };
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -177,34 +217,62 @@ function App() {
           onChange={handleInputChange}
           onKeyDown={handleInputKeyDown}
         />
+        <h3>Settings</h3>
+        <label>
+          Font Family:
+          <input
+            type="text"
+            value={fontFamily}
+            onChange={(e) => setFontFamily(e.target.value)}
+          />
+        </label>
+        <button onClick={handleSaveImage}>Save Image</button>
+        <label>
+          Font Color:
+          <input type="color" value={fontColor} onChange={(e) => setFontColor(e.target.value)} />
+        </label>
+
+        <h3>Shadow Settings</h3>
+        <button onClick={applyDefaultShadow}>Apply Default Shadow</button>
+        <button onClick={resetShadow}>Reset Shadow</button>
+        <label>
+          Shadow Color:
+          <input type="color" value={shadowColor} onChange={(e) => setShadowColor(e.target.value)} />
+        </label>
+        <label>
+          Shadow Blur: {shadowBlur}px
+          <input
+            type="range"
+            min="0"
+            max="50"
+            value={shadowBlur}
+            onChange={(e) => setShadowBlur(Number(e.target.value))}
+          />
+        </label>
+        <label>
+          Offset X: {shadowOffsetX}px
+          <input
+            type="range"
+            min="-50"
+            max="50"
+            value={shadowOffsetX}
+            onChange={(e) => setShadowOffsetX(Number(e.target.value))}
+          />
+        </label>
+        <label>
+          Offset Y: {shadowOffsetY}px
+          <input type="range" min="-50" max="50" value={shadowOffsetY} onChange={(e) => setShadowOffsetY(Number(e.target.value))} />
+        </label>
+
         <h3>Priority List</h3>
-        <DragDropContext onDragEnd={onDragEnd}>
-          <Droppable droppableId="words">
-            {(provided) => (
-              <div
-                {...provided.droppableProps}
-                ref={provided.innerRef}
-                className="priority-list"
-              >
-                {words.map((word, index) => (
-                  <Draggable key={word.id.toString()} draggableId={word.id.toString()} index={index}>
-                    {(provided) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        {...provided.dragHandleProps}
-                        className="priority-list-item"
-                      >
-                        {word.text}
-                      </div>
-                    )}
-                  </Draggable>
-                ))}
-                {provided.placeholder}
-              </div>
-            )}
-          </Droppable>
-        </DragDropContext>
+        <button onClick={handleClearAll}>Clear All Words</button>
+        <div className="priority-list">
+          {words.map((word) => (
+            <div key={word.id} className="priority-list-item">
+              {word.text}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

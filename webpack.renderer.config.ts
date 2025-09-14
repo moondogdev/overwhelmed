@@ -9,16 +9,6 @@ export const rendererConfig: Configuration = {
         use: 'node-loader',
       },
       {
-        test: /\.(m?js|node)$/,
-        parser: { amd: false },
-        use: {
-          loader: '@vercel/webpack-asset-relocator-loader',
-          options: {
-            outputAssetBase: 'native_modules',
-          },
-        },
-      },
-      {
         test: /\.tsx?$/,
         exclude: /(node_modules|\.webpack)/,
         use: {
@@ -47,4 +37,5 @@ export const rendererConfig: Configuration = {
   resolve: {
     extensions: ['.js', '.ts', '.jsx', '.tsx', '.css'],
   },
+  target: 'web',
 };
