@@ -13,9 +13,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setStoreValue: (key: string, value: any) => ipcRenderer.invoke('electron-store-set', key, value),
   send: (channel: string, data?: any) => ipcRenderer.send(channel, data), // Allow sending data
   notifyDirtyState: (isDirty: boolean) => ipcRenderer.send('notify-dirty-state', isDirty),
+  showTicketContextMenu: (wordId: number) => ipcRenderer.send('show-ticket-context-menu', wordId),
+  downloadImage: (url: string) => ipcRenderer.invoke('download-image', url),
   // It's good practice to define which channels are allowed for two-way communication
   on: (channel: string, callback: (...args: any[]) => void) => {
-    const validChannels = ['get-data-for-quit'];
+    const validChannels = ['get-data-for-quit', 'context-menu-command'];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, callback);
       return () => ipcRenderer.removeListener(channel, callback);

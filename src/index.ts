@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, IpcMainInvokeEvent, Menu, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, IpcMainInvokeEvent, Menu, shell, net } from 'electron';
 import * as fs from 'fs';
 import Store from 'electron-store';
 
@@ -160,6 +160,66 @@ app.whenReady().then(() => {
   });
   ipcMain.on('notify-dirty-state', (_event, dirtyState) => {
     isDirty = dirtyState;
+  });
+  ipcMain.on('show-ticket-context-menu', (event, wordId) => {
+    const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+      {
+        label: 'Edit Ticket',
+        click: () => webContents.send('context-menu-command', { command: 'edit', wordId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Complete Ticket',
+        click: () => webContents.send('context-menu-command', { command: 'complete', wordId }),
+      },
+      {
+        label: 'Copy Ticket',
+        click: () => webContents.send('context-menu-command', { command: 'copy', wordId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Trash Ticket',
+        click: () => webContents.send('context-menu-command', { command: 'trash', wordId }),
+        
+      },
+    ];
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
+  });
+  ipcMain.on('show-link-context-menu', (event, url) => {
+    const template = [
+      {
+        label: 'Copy Link',
+        click: () => {
+          // The main process can write to the clipboard too
+          require('electron').clipboard.writeText(url);
+        },
+      },
+    ];
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
+  });
+  ipcMain.handle('download-image', async (_event, url: string) => {
+    try {
+      const request = net.request(url);
+      const chunks: Buffer[] = [];
+
+      const httpResponse = await new Promise<Electron.IncomingMessage>((resolve) => {
+        request.on('response', (response: Electron.IncomingMessage) => {
+          response.on('data', (chunk: Buffer) => {
+            chunks.push(chunk);
+          });
+          resolve(response);
+        });
+        request.end();
+      });
+
+      const imageBuffer = Buffer.concat(chunks);
+      const { filePath } = await dialog.showSaveDialog({
+        title: 'Save Image',
+        defaultPath: `downloaded-image-${Date.now()}.jpg`,
+      });
+      if (filePath) fs.writeFileSync(filePath, imageBuffer);
+    } catch (error) { console.error('Failed to download image:', error); }
   });
 
   createWindow();

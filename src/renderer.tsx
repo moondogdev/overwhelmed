@@ -17,6 +17,8 @@ declare global {
     setStoreValue: (key: string, value: any) => Promise<void>;
     send: (channel: string, data?: any) => void;
     on: (channel: string, callback: (...args: any[]) => void) => (() => void) | undefined;
+    downloadImage: (url: string) => Promise<void>;
+    showTicketContextMenu: (wordId: number) => void;
     notifyDirtyState: (isDirty: boolean) => void;
   } }
 }
@@ -27,13 +29,25 @@ interface Word {
   text: string;
   x: number; // Add x coordinate
   y: number; // Add y coordinate
+  // New Task Manager Fields
+  url?: string;
+  priority?: 'High' | 'Medium' | 'Low';
+  completeBy?: string; // Storing as string for input type='date'
+  company?: string;
+  websiteUrl?: string;
+  imageLinks?: string[];
+  description?: string;
   // Add dimensions for hit detection
   width?: number;
   height?: number;
+  openDate: number; // Use a separate field for the editable open date
   createdAt: number; // Timestamp of when the word was created
   isPaused?: boolean;
   pausedDuration?: number;
   completedDuration?: number; // The final duration when completed
+  manualTime?: number; // Manually tracked time in ms
+  manualTimeRunning?: boolean;
+  manualTimeStart?: number; // Timestamp when manual timer was started
 }
 
 interface Settings {
@@ -53,11 +67,20 @@ interface Settings {
 
 
 interface AccordionProps {
-  title: string;
+  title: React.ReactNode;
   children: React.ReactNode;
 }
 
-function Accordion({ title, children }: AccordionProps) {
+interface TabbedViewProps {
+  word: Word;
+  onUpdate: (updatedWord: Word) => void;
+  formatTimestamp: (ts: number) => string;
+  setCopyStatus: (message: string) => void;
+  handleRichTextKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
+  startInEditMode?: boolean;
+}
+
+function SimpleAccordion({ title, children }: AccordionProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -69,6 +92,265 @@ function Accordion({ title, children }: AccordionProps) {
       {isOpen && <div className="accordion-content">{children}</div>}
     </div>
   );
+}
+
+interface LinkModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (url: string) => void;
+}
+
+function LinkModal({ isOpen, onClose, onConfirm }: LinkModalProps) {
+  const [url, setUrl] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleConfirm = () => {
+    if (url) {
+      onConfirm(url);
+      onClose();
+    }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <h4>Enter URL</h4>
+        <input 
+          type="text" 
+          value={url} 
+          onChange={(e) => setUrl(e.target.value)} 
+          onKeyDown={(e) => { 
+            if (e.key === 'Enter') {
+              e.preventDefault(); // Stop the event from propagating
+              handleConfirm(); 
+            }
+          }}
+          placeholder="https://example.com" 
+          autoFocus />
+        <div className="modal-actions">
+          <button onClick={handleConfirm}>Confirm</button>
+          <button onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRichTextKeyDown, startInEditMode = false }: TabbedViewProps) {
+  const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(word.completedDuration ? 'ticket' : 'ticket'); // Default to ticket view
+
+  useEffect(() => {
+    // If the startInEditMode prop becomes true, switch to the edit tab
+    if (startInEditMode) setActiveTab('edit');
+  }, [startInEditMode]);
+
+  const handleFieldChange = (field: keyof Word, value: any) => {
+    onUpdate({ ...word, [field]: value });
+  };
+
+  const handleTicketContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    window.electronAPI.showTicketContextMenu(word.id);
+  };
+
+  // Hooks must be called at the top level, not inside conditionals.
+  const descriptionRef = useRef<HTMLDivElement>(null);
+  const handleCopyDescription = () => {
+    if (descriptionRef.current) {
+      // To copy rich text, we need to use the Clipboard API with a Blob.
+      const html = descriptionRef.current.innerHTML;
+      const blob = new Blob([html], { type: 'text/html' });
+      const data = [new ClipboardItem({ 'text/html': blob })];
+
+      navigator.clipboard.write(data).then(() => {
+        setCopyStatus('Description copied!');
+      });
+    }
+  };
+
+  const tabContentRef = useRef<HTMLDivElement>(null);
+
+  const tabHeaders = (
+    <div className="tab-headers">
+      <button onClick={() => setActiveTab('ticket')} className={activeTab === 'ticket' ? 'active' : ''}>Ticket</button>
+      {!word.completedDuration && ( // Only show Edit tab for non-completed items
+        <button onClick={() => setActiveTab('edit')} className={activeTab === 'edit' ? 'active' : ''}>Edit</button>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="tab-container">
+      {tabHeaders}
+      <div className="tab-content" ref={tabContentRef}>
+        {activeTab === 'ticket' && (
+          <div className="ticket-display-view">
+            <h3 onContextMenu={handleTicketContextMenu}>{word.text}</h3>
+            <p><strong>URL:</strong> {word.url ? <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink(word.url); }}>{word.url}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); setCopyStatus('URL copied!'); }}>📋</button></span> : 'N/A'}</p>
+            <p><strong>Priority:</strong> {word.priority || 'Medium'}</p>
+            <p><strong>Open Date:</strong> {formatTimestamp(word.openDate)}</p>
+            <p><strong>Time Open:</strong> <TimeOpen startDate={word.openDate} /></p>
+            <p><strong>Complete By:</strong> {word.completeBy || 'N/A'}</p>
+            <p><strong>Company:</strong> {word.company ? <span className="link-with-copy">{word.company}<button className="copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); setCopyStatus('Company copied!'); }}>📋</button></span> : 'N/A'}</p>
+            <div><strong>Work Timer:</strong>
+              <ManualStopwatch word={word} onUpdate={(updatedWord) => onUpdate(updatedWord)} />
+            </div>
+            <p><strong>Website URL:</strong> {word.websiteUrl ? <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink(word.websiteUrl); }}>{word.websiteUrl}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.websiteUrl); setCopyStatus('Website URL copied!'); }}>📋</button></span> : 'N/A'}</p>
+            <div><strong>Image Links:</strong>
+              <div className="image-links-display">
+                {(word.imageLinks || []).map((link, index) => (
+                  <div key={index} className="image-link-item">
+                    <img src={link} alt={`Image ${index + 1}`} />
+                    <div className="image-link-actions">
+                      <button onClick={() => window.electronAPI.downloadImage(link)} title="Download Image">⬇️</button>
+                      <button onClick={() => { navigator.clipboard.writeText(link); setCopyStatus('Image URL copied!'); }} title="Copy URL">📋</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {tabHeaders}
+            <div className="description-container" onContextMenu={(e) => {
+              const target = e.target as HTMLElement;
+              // If the user right-clicks a link, show the link menu. Otherwise, show the ticket menu.
+              if (target.tagName === 'A') {
+                e.preventDefault();
+                e.stopPropagation();
+                const url = target.getAttribute('href');
+                if (url) window.electronAPI.send('show-link-context-menu', url);
+              } else {
+                handleTicketContextMenu(e);
+              }
+            }} onClick={(e) => { // Also handle left-clicks for links
+              const target = e.target as HTMLElement;
+              if (target.tagName === 'A') {
+                e.preventDefault();
+                const url = target.getAttribute('href');
+                if (url) window.electronAPI.openExternalLink(url);
+              }
+            }}>
+              <div className="description-header">
+                <strong>Description:</strong>
+                <button className="copy-btn" title="Copy Description Text" onClick={handleCopyDescription}>📋</button>
+              </div>
+              <div ref={descriptionRef} className="description-display" dangerouslySetInnerHTML={{ __html: word.description || 'N/A' }} />
+            </div>
+          </div>
+        )}
+        {activeTab === 'edit' && !word.completedDuration && (
+          <div className="word-item-details-form">
+            <label>Task Title:
+              <input type="text" value={word.text} onChange={(e) => handleFieldChange('text', e.target.value)} />
+            </label>
+            <label>Task Title URL:
+              <input type="text" value={word.url || ''} onChange={(e) => handleFieldChange('url', e.target.value)} placeholder="https://example.com" />
+            </label>
+            <label>Priority:
+              <select value={word.priority || 'Medium'} onChange={(e) => handleFieldChange('priority', e.target.value as any)}>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </label>
+            <label>Open Date:
+              <input type="date" value={new Date(word.openDate).toISOString().split('T')[0]} onChange={(e) => handleFieldChange('openDate', new Date(e.target.valueAsNumber).getTime())} />
+            </label>
+            <label>Complete By:
+              <div className="date-input-group">
+                <input type="date" value={word.completeBy || ''} onChange={(e) => handleFieldChange('completeBy', e.target.value)} />
+                <button onClick={() => handleFieldChange('completeBy', new Date().toISOString().split('T')[0])}>Today</button>
+                <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 3); handleFieldChange('completeBy', d.toISOString().split('T')[0]); }}>+3d</button>
+              </div>
+            </label>
+            <label>Company:
+              <input type="text" value={word.company || ''} onChange={(e) => handleFieldChange('company', e.target.value)} />
+            </label>
+            <label>Website URL:
+              <input type="text" value={word.websiteUrl || ''} onChange={(e) => handleFieldChange('websiteUrl', e.target.value)} placeholder="https://company.com" />
+            </label>
+            <label>Image Links:
+              {(word.imageLinks || []).map((link, index) => (
+                <div key={index} className="image-link-edit">
+                  <input type="text" value={link} onChange={(e) => {
+                    const newLinks = [...(word.imageLinks || [])];
+                    newLinks[index] = e.target.value;
+                    handleFieldChange('imageLinks', newLinks);
+                  }} />
+                  <button onClick={() => handleFieldChange('imageLinks', (word.imageLinks || []).filter((_, i) => i !== index))}>-</button>
+                </div>
+              ))}
+            </label>
+            <button className="add-link-btn" onClick={() => handleFieldChange('imageLinks', [...(word.imageLinks || []), ''])}>
+              + Add Image Link
+            </button>
+            {tabHeaders}
+            <label>Description:
+              <div className="rich-text-editor" contentEditable dangerouslySetInnerHTML={{ __html: word.description || '' }} onBlur={(e: React.FocusEvent<HTMLDivElement>) => handleFieldChange('description', e.target.innerHTML)} onKeyDown={handleRichTextKeyDown} />
+              <div className="shortcut-key">
+                <span>Shortcuts:</span>
+                <span><b>Ctrl+B</b>: Bold</span>
+                <span><i>Ctrl+I</i>: Italic</span>
+                <span><u>Ctrl+U</u>: Underline</span>
+                <span><b>Ctrl+K</b>: Link</span>
+                <span><b>Ctrl+L</b>: List</span>
+              </div>
+            </label>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TaskAccordion({ title, children, startOpen = false, word }: AccordionProps & { startOpen?: boolean, word: Word }) {
+  const [isOpen, setIsOpen] = useState(startOpen);
+  const [content, headerActions] = React.Children.toArray(children);
+
+  useEffect(() => {
+    // If the startOpen prop becomes true, force the accordion to open.
+    if (startOpen) setIsOpen(true);
+  }, [startOpen]);
+
+  return (
+    <div className="accordion">
+      <div className="accordion-header-container">
+        <div
+          className="accordion-header"
+          onClick={() => setIsOpen(!isOpen)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            window.electronAPI.showTicketContextMenu(word.id);
+          }}
+        >
+          <span className="accordion-icon">{isOpen ? '−' : '+'}</span>
+          <h4 className="accordion-title">{title}</h4>          
+        </div>
+        {headerActions}
+      </div>
+      {isOpen && <div className="accordion-content">{content}</div>}
+    </div>
+  );
+}
+
+function TimeOpen({ startDate }: { startDate: number }) {
+  const [timeOpen, setTimeOpen] = useState('');
+
+  useEffect(() => {
+    const update = () => {
+      const ms = Date.now() - startDate;
+      const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+      setTimeOpen(`${days}d ${hours}h ${minutes}m`);
+    };
+
+    update();
+    const interval = setInterval(update, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, [startDate]);
+
+  return <span>{timeOpen}</span>;
 }
 
 const formatTime = (ms: number) => {
@@ -135,6 +417,47 @@ function LiveClock() {
   );
 }
 
+function ManualStopwatch({ word, onUpdate }: { word: Word, onUpdate: (updatedWord: Word) => void }) {
+  const [displayTime, setDisplayTime] = useState(word.manualTime || 0);
+
+  useEffect(() => {
+    if (!word.manualTimeRunning) {
+      setDisplayTime(word.manualTime || 0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - (word.manualTimeStart || 0);
+      setDisplayTime((word.manualTime || 0) + elapsed);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [word.manualTimeRunning, word.manualTime, word.manualTimeStart]);
+
+  const handleToggle = () => {
+    if (word.manualTimeRunning) {
+      // Stopping
+      const elapsed = Date.now() - (word.manualTimeStart || 0);
+      onUpdate({ ...word, manualTime: (word.manualTime || 0) + elapsed, manualTimeRunning: false });
+    } else {
+      // Starting
+      onUpdate({ ...word, manualTimeStart: Date.now(), manualTimeRunning: true });
+    }
+  };
+
+  const handleReset = () => {
+    onUpdate({ ...word, manualTime: 0, manualTimeRunning: false, manualTimeStart: 0 });
+  };
+
+  return (
+    <div className="manual-stopwatch">
+      <span className="time-display">{formatTime(displayTime)}</span>
+      <button onClick={handleToggle} title={word.manualTimeRunning ? 'Stop Timer' : 'Start Timer'}>{word.manualTimeRunning ? '⏹️' : '▶️'}</button>
+      <button onClick={handleReset} title="Reset Timer">⟳</button>
+    </div>
+  );
+}
+
 const defaultSettings: Settings = {
   fontFamily: "Arial",
   fontColor: "#FFFFFF",
@@ -184,15 +507,27 @@ function App() {
   // State to track if there are unsaved changes
   const [isDirty, setIsDirty] = useState(false);
 
-  
-  const getFontSize = (index: number, total: number) => {
-    if (total <= 1) {
-      return settings.maxFontSize; // Only one word, make it the max size.
-    }
-    // This creates a linear scale from MAX_FONT_SIZE down to MIN_FONT_SIZE.
-    const size = settings.maxFontSize - (index / (total - 1)) * (settings.maxFontSize - settings.minFontSize);
-    return Math.round(size);
-  };
+  // State for the new detailed task form
+  const [editingViaContext, setEditingViaContext] = useState<number | null>(null);
+
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [selectionRange, setSelectionRange] = useState<Range | null>(null);
+
+
+  const [newTask, setNewTask] = useState({
+    text: '',
+    url: '',
+    priority: 'Medium' as 'High' | 'Medium' | 'Low',
+    openDate: new Date().toISOString().split('T')[0],
+    completeBy: new Date().toISOString().split('T')[0], // Default to today
+    company: '',
+    websiteUrl: '',
+    imageLinks: [],
+    manualTime: 0,
+    manualTimeRunning: false,
+    manualTimeStart: 0,
+    description: '',
+  });
 
   // Load words from localStorage on initial component mount
   useEffect(() => {
@@ -277,6 +612,88 @@ function App() {
     // Cleanup the listener when the component unmounts
     return cleanup;
   }, [words, completedWords, settings]); // Re-bind if state changes to send the latest version
+
+  // Effect to handle commands from the ticket context menu
+  useEffect(() => {
+    const handleMenuCommand = (_event: any, { command, wordId }: { command: string, wordId: number }) => {
+      const targetWord = words.find(w => w.id === wordId);
+      if (!targetWord) return;
+
+      switch (command) {
+        case 'edit':
+          // Set the ID of the word to be edited, which will trigger a re-render.
+          // We also need to ensure the accordion is open if it's not already.
+          // The `TaskAccordion` component's `startOpen` prop handles this.
+          setEditingViaContext(wordId);
+          break;
+        case 'complete':
+          handleCompleteWord(targetWord);
+          break;
+        case 'copy':
+          handleCopyTask(targetWord);
+          break;
+        case 'trash':
+          removeWord(wordId);
+          break;
+      }
+    };
+    const cleanup = window.electronAPI.on('context-menu-command', handleMenuCommand);
+    return cleanup;
+  }, [words]); // Dependency on words ensures the handler has the latest list
+
+  // Effect to reset the context menu editing state after it has been applied
+  useEffect(() => {
+    if (editingViaContext !== null) {
+      // Reset after a short delay to allow the UI to update
+      const timer = setTimeout(() => setEditingViaContext(null), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [editingViaContext]);
+
+  const handleConfirmLink = (url: string) => {
+    // Ensure the URL has a protocol, otherwise it will be treated as a relative path.
+    let fullUrl = url;
+    if (!/^https/i.test(fullUrl) && !/^http/i.test(fullUrl)) {
+      fullUrl = `https://${fullUrl}`;
+    }
+
+    if (selectionRange) {
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(selectionRange);
+      document.execCommand('createLink', false, fullUrl);
+    }
+  };
+
+  const handleRichTextKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.ctrlKey && e.key === 'k') {
+      e.preventDefault();
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        setSelectionRange(selection.getRangeAt(0));
+        setIsLinkModalOpen(true);
+      }
+    } else if (e.ctrlKey && e.key === 'l') {
+      e.preventDefault();
+      document.execCommand('insertUnorderedList', false, null);
+    } else if (e.ctrlKey && e.key === 'b') {
+      e.preventDefault();
+      document.execCommand('bold', false, null);
+    } else if (e.ctrlKey && e.key === 'b') {
+      e.preventDefault();
+      document.execCommand('bold', false, null);
+    }
+  };
+
+  const getFontSize = (index: number, total: number) => {
+    if (total <= 1) {
+      return settings.maxFontSize; // Only one word, make it the max size.
+    }
+    // This creates a linear scale from MAX_FONT_SIZE down to MIN_FONT_SIZE.
+    const size = settings.maxFontSize - (index / (total - 1)) * (settings.maxFontSize - settings.minFontSize);
+    return Math.round(size);
+  };
+
 
   // Effect to handle the Ctrl+S shortcut for saving
   useEffect(() => {
@@ -413,7 +830,7 @@ function App() {
   };
 
   const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter" && inputValue.trim() !== "") {
+    if (event.key === "Enter" && newTask.text.trim() !== "") {
       let x = 0, y = 0, width = 0, height = 0;
 
       // Only perform canvas-related calculations if in 'meme' view
@@ -425,7 +842,7 @@ function App() {
         const newWordIndex = words.length;
         const newFontSize = getFontSize(newWordIndex, newWordIndex + 1);
         context.font = `${newFontSize}px ${settings.fontFamily}`;
-        const metrics = context.measureText(inputValue.trim());
+        const metrics = context.measureText(newTask.text.trim());
         const newWordMetrics = { width: metrics.width, height: newFontSize };
 
         const pos = getNewWordPosition(canvas.width, canvas.height, newWordMetrics);
@@ -436,18 +853,40 @@ function App() {
       }
 
       const newWord: Word = {
+        ...newTask,
         id: Date.now(),
-        text: inputValue.trim(),
-        x,
+        text: newTask.text.trim(),
+        // Use the value from the form, or default to now if it's empty
+        openDate: newTask.openDate ? new Date(newTask.openDate + 'T00:00:00').getTime() : Date.now(),
+        x, 
         y,
+        manualTime: 0,
+        manualTimeRunning: false,
+        manualTimeStart: 0,
         width,
         height,
         createdAt: Date.now(),
         pausedDuration: 0,
       };
 
+      setCopyStatus('Task added!');
+      setTimeout(() => setCopyStatus(''), 2000);
       setWords((prevWords) => [...prevWords, newWord]);
-      setInputValue(""); // Clear the input field
+      // Reset the new task form
+      setNewTask({
+        text: '',
+        url: '',
+        priority: 'Medium',
+        openDate: new Date().toISOString().split('T')[0],
+        completeBy: new Date().toISOString().split('T')[0], // Reset to today
+        company: '',
+        websiteUrl: '',
+        manualTime: 0,
+        manualTimeRunning: false,
+        manualTimeStart: 0,
+        imageLinks: [],
+        description: '',
+      });
     }
   };
 
@@ -483,11 +922,15 @@ function App() {
 
   const handleClearAll = () => {
     setWords([]);
+    setCopyStatus('All open tasks cleared!');
+    setTimeout(() => setCopyStatus(''), 2000);
     setWordPlacementIndex(0); // Reset the placement index
   };
 
   const handleResetSettings = () => {
     setSettings(defaultSettings);
+    setCopyStatus('Settings have been reset!');
+    setTimeout(() => setCopyStatus(''), 2000);
   };
 
   const handleFontScaleChange = (scale: 'small' | 'medium' | 'large') => {
@@ -510,10 +953,14 @@ function App() {
     // Add to completed list and remove from active list
     setCompletedWords(prev => [completedWord, ...prev]);
     setWords(words.filter(word => word.id !== wordToComplete.id));
+    setCopyStatus('Task completed!');
+    setTimeout(() => setCopyStatus(''), 2000);
   };
 
   const handleClearCompleted = () => {
     setCompletedWords([]);
+    setCopyStatus('Completed list cleared!');
+    setTimeout(() => setCopyStatus(''), 2000);
   };
 
   const handleRandomizeLayout = () => {
@@ -610,6 +1057,11 @@ function App() {
         id: Date.now() + Math.random(), // Add random to avoid collision in fast loops
         text,
         x, y,
+        manualTime: 0,
+        manualTimeRunning: false,
+        manualTimeStart: 0,
+        imageLinks: [],
+        openDate: Date.now(),
         width,
         height,
         createdAt: Date.now(),
@@ -667,6 +1119,34 @@ function App() {
 
   const removeWord = (idToRemove: number) => {
     setWords(words.filter(word => word.id !== idToRemove));
+    setCopyStatus('Task removed.');
+    setTimeout(() => setCopyStatus(''), 2000);
+  };
+
+  const handleReopenTask = (taskToReopen: Word) => {
+    // Remove from completed list
+    setCompletedWords(completedWords.filter(w => w.id !== taskToReopen.id));
+
+    // Reset completion data and add to the top of the active list
+    const reopenedTask: Word = { ...taskToReopen, completedDuration: undefined };
+    setWords([reopenedTask, ...words]);
+
+    setCopyStatus('Task reopened!');
+    setTimeout(() => setCopyStatus(''), 2000);
+  };
+
+  const handleCopyTask = (taskToCopy: Word) => {
+    // Create a new task with a new ID and open date, but keep the content
+    const newTask: Word = {
+      ...taskToCopy,
+      id: Date.now(),
+      openDate: Date.now(),
+      createdAt: Date.now(),
+      completedDuration: undefined,
+    };
+    setWords([newTask, ...words]);
+    setCopyStatus('Task copied to active list!');
+    setTimeout(() => setCopyStatus(''), 2000);
   };
 
   const handleExport = () => {
@@ -788,8 +1268,13 @@ function App() {
     });
 
     if (clickedWord) {
-      const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(clickedWord.text)}`;
-      window.electronAPI.openExternalLink(searchUrl);
+      // Use the specific URL if it exists, otherwise fall back to Google search.
+      if (clickedWord.url) {
+        window.electronAPI.openExternalLink(clickedWord.url);
+      } else {
+        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(clickedWord.text)}`;
+        window.electronAPI.openExternalLink(searchUrl);
+      }
     }
   };
 
@@ -825,6 +1310,12 @@ function App() {
 
   return (
     <div className="app-container">
+      <LinkModal 
+        isOpen={isLinkModalOpen} 
+        onClose={() => setIsLinkModalOpen(false)} 
+        onConfirm={handleConfirmLink} 
+      />
+      {copyStatus && <div className="copy-status-toast">{copyStatus}</div>}
       <div className="main-content">
         <header className="app-header">
           <button onClick={() => setCurrentView('meme')} disabled={currentView === 'meme'}>Meme View</button>
@@ -850,12 +1341,14 @@ function App() {
           <div className="list-view-container">
             <div className="list-header">
               <h3>Priority List</h3>
-              <div className="list-header-actions">
-                <button onClick={handleClearAll} title="Clear All Words">⟳</button>
-                <button onClick={handleCopyList} title="Copy Open Tasks">Copy Open Tasks</button>
+              <div className="list-header-actions" onContextMenu={(e) => {
+                // Prevent context menu on the header actions themselves
+                e.stopPropagation();
+              }}>
+                <button onClick={handleClearAll} title="Clear All Words">🗑️</button>
+                <button onClick={handleCopyList} title="Copy Open Tasks">📋</button>
               </div>
             </div>
-            {copyStatus && <span className="copy-status">{copyStatus}</span>}
             <div className="priority-list-main">
               {words.map((word, index) => (
                 <div key={word.id} className="priority-list-item">
@@ -869,45 +1362,91 @@ function App() {
                       autoFocus
                     />
                   ) : (
-                    <div className="word-item-display">
-                      <span>{word.text}</span>
-                      <span className="stopwatch date-opened">
-                        Started at: {formatTimestamp(word.createdAt)}
-                      </span>
-                      <Stopwatch word={word} onTogglePause={handleTogglePause} />
-                    </div>
+                    <TaskAccordion
+                      word={word}
+                      startOpen={editingViaContext === word.id}
+                      title={
+                      <>
+                        <div className="accordion-main-title">{word.text}</div>
+                        <div className="accordion-subtitle">
+                          {word.company && <span>{word.company}</span>}
+                          <span>{formatTimestamp(word.openDate)}</span>
+                          <span className={`priority-indicator priority-${(word.priority || 'Medium').toLowerCase()}`}>
+                            <span className="priority-dot"></span>
+                            {word.priority || 'Medium'}
+                          </span>
+                        </div>
+                      </>
+                    }>
+                      {/* This first child is the 'content' for the accordion */}
+                      <>
+                        <TabbedView 
+                          startInEditMode={editingViaContext === word.id}
+                          word={word} 
+                          onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))}
+                          formatTimestamp={formatTimestamp}
+                          setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
+                          handleRichTextKeyDown={handleRichTextKeyDown}
+                        />
+                        <div className="word-item-display">
+                          <span className="stopwatch date-opened">
+                            Started at: {formatTimestamp(word.createdAt)}
+                          </span>
+                          <Stopwatch word={word} onTogglePause={handleTogglePause} />
+                        </div>
+                      </>
+                      {/* This second child is the 'headerActions' for the accordion */}
+                      <div className="list-item-controls">
+                        <button onClick={() => handleCompleteWord(word)} className="complete-btn">✓</button>
+                        <button onClick={() => handleEdit(word)}>Rename</button>
+                        <button onClick={() => moveWord(index, 'up')} disabled={index === 0}>↑</button>
+                        <button onClick={() => moveWord(index, 'down')} disabled={index === words.length - 1}>↓</button>
+                        <button onClick={() => removeWord(word.id)} className="remove-btn">×</button>
+                      </div>
+                    </TaskAccordion>
                   )}
-                  <div className="list-item-controls">
-                    <button onClick={() => handleCompleteWord(word)} className="complete-btn">✓</button>
-                    <button onClick={() => handleEdit(word)}>Edit</button>
-                    <button onClick={() => moveWord(index, 'up')} disabled={index === 0}>↑</button>
-                    <button onClick={() => moveWord(index, 'down')} disabled={index === words.length - 1}>↓</button>
-                    <button onClick={() => removeWord(word.id)} className="remove-btn">×</button>
-                  </div>
                 </div>
               ))}
             </div>
-            <Accordion title="Completed Items">
+            <SimpleAccordion title="Completed Items">
               <div className="completed-actions">
-                <button onClick={handleClearCompleted}>Clear Completed List</button>
-                <button onClick={handleCopyReport}>Copy Report</button>
+                <button onClick={handleClearCompleted} title="Clear Completed List">🗑️</button>
+                <button onClick={handleCopyReport} title="Copy Report">📋</button>
               </div>
-              <div className="priority-list">
-                {completedWords.map((word) => (
-                  <div key={word.id} className="priority-list-item completed-item">
-                    <div className="word-item-display">
-                      <span>{word.text}</span>
-                      <span className="stopwatch date-opened">
-                        Date Opened: {formatTimestamp(word.createdAt)}
-                      </span>
-                      <span className="stopwatch">
-                        Completed in: {formatTime(word.completedDuration ?? 0)}
-                      </span>
+              <div className="priority-list-main">
+                {completedWords.map((word) => {
+                  const title = (
+                    <>
+                      <div className="accordion-main-title">{word.text}</div>
+                      <div className="accordion-subtitle">
+                        {word.company && <span>{word.company}</span>}
+                        <span>{formatTimestamp(word.openDate)}</span>
+                        <span>Completed in: {formatTime(word.completedDuration ?? 0)}</span>
+                      </div>
+                    </>
+                  );
+                  return (
+                    <div key={word.id} className="priority-list-item completed-item">
+                      <TaskAccordion word={word} title={title} startOpen={false}>
+                        {/* This first child is the 'content' for the accordion */}
+                        <TabbedView 
+                          word={word} 
+                          onUpdate={() => {}} // No updates for completed items
+                          formatTimestamp={formatTimestamp}
+                          setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
+                          handleRichTextKeyDown={() => {}} // Pass a no-op for completed items
+                        />
+                        {/* This second child is the 'headerActions' for the accordion */}
+                        <div className="list-item-controls">
+                          <button onClick={() => handleReopenTask(word)} title="Reopen Task">↩️</button>
+                          <button onClick={() => handleCopyTask(word)} title="Copy Task">📋</button>
+                        </div>
+                      </TaskAccordion>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            </Accordion>
+            </SimpleAccordion>
           </div>
         )}
       </div>
@@ -919,13 +1458,73 @@ function App() {
         >
           {isDirty ? 'Save Project (Unsaved)' : 'Project Saved'}
         </button>
-        <input
-          type="text"
-          placeholder="Enter a word and press Enter"
-          value={inputValue}
-          onChange={handleInputChange}
-          onKeyDown={handleInputKeyDown}
-        />
+        <SimpleAccordion title="Add New Task">
+          <div className="new-task-form">
+            <label>Task Title:
+              <input type="text" placeholder="Enter a title and press Enter" value={newTask.text} onChange={(e) => setNewTask({ ...newTask, text: e.target.value })} onKeyDown={handleInputKeyDown} />
+            </label>
+            <label>URL:
+              <input type="text" placeholder="https://example.com" value={newTask.url} onChange={(e) => setNewTask({ ...newTask, url: e.target.value })} />
+            </label>
+            <label>Priority:
+              <select value={newTask.priority} onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as any })}>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </label>
+            <label>Open Date:
+              <input type="date" value={newTask.openDate} onChange={(e) => setNewTask({ ...newTask, openDate: e.target.value })} />
+            </label>
+            <label>Complete By:
+              <div className="date-input-group">
+                <input type="date" value={newTask.completeBy} onChange={(e) => setNewTask({ ...newTask, completeBy: e.target.value })} />
+                <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().toISOString().split('T')[0] })}>Today</button>
+                <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 3); setNewTask({ ...newTask, completeBy: d.toISOString().split('T')[0] }); }}>+3d</button>
+              </div>
+            </label>
+            <label>Company:
+              <input type="text" value={newTask.company} onChange={(e) => setNewTask({ ...newTask, company: e.target.value })} />
+            </label>
+            <label>Website URL:
+              <input type="text" placeholder="https://company.com" value={newTask.websiteUrl} onChange={(e) => setNewTask({ ...newTask, websiteUrl: e.target.value })} />
+            </label>
+            <label>Image Links:
+              {(newTask.imageLinks || []).map((link, index) => (
+                <div key={index} className="image-link-edit">
+                  <input type="text" value={link} onChange={(e) => {
+                    const newLinks = [...(newTask.imageLinks || [])];
+                    newLinks[index] = e.target.value;
+                    setNewTask({ ...newTask, imageLinks: newLinks });
+                  }} />
+                  <button onClick={() => setNewTask({ ...newTask, imageLinks: (newTask.imageLinks || []).filter((_, i) => i !== index) })}>-</button>
+                </div>
+              ))}
+              <button className="add-link-btn" onClick={() => setNewTask({ ...newTask, imageLinks: [...(newTask.imageLinks || []), ''] })}>
+                + Add Image Link
+              </button>
+            </label>
+            <label>Description:
+              <div 
+                className="rich-text-editor" 
+                contentEditable 
+                onBlur={(e: React.FocusEvent<HTMLDivElement>) => setNewTask({ ...newTask, description: e.target.innerHTML })} onKeyDown={handleRichTextKeyDown}
+              />
+              <div className="shortcut-key">
+                <span>Shortcuts:</span>
+                <span><b>Ctrl+B</b>: Bold</span>
+                <span><i>Ctrl+I</i>: Italic</span>
+                <span><u>Ctrl+U</u>: Underline</span>
+                <span><b>Ctrl+K</b>: Link</span>
+                <span><b>Ctrl+L</b>: List</span>
+              </div>
+            </label>
+            <button onClick={() => handleInputKeyDown({ key: 'Enter' } as React.KeyboardEvent<HTMLInputElement>)}>
+              Add Task
+            </button>
+          </div>
+        </SimpleAccordion>
+
         {/* Moved Bulk Add and Project Actions to be globally available */}
         <div className="bulk-add-container">
           <textarea
@@ -936,16 +1535,16 @@ function App() {
           />
           <button onClick={handleBulkAdd}>Add Words</button>
         </div>
-        <Accordion title="Project Actions">
+        <SimpleAccordion title="Project Actions">
           <button onClick={handleExport}>Export Project</button>
           <button onClick={handleImport}>Import Project</button>
-        </Accordion>
+        </SimpleAccordion>
 
         {currentView === 'meme' && (
           <>
             <h2>Settings</h2>
             <button onClick={handleResetSettings}>Reset All Settings</button>
-            <Accordion title="Overlay Settings">
+            <SimpleAccordion title="Overlay Settings">
               <label className="checkbox-label">
                 <input type="checkbox" checked={settings.isOverlayEnabled} onChange={(e) => setSettings(prev => ({ ...prev, isOverlayEnabled: e.target.checked }))} />
                 Enable Overlay
@@ -969,8 +1568,8 @@ function App() {
                   </label>
                 </>
               )}
-            </Accordion>
-            <Accordion title="General Settings">
+            </SimpleAccordion>
+            <SimpleAccordion title="General Settings">
               <label>
                 Font Family:
                 <input
@@ -996,9 +1595,9 @@ function App() {
                 Enable Debug Mode
               </label>
               <button onClick={handleSaveImage}>Save Image</button>
-            </Accordion>
+            </SimpleAccordion>
 
-            <Accordion title="Shadow Settings">
+            <SimpleAccordion title="Shadow Settings">
               <button onClick={applyDefaultShadow}>Apply Default Shadow</button>
               <button onClick={resetShadow}>Reset Shadow</button>
               <label>
@@ -1029,7 +1628,7 @@ function App() {
                 Offset Y: {settings.shadowOffsetY}px
                 <input type="range" min="-50" max="50" value={settings.shadowOffsetY} onChange={(e) => setSettings(prev => ({ ...prev, shadowOffsetY: Number(e.target.value) }))} />
               </label>
-            </Accordion>
+            </SimpleAccordion>
           </>
         )}
       </div>

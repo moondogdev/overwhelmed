@@ -15,7 +15,7 @@ A small desktop app that creates a word cloud around a 640x640 image.
 
 1.  **Launch the App**: Open the `Overwhelmed` application.
 2.  **Add Text**: Type a word or phrase into the input field and press Enter. The text will appear in the word cloud and be added to the priority list.
-3.  **Adjust Text Size**: Drag and drop items in the priority list to change their order and, consequently, their size in the word cloud.
+3.  **Adjust Text Size**: Use the up and down arrows next to each item in the priority list to change its order and, consequently, its size in the word cloud.
 4.  **Customize**: Use the settings menu to change the font and color of the text.
 5.  **Search**: Click on any word in the word cloud to perform a Google search.
 
@@ -23,5 +23,19 @@ A small desktop app that creates a word cloud around a 640x640 image.
 
 -   An image rendering library to display the 640x640 image.
 -   A text rendering library to draw text layers on top of the image.
--   A library for handling user input, such as a text field and a draggable list.
+-   A library for handling user input, such as a text field and an interactive list.
 -   A way to interact with the system's default browser to open new search queries.
+
+# Advanced Task Manager & UI Polish
+
+## Feature Implementation
+The application has been significantly enhanced, evolving from a simple word list into a detailed task manager.
+-   **Detailed Forms**: Implemented forms for adding and editing tasks with fields for URLs, priority, company, due dates, image links, and a description.
+-   **Rich Text Editor**: The description field was upgraded to support rich text (HTML), with WYSIWYG shortcuts for bold, italic, underline, lists, and creating hyperlinks (`Ctrl+K`).
+-   **Tabbed View**: A tabbed interface was created to separate the read-only "Ticket" view from the "Edit" form, preventing accidental changes and improving UI clarity.
+-   **Task Actions**: A full suite of actions was added, including completing, reopening, copying, and deleting tasks, accessible via buttons and a right-click context menu.
+
+## Bug Fixes & Refinements
+-   **Context Menu Logic**: A persistent bug where the ticket action context menu would not appear was resolved. The issue was caused by an event propagation conflict between a parent listener (for the ticket) and a child listener (for hyperlinks within the description). The final solution involved simplifying the event handling to ensure the correct menu appears based on the right-click target.
+-   **State Management for Edit Mode**: Fixed a bug where the "Edit Ticket" context menu option would not work reliably. This was due to React's `useState` initializer only running on the first render. The fix involved adding a `useEffect` hook to the `TaskAccordion` and `TabbedView` components, allowing them to react to prop changes and programmatically open or switch to the edit state.
+-   **UI Consistency**: Refined the UI by replacing text buttons with icons, unifying the appearance of the active and completed task lists, and implementing non-intrusive toast notifications for user feedback.
