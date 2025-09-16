@@ -1,7 +1,12 @@
-import type { Configuration } from 'webpack';
-import ForkTsCheckerWebpackPlugin from 'fork-ts-checker-webpack-plugin';
+const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 
-export const rendererConfig: Configuration = {
+const rendererConfig = {
+  // Add these two properties
+  entry: './src/renderer.tsx',
+  output: {
+    filename: 'renderer.js',
+    path: __dirname + '/.webpack/renderer',
+  },
   module: {
     rules: [
       {
@@ -38,4 +43,9 @@ export const rendererConfig: Configuration = {
     extensions: ['.js', '.ts', '.jsx', '.tsx', '.css'],
   },
   target: 'web',
-};
+  devServer: {
+    port: 3000,
+  },
+}
+
+export = { rendererConfig };

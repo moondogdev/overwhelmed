@@ -15,4 +15,4 @@ All notable changes to this project will be documented in this file.
 -   **Draggable Priority List**: Implemented a draggable list for word priorities using `react-beautiful-dnd`. Reordering the list dynamically updates word sizes on the canvas.
 
 ### Fixed
--   **Build System Overhaul**: Resolved numerous build and configuration issues by updating Webpack configs, aligning Electron Forge package versions, and ensuring all necessary loaders and plugins are correctly configured. This stabilized the development environment after a significant debugging effort.
+-   **Build System Overhaul**: Resolved a complex and persistent build loop involving conflicting TypeScript module configurations (`Cannot redeclare block-scoped variable` vs. `module is not defined`). The final solution involved renaming configuration files to `.cts` to enforce CommonJS module resolution, correcting `require` paths, and aligning all `@electron-forge` package versions in `package.json`. This stabilized the development environment and resolved the final `ERR_CONNECTION_REFUSED` white screen issue.

@@ -3,23 +3,26 @@
     "target": "ES6",
     "jsx": "react-jsx",
     "allowJs": true,
-    "module": "commonjs",
+    "module": "ESNext",
     "skipLibCheck": true,
     "esModuleInterop": true,
     "noImplicitAny": true,
     "sourceMap": true,
     "baseUrl": ".",
     "outDir": "dist",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "paths": {
       "*": ["node_modules/*"]
     }
   },
   "include": [
-    "src/**/*",
-    "webpack.main.config.ts",
-    "webpack.renderer.config.ts",
-    "forge.config.ts"
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "forge.config.cts",
+    "webpack.main.config.cts",
+    "webpack.renderer.config.cts"
   ]
 }
