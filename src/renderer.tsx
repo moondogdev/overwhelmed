@@ -1,6 +1,6 @@
 /// <reference path="./declarations.d.ts" />
-import React, { useRef, useEffect, useState } from "react";
-import { createRoot } from "react-dom/client";
+import React, { useRef, useEffect, useState } from 'react';
+import { createRoot } from 'react-dom/client';
 import "./index.css";
 // Import the placeholder image
 import placeholderImage from "./assets/placeholder-image.jpg";
@@ -13,6 +13,11 @@ declare global {
     importProject: () => Promise<string | null>;
     openExternalLink: (url: string) => void;
     showContextMenu: () => void;
+    getStoreValue: (key: string) => Promise<any>;
+    setStoreValue: (key: string, value: any) => void;
+    send: (channel: string) => void;
+    on: (channel: string, callback: (...args: any[]) => void) => (() => void) | undefined;
+    notifyDirtyState: (isDirty: boolean) => void;
   } }
 }
 
@@ -174,6 +179,8 @@ function App() {
   const [copyStatus, setCopyStatus] = useState('');
   // Ref to track if the initial load is complete to prevent overwriting saved data
   const isInitialLoad = useRef(true);
+  // State to track if there are unsaved changes
+  const [isDirty, setIsDirty] = useState(false);
 
   
   const getFontSize = (index: number, total: number) => {
@@ -187,39 +194,71 @@ function App() {
 
   // Load words from localStorage on initial component mount
   useEffect(() => {
-    try {
-      const savedWords = localStorage.getItem('overwhelmed-words');
-      const savedCompletedWords = localStorage.getItem('overwhelmed-completed-words');
-      const savedSettings = localStorage.getItem('overwhelmed-settings');
-      if (savedWords) {
-        setWords(JSON.parse(savedWords));
+    const loadDataFromStore = async () => {
+      try {
+        const savedWords = await window.electronAPI.getStoreValue('overwhelmed-words');
+        const savedCompletedWords = await window.electronAPI.getStoreValue('overwhelmed-completed-words');
+        const savedSettings = await window.electronAPI.getStoreValue('overwhelmed-settings');
+
+        if (savedWords) setWords(savedWords);
+        if (savedCompletedWords) setCompletedWords(savedCompletedWords);
+        if (savedSettings) {
+          setSettings(prevSettings => ({ ...prevSettings, ...savedSettings }));
+        }
+      } catch (error) {
+        console.error("Failed to load data from electron-store", error);
       }
-      if (savedCompletedWords) {
-        setCompletedWords(JSON.parse(savedCompletedWords));
-      }
-      if (savedSettings) {
-        // Merge with default settings to ensure new settings are not missed
-        setSettings(prevSettings => ({ ...prevSettings, ...JSON.parse(savedSettings) }));
-      }
-    } catch (error) {
-      console.error("Failed to load data from localStorage", error);
-    }
+    };
+    loadDataFromStore();
+    isInitialLoad.current = false; // Mark initial load as complete
   }, []); // Empty dependency array means this runs only once
+
+  // Effect to notify the main process whenever the dirty state changes
+  useEffect(() => {
+    window.electronAPI.notifyDirtyState(isDirty);
+  }, [isDirty]);
 
   // Save words to localStorage whenever the words array changes
   useEffect(() => {
-    localStorage.setItem('overwhelmed-words', JSON.stringify(words));
+    if (!isInitialLoad.current) setIsDirty(true); // Don't mark as dirty on initial load
   }, [words]);
 
   // Save completed words to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem('overwhelmed-completed-words', JSON.stringify(completedWords));
+    if (!isInitialLoad.current) setIsDirty(true); // Don't mark as dirty on initial load
   }, [completedWords]);
 
   // Save settings to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem('overwhelmed-settings', JSON.stringify(settings));
+    if (!isInitialLoad.current) setIsDirty(true); // Don't mark as dirty on initial load
   }, [settings]);
+
+  // Effect to handle different shutdown signals from the main process
+  useEffect(() => {
+    // This handles the new "Save and Quit" dialog option.
+    const handleSaveAndShutdown = () => {
+      // The useEffect hooks for saving will have already fired.
+      // We just need to tell the main process it's safe to quit.
+      window.electronAPI.send('saved-and-ready-to-shutdown');
+    };
+
+    const cleanup = window.electronAPI.on('save-and-shutdown', handleSaveAndShutdown);
+    // Cleanup the listener when the component unmounts
+    return cleanup;
+  }, []);
+
+  // Effect to handle the Ctrl+S shortcut for saving
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key === 's') {
+        event.preventDefault(); // Prevent the browser's default save action
+        handleSaveProject();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []); // Empty dependency array ensures this runs only once
 
   // This single effect handles all canvas drawing and updates when `words` changes.
   useEffect(() => {
@@ -294,7 +333,7 @@ function App() {
     if (image.complete) {
       redrawCanvas(image);
     }
-  }, [words, settings, wordPlacementIndex, hoveredWordId]); // Redraw when words, settings, or hover state change
+  }, [words, settings, wordPlacementIndex, hoveredWordId, currentView]); // Redraw when words, settings, or hover state change
   
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(event.target.value);
@@ -344,38 +383,39 @@ function App() {
 
   const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter" && inputValue.trim() !== "") {
-      const canvas = canvasRef.current;
-      const context = canvas?.getContext("2d");
-      if (!canvas || !context) return;
+      let x = 0, y = 0, width = 0, height = 0;
 
-      // --- New logic starts here ---
-      // 1. Determine the font size of the new word before placing it.
-      const newWordIndex = words.length;
-      const newFontSize = getFontSize(newWordIndex, newWordIndex + 1);
-      context.font = `${newFontSize}px ${settings.fontFamily}`;
+      // Only perform canvas-related calculations if in 'meme' view
+      if (currentView === 'meme') {
+        const canvas = canvasRef.current;
+        const context = canvas?.getContext("2d");
+        if (!canvas || !context) return; // Still need this guard for meme view
 
-      // 2. Measure the new word's dimensions.
-      const metrics = context.measureText(inputValue.trim());
-      const newWordMetrics = { width: metrics.width, height: newFontSize };
+        const newWordIndex = words.length;
+        const newFontSize = getFontSize(newWordIndex, newWordIndex + 1);
+        context.font = `${newFontSize}px ${settings.fontFamily}`;
+        const metrics = context.measureText(inputValue.trim());
+        const newWordMetrics = { width: metrics.width, height: newFontSize };
 
-      // 3. Find a non-colliding position.
-      const { x, y } = getNewWordPosition(canvas.width, canvas.height, newWordMetrics);
+        const pos = getNewWordPosition(canvas.width, canvas.height, newWordMetrics);
+        x = pos.x;
+        y = pos.y;
+        width = newWordMetrics.width;
+        height = newWordMetrics.height;
+      }
 
-      // 4. Create the new word object with all its data.
       const newWord: Word = {
         id: Date.now(),
         text: inputValue.trim(),
         x,
         y,
-        width: newWordMetrics.width,
-        height: newWordMetrics.height,
+        width,
+        height,
         createdAt: Date.now(),
         pausedDuration: 0,
       };
 
-      // 5. Update state.
       setWords((prevWords) => [...prevWords, newWord]);
-      setWordPlacementIndex(prevIndex => prevIndex + 1); // Increment for the next word
       setInputValue(""); // Clear the input field
     }
   };
@@ -620,6 +660,19 @@ function App() {
     }
   };
 
+  const handleSaveProject = () => {
+    // The useEffect hooks handle saving automatically when state changes.
+    // This function's job is to manually trigger a save of the current state and then mark it as clean.
+    window.electronAPI.setStoreValue('overwhelmed-words', words);
+    window.electronAPI.setStoreValue('overwhelmed-completed-words', completedWords);
+    window.electronAPI.setStoreValue('overwhelmed-settings', settings);
+    
+    setIsDirty(false); // Mark the state as clean/saved
+
+    setCopyStatus('Project saved!');
+    setTimeout(() => setCopyStatus(''), 2000); // Clear message after 2 seconds
+  };
+
   const moveWord = (index: number, direction: 'up' | 'down') => {
     if ((direction === 'up' && index === 0) || (direction === 'down' && index === words.length - 1)) {
       return; // Can't move further
@@ -805,6 +858,12 @@ function App() {
         )}
       </div>
       <div className="sidebar">
+        <button
+          onClick={handleSaveProject}
+          className={`dynamic-save-button ${isDirty ? 'unsaved' : 'saved'}`}
+        >
+          {isDirty ? 'Save Project (Unsaved)' : 'Project Saved'}
+        </button>
         <input
           type="text"
           placeholder="Enter a word and press Enter"
