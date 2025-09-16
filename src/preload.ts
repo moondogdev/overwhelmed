@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveFile: (dataUrl: string) => ipcRenderer.invoke('dialog:saveFile', dataUrl),
   exportProject: (data: string) => ipcRenderer.invoke('dialog:exportProject', data),
   importProject: () => ipcRenderer.invoke('dialog:importProject'),
-  openExternalLink: (url: string) => ipcRenderer.send('open-external-link', url),
+  openExternalLink: (payload: { url: string, browserPath?: string }) => ipcRenderer.send('open-external-link', payload),
   showContextMenu: () => ipcRenderer.send('show-context-menu'),
   getStoreValue: (key: string) => ipcRenderer.invoke('electron-store-get', key),
   setStoreValue: (key: string, value: any) => ipcRenderer.invoke('electron-store-set', key, value),

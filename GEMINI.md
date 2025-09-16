@@ -39,3 +39,8 @@ The application has been significantly enhanced, evolving from a simple word lis
 -   **Context Menu Logic**: A persistent bug where the ticket action context menu would not appear was resolved. The issue was caused by an event propagation conflict between a parent listener (for the ticket) and a child listener (for hyperlinks within the description). The final solution involved simplifying the event handling to ensure the correct menu appears based on the right-click target.
 -   **State Management for Edit Mode**: Fixed a bug where the "Edit Ticket" context menu option would not work reliably. This was due to React's `useState` initializer only running on the first render. The fix involved adding a `useEffect` hook to the `TaskAccordion` and `TabbedView` components, allowing them to react to prop changes and programmatically open or switch to the edit state.
 -   **UI Consistency**: Refined the UI by replacing text buttons with icons, unifying the appearance of the active and completed task lists, and implementing non-intrusive toast notifications for user feedback.
+
+## Future Features
+-   **Comments/Notes**: Add a dedicated section within each ticket for ongoing comments or notes.
+-   **Categories**: Implement a categorization system for tickets (e.g., work, personal, life, other) to allow for better organization and filtering.
+-   **User Assignment**: Add a feature to create users and assign tickets to them, with the ability to filter the list to view tickets assigned to a specific user.

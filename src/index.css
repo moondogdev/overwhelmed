@@ -34,6 +34,19 @@ body {
   justify-content: space-between;
   align-items: center;
 }
+.header-center-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.current-browser-display {
+  font-size: 0.8em;
+  color: #aaa;
+  background-color: #21252b;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
 .live-clock {
   color: #aaa;
   /* The clock will now naturally sit in the middle
@@ -88,6 +101,9 @@ body {
   border-left: 1px solid #444;
   display: flex;
   flex-direction: column;
+  max-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: scroll;
 }
 .sidebar h2, .sidebar h3 {
   margin-top: 0;
@@ -96,7 +112,7 @@ body {
 .sidebar input {
   width: 100%;
   padding: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 0;
   box-sizing: border-box; /* Ensures padding doesn't affect width */
 }
 
@@ -114,7 +130,7 @@ body {
 .sidebar label {
   display: flex;
   flex-direction: column;
-  margin-bottom: 15px;
+  margin-bottom: 10px;
 }
 
 .date-input-group {
@@ -129,7 +145,8 @@ body {
 }
 
 .sidebar label input {
-  margin-top: 5px;
+  margin-top: 0;
+  margin-bottom: 10px;
 }
 
 .sidebar button {
@@ -228,13 +245,21 @@ body {
 .priority-low { color: #61dafb; }
 
 .accordion-content {
-  padding: 15px 5px;
+  padding: 0;
 }
 
 .new-task-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
+}
+.new-task-form select {
+  padding: 8px;
+  margin-bottom: 10px;
+}
+
+.new-task-form label {
+  margin-bottom: 0; /* Reduce the bottom margin for a tighter layout */
 }
 
 .tab-container {
@@ -519,6 +544,11 @@ body {
   font-size: 0.9em;
 }
 
+.word-item-details-form label h4,
+.new-task-form label h4 {
+  margin: 0 0 5px 0;
+  font-weight: normal;
+}
 .rich-text-editor {
   background-color: #3a3f4b;
   border: 1px solid #555;
@@ -633,4 +663,11 @@ body {
   width: auto; /* Let icon buttons size to content */
   margin-bottom: 0;
   font-size: 1.1em;
+}
+
+.browser-setting-item {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 5px;
+  align-items: center;
 }

@@ -11,7 +11,7 @@ declare global {
     saveFile: (dataUrl: string) => Promise<void>;
     exportProject: (data: string) => Promise<void>;
     importProject: () => Promise<string | null>;
-    openExternalLink: (url: string) => void;
+    openExternalLink: (payload: { url: string, browserPath?: string }) => void;
     showContextMenu: () => void;
     getStoreValue: (key: string) => Promise<any>;
     setStoreValue: (key: string, value: any) => Promise<void>;
@@ -50,6 +50,11 @@ interface Word {
   manualTimeStart?: number; // Timestamp when manual timer was started
 }
 
+interface Browser {
+  name: string;
+  path: string;
+}
+
 interface Settings {
   fontFamily: string;
   fontColor: string;
@@ -63,6 +68,9 @@ interface Settings {
   isDebugModeEnabled: boolean;
   minFontSize: number;
   maxFontSize: number;
+  browsers: Browser[];
+  activeBrowserIndex: number;
+  currentView: 'meme' | 'list';
 }
 
 
@@ -77,6 +85,7 @@ interface TabbedViewProps {
   formatTimestamp: (ts: number) => string;
   setCopyStatus: (message: string) => void;
   handleRichTextKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
+  settings: Settings; // Pass down settings for browser selection
   startInEditMode?: boolean;
 }
 
@@ -137,7 +146,7 @@ function LinkModal({ isOpen, onClose, onConfirm }: LinkModalProps) {
   );
 }
 
-function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRichTextKeyDown, startInEditMode = false }: TabbedViewProps) {
+function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRichTextKeyDown, settings, startInEditMode = false }: TabbedViewProps) {
   const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(word.completedDuration ? 'ticket' : 'ticket'); // Default to ticket view
 
   useEffect(() => {
@@ -187,7 +196,7 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
         {activeTab === 'ticket' && (
           <div className="ticket-display-view">
             <h3 onContextMenu={handleTicketContextMenu}>{word.text}</h3>
-            <p><strong>URL:</strong> {word.url ? <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink(word.url); }}>{word.url}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); setCopyStatus('URL copied!'); }}>📋</button></span> : 'N/A'}</p>
+            <p><strong>URL:</strong> {word.url ? <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.url}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); setCopyStatus('URL copied!'); }}>📋</button></span> : 'N/A'}</p>
             <p><strong>Priority:</strong> {word.priority || 'Medium'}</p>
             <p><strong>Open Date:</strong> {formatTimestamp(word.openDate)}</p>
             <p><strong>Time Open:</strong> <TimeOpen startDate={word.openDate} /></p>
@@ -196,7 +205,7 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
             <div><strong>Work Timer:</strong>
               <ManualStopwatch word={word} onUpdate={(updatedWord) => onUpdate(updatedWord)} />
             </div>
-            <p><strong>Website URL:</strong> {word.websiteUrl ? <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink(word.websiteUrl); }}>{word.websiteUrl}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.websiteUrl); setCopyStatus('Website URL copied!'); }}>📋</button></span> : 'N/A'}</p>
+            <p><strong>Website URL:</strong> {word.websiteUrl ? <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.websiteUrl, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.websiteUrl}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.websiteUrl); setCopyStatus('Website URL copied!'); }}>📋</button></span> : 'N/A'}</p>
             <div><strong>Image Links:</strong>
               <div className="image-links-display">
                 {(word.imageLinks || []).map((link, index) => (
@@ -227,10 +236,10 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
               if (target.tagName === 'A') {
                 e.preventDefault();
                 const url = target.getAttribute('href');
-                if (url) window.electronAPI.openExternalLink(url);
+                if (url) window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
               }
             }}>
-              <div className="description-header">
+              <div className="description-header" onContextMenu={handleTicketContextMenu}>
                 <strong>Description:</strong>
                 <button className="copy-btn" title="Copy Description Text" onClick={handleCopyDescription}>📋</button>
               </div>
@@ -240,36 +249,38 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
         )}
         {activeTab === 'edit' && !word.completedDuration && (
           <div className="word-item-details-form">
-            <label>Task Title:
+            <label><h4>Task Title:</h4>
               <input type="text" value={word.text} onChange={(e) => handleFieldChange('text', e.target.value)} />
             </label>
-            <label>Task Title URL:
+            <label><h4>Task Title URL:</h4>
               <input type="text" value={word.url || ''} onChange={(e) => handleFieldChange('url', e.target.value)} placeholder="https://example.com" />
             </label>
-            <label>Priority:
+            <label><h4>Priority:</h4>
               <select value={word.priority || 'Medium'} onChange={(e) => handleFieldChange('priority', e.target.value as any)}>
                 <option value="High">High</option>
                 <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
               </select>
             </label>
-            <label>Open Date:
+            <label><h4>Open Date:</h4>
               <input type="date" value={new Date(word.openDate).toISOString().split('T')[0]} onChange={(e) => handleFieldChange('openDate', new Date(e.target.valueAsNumber).getTime())} />
             </label>
-            <label>Complete By:
+            <label><h4>Complete By:</h4>
               <div className="date-input-group">
                 <input type="date" value={word.completeBy || ''} onChange={(e) => handleFieldChange('completeBy', e.target.value)} />
-                <button onClick={() => handleFieldChange('completeBy', new Date().toISOString().split('T')[0])}>Today</button>
-                <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 3); handleFieldChange('completeBy', d.toISOString().split('T')[0]); }}>+3d</button>
+                <div className="date-input-group-actions">
+                  <button onClick={() => handleFieldChange('completeBy', new Date().toISOString().split('T')[0])}>Today</button>
+                  <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 3); handleFieldChange('completeBy', d.toISOString().split('T')[0]); }}>+3d</button>
+                </div>
               </div>
             </label>
-            <label>Company:
+            <label><h4>Company:</h4>
               <input type="text" value={word.company || ''} onChange={(e) => handleFieldChange('company', e.target.value)} />
             </label>
-            <label>Website URL:
+            <label><h4>Website URL:</h4>
               <input type="text" value={word.websiteUrl || ''} onChange={(e) => handleFieldChange('websiteUrl', e.target.value)} placeholder="https://company.com" />
             </label>
-            <label>Image Links:
+            <label><h4>Image Links:</h4>
               {(word.imageLinks || []).map((link, index) => (
                 <div key={index} className="image-link-edit">
                   <input type="text" value={link} onChange={(e) => {
@@ -285,7 +296,7 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
               + Add Image Link
             </button>
             {tabHeaders}
-            <label>Description:
+            <label><h4>Description:</h4>
               <div className="rich-text-editor" contentEditable dangerouslySetInnerHTML={{ __html: word.description || '' }} onBlur={(e: React.FocusEvent<HTMLDivElement>) => handleFieldChange('description', e.target.innerHTML)} onKeyDown={handleRichTextKeyDown} />
               <div className="shortcut-key">
                 <span>Shortcuts:</span>
@@ -471,6 +482,12 @@ const defaultSettings: Settings = {
   isDebugModeEnabled: false,
   minFontSize: 20,
   maxFontSize: 80,
+  browsers: [
+    { name: 'Default', path: '' },
+    { name: 'Chrome', path: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' },
+  ],
+  activeBrowserIndex: 0,
+  currentView: 'meme',
 };
 
 function App() {
@@ -496,8 +513,6 @@ function App() {
   const [bulkAddText, setBulkAddText] = useState("");
   // State for hover effects
   const [hoveredWordId, setHoveredWordId] = useState<number | null>(null);
-  // State for the current view
-  const [currentView, setCurrentView] = useState<'meme' | 'list'>('meme');
   // State for copy feedback
   const [copyStatus, setCopyStatus] = useState('');
   // Ref to track if the initial load is complete to prevent overwriting saved data
@@ -685,6 +700,21 @@ function App() {
     }
   };
 
+  // Effect to handle browser toggle hotkey
+  useEffect(() => {
+    const handleBrowserToggle = (e: KeyboardEvent) => {
+      if (e.key === '`') {
+        const newIndex = (settings.activeBrowserIndex + 1) % settings.browsers.length;
+        setSettings(prev => ({ ...prev, activeBrowserIndex: newIndex }));
+        const newBrowserName = settings.browsers[newIndex].name;
+        setCopyStatus(`Browser set to: ${newBrowserName}`);
+        setTimeout(() => setCopyStatus(''), 2000);
+      }
+    };
+    window.addEventListener('keydown', handleBrowserToggle);
+    return () => window.removeEventListener('keydown', handleBrowserToggle);
+  }, [settings.activeBrowserIndex, settings.browsers]);
+
   const getFontSize = (index: number, total: number) => {
     if (total <= 1) {
       return settings.maxFontSize; // Only one word, make it the max size.
@@ -757,7 +787,7 @@ function App() {
         const finalMetrics = context.measureText(word.text);
 
         // If debug mode is on, draw the bounding box
-        if (settings.isDebugModeEnabled) {
+        if (settings.isDebugModeEnabled && settings.currentView === 'meme') {
           context.strokeStyle = 'red';
           context.lineWidth = 1;
           context.strokeRect(word.x - finalMetrics.width / 2, word.y - fontSize, finalMetrics.width, fontSize);
@@ -781,7 +811,7 @@ function App() {
     if (image.complete) {
       redrawCanvas(image);
     }
-  }, [words, settings, wordPlacementIndex, hoveredWordId, currentView]); // Redraw when words, settings, or hover state change
+  }, [words, settings, wordPlacementIndex, hoveredWordId]); // Redraw when words, settings, or hover state change
   
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(event.target.value);
@@ -834,7 +864,7 @@ function App() {
       let x = 0, y = 0, width = 0, height = 0;
 
       // Only perform canvas-related calculations if in 'meme' view
-      if (currentView === 'meme') {
+      if (settings.currentView === 'meme') {
         const canvas = canvasRef.current;
         const context = canvas?.getContext("2d");
         if (!canvas || !context) return; // Still need this guard for meme view
@@ -1027,7 +1057,7 @@ function App() {
     // The context is only needed for measurements, which are only relevant for Meme View placement.
     // For List View, we can add words without position data initially.
     if (bulkAddText.trim() === "") return;
-    if (currentView === 'meme' && (!canvas || !context)) {
+    if (settings.currentView === 'meme' && (!canvas || !context)) {
       return; // In meme view, we need the canvas to proceed.
     }
 
@@ -1043,7 +1073,7 @@ function App() {
       let x = 0, y = 0, width = 0, height = 0;
 
       // Only calculate position and size if in meme view
-      if (currentView === 'meme' && canvas && context) {
+      if (settings.currentView === 'meme' && canvas && context) {
         const newFontSize = getFontSize(newWordIndex, newWordIndex + 1);
         context.font = `${newFontSize}px ${settings.fontFamily}`;
         const metrics = context.measureText(text);
@@ -1257,7 +1287,7 @@ function App() {
     // Find if a word was clicked (iterate in reverse to find the top-most word)
     const clickedWord = [...wordsRef.current].reverse().find(word => {
       if (!word.width || !word.height) return false;
-
+      
       // Calculate bounding box, accounting for textAlign='center'
       const wordLeft = word.x - word.width / 2;
       const wordRight = word.x + word.width / 2;
@@ -1269,11 +1299,12 @@ function App() {
 
     if (clickedWord) {
       // Use the specific URL if it exists, otherwise fall back to Google search.
+      const activeBrowser = settings.browsers[settings.activeBrowserIndex];
       if (clickedWord.url) {
-        window.electronAPI.openExternalLink(clickedWord.url);
+        window.electronAPI.openExternalLink({ url: clickedWord.url, browserPath: activeBrowser?.path });
       } else {
         const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(clickedWord.text)}`;
-        window.electronAPI.openExternalLink(searchUrl);
+        window.electronAPI.openExternalLink({ url: searchUrl, browserPath: activeBrowser?.path });
       }
     }
   };
@@ -1318,11 +1349,14 @@ function App() {
       {copyStatus && <div className="copy-status-toast">{copyStatus}</div>}
       <div className="main-content">
         <header className="app-header">
-          <button onClick={() => setCurrentView('meme')} disabled={currentView === 'meme'}>Meme View</button>
-          <LiveClock />
-          <button onClick={() => setCurrentView('list')} disabled={currentView === 'list'}>List View</button>
+          <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'meme' }))} disabled={settings.currentView === 'meme'}>Meme View</button>
+          <div className="header-center-stack">
+            <div className="current-browser-display">Active Browser: <b>{settings.browsers[settings.activeBrowserIndex]?.name || 'Default'}</b></div>
+            <LiveClock />
+          </div>
+          <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'list' }))} disabled={settings.currentView === 'list'}>List View</button>
         </header>
-        {currentView === 'meme' && (
+        {settings.currentView === 'meme' && (
           <div className="canvas-container">
             <div className="canvas-actions">
               <button onClick={handleRandomizeLayout} title="Randomize Layout">🔀 Randomize Layout</button>
@@ -1337,7 +1371,7 @@ function App() {
               title={hoveredWordId ? 'Search Google' : ''} />
           </div>
         )}
-        {currentView === 'list' && (
+        {settings.currentView === 'list' && (
           <div className="list-view-container">
             <div className="list-header">
               <h3>Priority List</h3>
@@ -1386,6 +1420,7 @@ function App() {
                           onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))}
                           formatTimestamp={formatTimestamp}
                           setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
+                          settings={settings}
                           handleRichTextKeyDown={handleRichTextKeyDown}
                         />
                         <div className="word-item-display">
@@ -1434,6 +1469,7 @@ function App() {
                           onUpdate={() => {}} // No updates for completed items
                           formatTimestamp={formatTimestamp}
                           setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
+                          settings={settings}
                           handleRichTextKeyDown={() => {}} // Pass a no-op for completed items
                         />
                         {/* This second child is the 'headerActions' for the accordion */}
@@ -1460,36 +1496,36 @@ function App() {
         </button>
         <SimpleAccordion title="Add New Task">
           <div className="new-task-form">
-            <label>Task Title:
+            <label><h4>Task Title:</h4>
               <input type="text" placeholder="Enter a title and press Enter" value={newTask.text} onChange={(e) => setNewTask({ ...newTask, text: e.target.value })} onKeyDown={handleInputKeyDown} />
             </label>
-            <label>URL:
+            <label><h4>URL:</h4>
               <input type="text" placeholder="https://example.com" value={newTask.url} onChange={(e) => setNewTask({ ...newTask, url: e.target.value })} />
             </label>
-            <label>Priority:
+            <label><h4>Priority:</h4>
               <select value={newTask.priority} onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as any })}>
                 <option value="High">High</option>
                 <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
               </select>
             </label>
-            <label>Open Date:
+            <label><h4>Open Date:</h4>
               <input type="date" value={newTask.openDate} onChange={(e) => setNewTask({ ...newTask, openDate: e.target.value })} />
             </label>
-            <label>Complete By:
-              <div className="date-input-group">
-                <input type="date" value={newTask.completeBy} onChange={(e) => setNewTask({ ...newTask, completeBy: e.target.value })} />
+            <label><h4>Complete By:</h4>
+            <input type="date" value={newTask.completeBy} onChange={(e) => setNewTask({ ...newTask, completeBy: e.target.value })} />
+              <div className="date-input-group">                                
                 <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().toISOString().split('T')[0] })}>Today</button>
-                <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 3); setNewTask({ ...newTask, completeBy: d.toISOString().split('T')[0] }); }}>+3d</button>
+                <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 3); setNewTask({ ...newTask, completeBy: d.toISOString().split('T')[0] }); }}>+3d</button>                
               </div>
             </label>
-            <label>Company:
+            <label><h4>Company:</h4>
               <input type="text" value={newTask.company} onChange={(e) => setNewTask({ ...newTask, company: e.target.value })} />
             </label>
-            <label>Website URL:
+            <label><h4>Website URL:</h4>
               <input type="text" placeholder="https://company.com" value={newTask.websiteUrl} onChange={(e) => setNewTask({ ...newTask, websiteUrl: e.target.value })} />
             </label>
-            <label>Image Links:
+            <label><h4>Image Links:</h4>
               {(newTask.imageLinks || []).map((link, index) => (
                 <div key={index} className="image-link-edit">
                   <input type="text" value={link} onChange={(e) => {
@@ -1504,7 +1540,7 @@ function App() {
                 + Add Image Link
               </button>
             </label>
-            <label>Description:
+            <label><h4>Description:</h4>
               <div 
                 className="rich-text-editor" 
                 contentEditable 
@@ -1540,7 +1576,7 @@ function App() {
           <button onClick={handleImport}>Import Project</button>
         </SimpleAccordion>
 
-        {currentView === 'meme' && (
+        {settings.currentView === 'meme' && (
           <>
             <h2>Settings</h2>
             <button onClick={handleResetSettings}>Reset All Settings</button>
@@ -1628,6 +1664,34 @@ function App() {
                 Offset Y: {settings.shadowOffsetY}px
                 <input type="range" min="-50" max="50" value={settings.shadowOffsetY} onChange={(e) => setSettings(prev => ({ ...prev, shadowOffsetY: Number(e.target.value) }))} />
               </label>
+            </SimpleAccordion>
+            <SimpleAccordion title="Browser Settings">
+              {settings.browsers.map((browser, index) => (
+                <div key={index} className="browser-setting-item">
+                  <input 
+                    type="text" 
+                    placeholder="Browser Name" 
+                    value={browser.name} 
+                    onChange={(e) => {
+                      const newBrowsers = [...settings.browsers];
+                      newBrowsers[index].name = e.target.value;
+                      setSettings(prev => ({ ...prev, browsers: newBrowsers }));
+                    }} 
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="C:\path\to\browser.exe" 
+                    value={browser.path} 
+                    onChange={(e) => {
+                      const newBrowsers = [...settings.browsers];
+                      newBrowsers[index].path = e.target.value;
+                      setSettings(prev => ({ ...prev, browsers: newBrowsers }));
+                    }} 
+                  />
+                  <button onClick={() => setSettings(prev => ({ ...prev, browsers: prev.browsers.filter((_, i) => i !== index) }))}>-</button>
+                </div>
+              ))}
+              <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, browsers: [...prev.browsers, { name: '', path: '' }] }))}>+ Add Browser</button>
             </SimpleAccordion>
           </>
         )}
