@@ -114,9 +114,15 @@ const createWindow = (): void => {
     });
 
     if (response === 0) { // Save and Quit
-      // Tell the renderer to save, then wait for confirmation before quitting.
-      mainWindow.webContents.send('save-and-shutdown');
-      ipcMain.once('saved-and-ready-to-shutdown', () => forceQuit(mainWindow));
+      // NEW APPROACH: Request data from renderer, save it here, then quit.
+      mainWindow.webContents.send('get-data-for-quit');
+      ipcMain.once('data-for-quit', (_event, data) => {
+        store.set('overwhelmed-words', data.words);
+        store.set('overwhelmed-completed-words', data.completedWords);
+        store.set('overwhelmed-settings', data.settings);
+        // Now that the main process has saved the data, it's safe to quit.
+        forceQuit(mainWindow);
+      });
     } else if (response === 1) { // Don't Save
       // Quit immediately without saving.
       forceQuit(mainWindow);
@@ -147,7 +153,7 @@ app.whenReady().then(() => {
     shell.openExternal(url);
   });
   ipcMain.handle('electron-store-get', (_event, key) => store.get(key));
-  ipcMain.on('electron-store-set', (_event, key, val) => store.set(key, val));
+  ipcMain.handle('electron-store-set', (_event, key, val) => store.set(key, val));
   ipcMain.on('save-and-quit-no-prompt', () => {
     const win = BrowserWindow.getAllWindows()[0];
     if (win) forceQuit(win);

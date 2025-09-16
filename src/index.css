@@ -289,6 +289,11 @@ body {
 }
 .dynamic-save-button.saved { background-color: #4caf50; } /* Green */
 .dynamic-save-button.unsaved { background-color: #c94a4a; } /* Red */
+.dynamic-save-button:disabled {
+  background-color: #555;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
 
 .completed-item {
   background-color: #333;

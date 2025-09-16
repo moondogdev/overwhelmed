@@ -14,8 +14,8 @@ declare global {
     openExternalLink: (url: string) => void;
     showContextMenu: () => void;
     getStoreValue: (key: string) => Promise<any>;
-    setStoreValue: (key: string, value: any) => void;
-    send: (channel: string) => void;
+    setStoreValue: (key: string, value: any) => Promise<void>;
+    send: (channel: string, data?: any) => void;
     on: (channel: string, callback: (...args: any[]) => void) => (() => void) | undefined;
     notifyDirtyState: (isDirty: boolean) => void;
   } }
@@ -179,6 +179,8 @@ function App() {
   const [copyStatus, setCopyStatus] = useState('');
   // Ref to track if the initial load is complete to prevent overwriting saved data
   const isInitialLoad = useRef(true);
+  // State to track if the app is still loading initial data
+  const [isLoading, setIsLoading] = useState(true);
   // State to track if there are unsaved changes
   const [isDirty, setIsDirty] = useState(false);
 
@@ -205,12 +207,14 @@ function App() {
         if (savedSettings) {
           setSettings(prevSettings => ({ ...prevSettings, ...savedSettings }));
         }
+        setIsLoading(false); // Mark loading as complete
       } catch (error) {
         console.error("Failed to load data from electron-store", error);
+        setIsLoading(false); // Also mark as complete on error to avoid getting stuck
       }
     };
     loadDataFromStore();
-    isInitialLoad.current = false; // Mark initial load as complete
+    // isInitialLoad will be managed by the isLoading state now
   }, []); // Empty dependency array means this runs only once
 
   // Effect to notify the main process whenever the dirty state changes
@@ -220,32 +224,59 @@ function App() {
 
   // Save words to localStorage whenever the words array changes
   useEffect(() => {
-    if (!isInitialLoad.current) setIsDirty(true); // Don't mark as dirty on initial load
+    if (!isLoading) setIsDirty(true);
   }, [words]);
 
   // Save completed words to localStorage whenever they change
   useEffect(() => {
-    if (!isInitialLoad.current) setIsDirty(true); // Don't mark as dirty on initial load
+    if (!isLoading) setIsDirty(true);
   }, [completedWords]);
 
   // Save settings to localStorage whenever they change
   useEffect(() => {
-    if (!isInitialLoad.current) setIsDirty(true); // Don't mark as dirty on initial load
+    if (!isLoading) setIsDirty(true);
   }, [settings]);
 
   // Effect to handle different shutdown signals from the main process
   useEffect(() => {
-    // This handles the new "Save and Quit" dialog option.
-    const handleSaveAndShutdown = () => {
-      // The useEffect hooks for saving will have already fired.
-      // We just need to tell the main process it's safe to quit.
-      window.electronAPI.send('saved-and-ready-to-shutdown');
+    // NEW APPROACH: Listen for a request from the main process for our data.
+    const handleGetDataForQuit = () => {
+      // Before sending data, ensure all words have valid positions.
+      // --- FIX: Create an off-screen canvas if the main one isn't available ---
+      let tempCanvas: HTMLCanvasElement;
+      if (canvasRef.current) {
+        tempCanvas = canvasRef.current;
+      } else {
+        tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 640; // Use the same dimensions as the real canvas
+        tempCanvas.height = 640;
+      }
+      const context = tempCanvas.getContext('2d');
+
+      let wordsToSave = [...words];
+
+      if (context) { // We only need the context to proceed
+        wordsToSave = words.map((word, index) => {
+          if (word.x === 0 && word.y === 0) {
+            // This word needs a position.
+            const fontSize = getFontSize(index, words.length);
+            context.font = `${fontSize}px ${settings.fontFamily}`;
+            const metrics = context.measureText(word.text);
+            const newWordMetrics = { width: metrics.width, height: fontSize };
+            const { x, y } = getNewWordPosition(tempCanvas.width, tempCanvas.height, newWordMetrics);
+            return { ...word, x, y, width: newWordMetrics.width, height: newWordMetrics.height };
+          }
+          return word;
+        });
+      }
+
+      window.electronAPI.send('data-for-quit', { words: wordsToSave, completedWords, settings });
     };
 
-    const cleanup = window.electronAPI.on('save-and-shutdown', handleSaveAndShutdown);
+    const cleanup = window.electronAPI.on('get-data-for-quit', handleGetDataForQuit);
     // Cleanup the listener when the component unmounts
     return cleanup;
-  }, []);
+  }, [words, completedWords, settings]); // Re-bind if state changes to send the latest version
 
   // Effect to handle the Ctrl+S shortcut for saving
   useEffect(() => {
@@ -258,7 +289,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []); // Empty dependency array ensures this runs only once
+  }, [isLoading, words, completedWords, settings]); // Re-bind if state changes to save the latest version
 
   // This single effect handles all canvas drawing and updates when `words` changes.
   useEffect(() => {
@@ -660,12 +691,35 @@ function App() {
     }
   };
 
-  const handleSaveProject = () => {
-    // The useEffect hooks handle saving automatically when state changes.
-    // This function's job is to manually trigger a save of the current state and then mark it as clean.
-    window.electronAPI.setStoreValue('overwhelmed-words', words);
-    window.electronAPI.setStoreValue('overwhelmed-completed-words', completedWords);
-    window.electronAPI.setStoreValue('overwhelmed-settings', settings);
+  const handleSaveProject = async () => {
+    // Prevent any save operations while the app is still loading its initial data.
+    if (isLoading) return;
+
+    // --- FIX FOR BUG #2 ---
+    // Before saving, check for any words that were added in list view and don't have positions.
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext('2d');
+    let wordsToSave = [...words];
+
+    if (canvas && context) {
+      wordsToSave = words.map((word, index) => {
+        if (word.x === 0 && word.y === 0) {
+          // This word needs a position.
+          const fontSize = getFontSize(index, words.length);
+          context.font = `${fontSize}px ${settings.fontFamily}`;
+          const metrics = context.measureText(word.text);
+          const newWordMetrics = { width: metrics.width, height: fontSize };
+          const { x, y } = getNewWordPosition(canvas.width, canvas.height, newWordMetrics);
+          return { ...word, x, y, width: newWordMetrics.width, height: newWordMetrics.height };
+        }
+        return word;
+      });
+    }
+
+    // Explicitly save all parts of the state to the store. This is the single source of truth for a manual save.
+    await window.electronAPI.setStoreValue('overwhelmed-words', wordsToSave);
+    await window.electronAPI.setStoreValue('overwhelmed-completed-words', completedWords);
+    await window.electronAPI.setStoreValue('overwhelmed-settings', settings);
     
     setIsDirty(false); // Mark the state as clean/saved
 
@@ -861,6 +915,7 @@ function App() {
         <button
           onClick={handleSaveProject}
           className={`dynamic-save-button ${isDirty ? 'unsaved' : 'saved'}`}
+          disabled={isLoading}
         >
           {isDirty ? 'Save Project (Unsaved)' : 'Project Saved'}
         </button>

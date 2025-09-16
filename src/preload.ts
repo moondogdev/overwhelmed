@@ -10,12 +10,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternalLink: (url: string) => ipcRenderer.send('open-external-link', url),
   showContextMenu: () => ipcRenderer.send('show-context-menu'),
   getStoreValue: (key: string) => ipcRenderer.invoke('electron-store-get', key),
-  setStoreValue: (key: string, value: any) => ipcRenderer.send('electron-store-set', key, value),
-  send: (channel: string) => ipcRenderer.send(channel), // Expose a generic send method
+  setStoreValue: (key: string, value: any) => ipcRenderer.invoke('electron-store-set', key, value),
+  send: (channel: string, data?: any) => ipcRenderer.send(channel, data), // Allow sending data
   notifyDirtyState: (isDirty: boolean) => ipcRenderer.send('notify-dirty-state', isDirty),
   // It's good practice to define which channels are allowed for two-way communication
   on: (channel: string, callback: (...args: any[]) => void) => {
-    const validChannels = ['prepare-for-shutdown', 'save-and-shutdown'];
+    const validChannels = ['get-data-for-quit'];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, callback);
       return () => ipcRenderer.removeListener(channel, callback);
