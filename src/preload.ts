@@ -13,16 +13,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getStoreValue: (key: string) => ipcRenderer.invoke('electron-store-get', key),
   setStoreValue: (key: string, value: any) => ipcRenderer.invoke('electron-store-set', key, value),
   send: (channel: string, data?: any) => ipcRenderer.send(channel, data), // Allow sending data
-  notifyDirtyState: (isDirty: boolean) => ipcRenderer.send('notify-dirty-state', isDirty),
   showTaskContextMenu: (wordId: number) => ipcRenderer.send('show-task-context-menu', wordId),
+  showSelectionContextMenu: (selectionText: string) => ipcRenderer.send('show-selection-context-menu', selectionText),
   downloadImage: (url: string) => ipcRenderer.invoke('download-image', url),
   // It's good practice to define which channels are allowed for two-way communication
   on: (channel: string, callback: (...args: any[]) => void) => {
-    const validChannels = ['get-data-for-quit', 'context-menu-command', 'show-link-context-menu'];
-    if (validChannels.includes(channel)) {
-      const listener = (event: IpcRendererEvent, ...args: any[]) => callback(...args);
-      ipcRenderer.on(channel, listener);
-      return () => ipcRenderer.removeListener(channel, listener);
-    }
+    const newCallback = (_: IpcRendererEvent, ...args: any[]) => callback(...args);
+    ipcRenderer.on(channel, newCallback);
+    // Return a cleanup function
+    return () => ipcRenderer.removeListener(channel, newCallback);
   },
+  notifyDirtyState: (isDirty: boolean) => ipcRenderer.send('notify-dirty-state', isDirty),
+  manageFile: (args: { action: 'select' } | { action: 'open', filePath: string }) => ipcRenderer.invoke('manage-file', args),
 });

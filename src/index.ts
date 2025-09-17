@@ -1,5 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain, IpcMainInvokeEvent, Menu, shell, net } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, IpcMainInvokeEvent, Menu, shell, net, clipboard } from 'electron';
 import * as fs from 'fs';
+import * as path from 'path';
 import { exec } from 'child_process';
 import Store from 'electron-store';
 import windowStateKeeper from 'electron-window-state';
@@ -17,6 +18,10 @@ if (require('electron-squirrel-startup')) {
 
 // Initialize electron-store
 const store = new Store();
+
+// Ensure attachments directory exists
+const attachmentsPath = path.join(app.getPath('userData'), 'attachments');
+if (!fs.existsSync(attachmentsPath)) fs.mkdirSync(attachmentsPath, { recursive: true });
 let isQuitting = false; // Flag to prevent reopening on quit
 let isDirty = false; // Flag to track if there are unsaved changes in the renderer
 
@@ -216,6 +221,20 @@ app.whenReady().then(() => {
     ];
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
+  ipcMain.on('show-selection-context-menu', (event, selectionText) => {
+    const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+      {
+        label: 'Copy',
+        role: 'copy',
+      },
+      {
+        label: 'Search Google for selection',
+        click: () => webContents.send('search-google-selection', selectionText),
+      },
+    ];
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
+  });
   ipcMain.handle('download-image', async (_event, url: string) => {
     try {
       const request = net.request(url);
@@ -254,6 +273,41 @@ app.whenReady().then(() => {
         console.error('Failed to save CSV file:', error);
         // Optionally, you could show an error dialog to the user
       }
+    }
+  });
+
+  ipcMain.handle('manage-file', async (event, { action, filePath, fileName }) => {
+    switch (action) {
+      case 'select': {
+        const result = await dialog.showOpenDialog({
+          properties: ['openFile'],
+        });
+        if (result.canceled || result.filePaths.length === 0) {
+          return null;
+        }
+        const sourcePath = result.filePaths[0];
+        const originalFileName = path.basename(sourcePath);
+        // Create a unique filename to prevent overwrites
+        const uniqueFileName = `${Date.now()}-${originalFileName}`;
+        const destinationPath = path.join(attachmentsPath, uniqueFileName);
+  
+        try {
+          fs.copyFileSync(sourcePath, destinationPath);
+          return { name: originalFileName, path: destinationPath };
+        } catch (error) {
+          console.error('Failed to copy file:', error);
+          return null;
+        }
+      }
+      case 'open': {
+        if (filePath && fs.existsSync(filePath)) {
+          shell.openPath(filePath);
+        } else {
+          dialog.showErrorBox('File Not Found', `The file at ${filePath} could not be found. It may have been moved or deleted.`);
+        }
+        return;
+      }
+      // 'remove' action will be handled client-side by updating the task data. We could add a server-side file deletion here for cleanup if desired.
     }
   });
 

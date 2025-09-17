@@ -19,13 +19,20 @@ declare global {
     setStoreValue: (key: string, value: any) => Promise<void>;
     send: (channel: string, data?: any) => void;
     on: (channel: string, callback: (...args: any[]) => void) => (() => void) | undefined;
+    manageFile: (args: { action: 'select' } | { action: 'open', filePath: string }) => Promise<{ name: string, path: string } | null>;
     downloadImage: (url: string) => Promise<void>;
     showTaskContextMenu: (wordId: number) => void;
+    showSelectionContextMenu: (selectionText: string) => void;
     notifyDirtyState: (isDirty: boolean) => void;
   } }
 }
 
 // Define the structure of a Word object for TypeScript
+interface Attachment {
+  name: string;
+  path: string;
+}
+
 interface Word {
   id: number;
   text: string;
@@ -40,6 +47,8 @@ interface Word {
   websiteUrl?: string;
   imageLinks?: string[];
   description?: string;
+  attachments?: Attachment[];
+  notes?: string;
   // Add dimensions for hit detection
   width?: number;
   height?: number;
@@ -104,6 +113,7 @@ interface Settings {
   warningTime: number; // in minutes
   isSidebarVisible: boolean;
   prioritySortConfig?: PrioritySortConfig;
+  useDefaultBrowserForSearch?: boolean; // New global setting
 }
 
 
@@ -204,23 +214,78 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, 
 
   // Hooks must be called at the top level, not inside conditionals.
   const descriptionRef = useRef<HTMLDivElement>(null);
-  const handleCopyDescription = () => {
+  const notesRef = useRef<HTMLDivElement>(null);
+  const handleCopyDescription = async () => {
     if (descriptionRef.current) {
-      // To copy rich text, we need to use the Clipboard API with a Blob.
-      const html = descriptionRef.current.innerHTML;
-      const blob = new Blob([html], { type: 'text/html' });
-      const data = [new ClipboardItem({ 'text/html': blob })];
-
-      navigator.clipboard.write(data).then(() => {
+      try {
+        // Request permission to write to the clipboard
+        await navigator.permissions.query({ name: 'clipboard-write' as PermissionName });
+        const html = descriptionRef.current.innerHTML;
+        const text = descriptionRef.current.innerText;
+        const htmlBlob = new Blob([html], { type: 'text/html' });
+        const textBlob = new Blob([text], { type: 'text/plain' });
+        const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
+        await navigator.clipboard.write(data);
         setCopyStatus('Description copied!');
-      });
+      } catch (err) {
+        console.error('Failed to copy description: ', err);
+        setCopyStatus('Copy failed!');
+      }
+    }
+  };
+
+  const handleCopyNotes = async () => {
+    if (notesRef.current) {
+      try {
+        await navigator.permissions.query({ name: 'clipboard-write' as PermissionName });
+        // The notes are inside a DescriptionEditor, which has a content-editable div.
+        // We need to find that div to get its innerHTML and innerText.
+        const editorDiv = notesRef.current.querySelector('.rich-text-editor');
+        if (editorDiv) {
+          const html = editorDiv.innerHTML;
+          const text = (editorDiv as HTMLElement).innerText;
+          const htmlBlob = new Blob([html], { type: 'text/html' });
+          const textBlob = new Blob([text], { type: 'text/plain' });
+          const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
+          await navigator.clipboard.write(data);
+          setCopyStatus('Notes copied!');
+        }
+      } catch (err) {
+        console.error('Failed to copy notes: ', err);
+        setCopyStatus('Copy failed!');
+      }
+    }
+  };
+
+  const handleCopyAll = async () => {
+    if (descriptionRef.current && notesRef.current) {
+      try {
+        await navigator.permissions.query({ name: 'clipboard-write' as PermissionName });
+        const descriptionHtml = `<h3>Description</h3>${descriptionRef.current.innerHTML}`;
+        const editorDiv = notesRef.current.querySelector('.rich-text-editor');
+        const notesHtml = editorDiv ? `<h3>Notes</h3>${editorDiv.innerHTML}` : '';
+        const combinedHtml = `${descriptionHtml}<hr>${notesHtml}`;
+
+        const descriptionText = `Description\n${descriptionRef.current.innerText}`;
+        const notesText = editorDiv ? `\n\nNotes\n${(editorDiv as HTMLElement).innerText}` : '';
+        const combinedText = `${descriptionText}${notesText}`;
+
+        const htmlBlob = new Blob([combinedHtml], { type: 'text/html' });
+        const textBlob = new Blob([combinedText], { type: 'text/plain' });
+        const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
+        await navigator.clipboard.write(data);
+        setCopyStatus('Notes copied!');
+      } catch (err) {
+        console.error('Failed to copy all: ', err);
+        setCopyStatus('Copy failed!');
+      }
     }
   };
 
   const tabContentRef = useRef<HTMLDivElement>(null);
 
   const tabHeaders = (
-    <div className="tab-headers">
+    <div className="tab-headers" style={{ marginTop: '5px' }}>
       <button onClick={() => setActiveTab('ticket')} className={activeTab === 'ticket' ? 'active' : ''}>Task</button>
       {!word.completedDuration && ( // Only show Edit tab for non-completed items
         <button onClick={() => setActiveTab('edit')} className={activeTab === 'edit' ? 'active' : ''}>Edit</button>
@@ -263,6 +328,18 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, 
                 ))}
               </div>
             </div>
+            <div><strong>Attachments:</strong>
+              <div className="attachments-display">
+                {(word.attachments || []).map((file, index) => (
+                  <div key={index} className="attachment-item">
+                    <span className="attachment-name" onClick={() => window.electronAPI.manageFile({ action: 'open', filePath: file.path })} title={`Open ${file.name}`}>
+                      📄 {file.name}
+                    </span>
+                    {/* The remove button is only shown in the edit view for clarity */}
+                  </div>
+                ))}
+              </div>
+            </div>
             {tabHeaders}
             <div className="description-container" onContextMenu={(e) => {
               const target = e.target as HTMLElement;
@@ -286,8 +363,24 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, 
               <div className="description-header" onContextMenu={handleTaskContextMenu}>
                 <strong>Description:</strong>
                 <button className="copy-btn" title="Copy Description Text" onClick={handleCopyDescription}>📋</button>
+                <button className="copy-btn" title="Copy Description HTML" onClick={() => {
+                  navigator.clipboard.writeText(word.description || '');
+                  setCopyStatus('Description HTML copied!');
+                }}>HTML</button>
+                <button className="copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}>📋 All</button>
               </div>
               <div ref={descriptionRef} className="description-display" dangerouslySetInnerHTML={{ __html: word.description || 'N/A' }} />
+            </div>
+            <div className="description-container" ref={notesRef}>
+              <div className="description-header">
+                <strong>Notes:</strong>
+                <button className="copy-btn" title="Copy Notes Text" onClick={handleCopyNotes}>📋</button>
+                <button className="copy-btn" title="Copy Notes HTML" onClick={() => {
+                  navigator.clipboard.writeText(word.notes || '');
+                  setCopyStatus('Notes HTML copied!');
+                }}>HTML</button>
+              </div>
+              <DescriptionEditor description={word.notes || ''} onDescriptionChange={(html) => handleFieldChange('notes', html)} settings={settings} />
             </div>
           </div>
         )}
@@ -383,8 +476,37 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, 
             <button className="add-link-btn" onClick={() => handleFieldChange('imageLinks', [...(word.imageLinks || []), ''])}>
               + Add Image Link
             </button>
+            <label><h4>Attachments:</h4>
+              {(word.attachments || []).map((file, index) => (
+                <div key={index} className="attachment-edit">
+                  <span className="attachment-name" onClick={() => window.electronAPI.manageFile({ action: 'open', filePath: file.path })} title={`Open ${file.name}`}>
+                    📄 {file.name}
+                  </span>
+                  <button onClick={() => handleFieldChange('attachments', (word.attachments || []).filter((_, i) => i !== index))}>-</button>
+                </div>
+              ))}
+            </label>
+            <button className="add-link-btn" onClick={async () => {
+              const newFile = await window.electronAPI.manageFile({ action: 'select' });
+              if (newFile) {
+                handleFieldChange('attachments', [...(word.attachments || []), newFile]);
+              }
+            }}>+ Attach File</button>
             {tabHeaders}
-            <DescriptionEditor description={word.description || ''} onDescriptionChange={(html) => handleFieldChange('description', html)} />
+            <div className="description-header" style={{ marginBottom: '10px' }}>
+              <strong>Description:</strong>
+              <button className="copy-btn" title="Copy Description Text" onClick={handleCopyDescription}>📋</button>
+              <button className="copy-btn" title="Copy Description HTML" onClick={() => {
+                navigator.clipboard.writeText(word.description || '');
+                setCopyStatus('Description HTML copied!');
+              }}>HTML</button>
+              <button className="copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}>📋 All</button>
+            </div>
+            <DescriptionEditor description={word.description || ''} onDescriptionChange={(html) => handleFieldChange('description', html)} settings={settings} />
+            <div className="description-container">
+              <strong>Notes:</strong>
+              <DescriptionEditor description={word.notes || ''} onDescriptionChange={(html) => handleFieldChange('notes', html)} settings={settings} />
+            </div>
             <label className="checkbox-label flexed-column">
               <input type="checkbox" checked={word.isRecurring || false} onChange={(e) => handleFieldChange('isRecurring', e.target.checked)} /> 
               <span className="checkbox-label-text">Re-occurring Task</span>
@@ -416,7 +538,7 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, 
   );
 }
 
-function DescriptionEditor({ description, onDescriptionChange }: { description: string, onDescriptionChange: (html: string) => void }) {
+function DescriptionEditor({ description, onDescriptionChange, settings }: { description: string, onDescriptionChange: (html: string) => void, settings?: Settings }) {
   const [activeView, setActiveView] = useState<'view' | 'html'>('view');
   const [htmlContent, setHtmlContent] = useState(description);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -460,6 +582,34 @@ function DescriptionEditor({ description, onDescriptionChange }: { description: 
     }, setIsLinkModalOpen, setSelectionRange);
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const pastedText = e.clipboardData.getData('text/plain');
+
+    // Simple URL regex to check if the pasted content is a link
+    const urlRegex = /^(https?:\/\/[^\s$.?#].[^\s]*)$/i;
+
+    const selection = window.getSelection();
+    // Check if it's a URL and if there's currently text selected
+    if (urlRegex.test(pastedText) && selection && !selection.isCollapsed) {
+      // It's a URL and text is highlighted, so create a link
+      document.execCommand('createLink', false, pastedText);
+    } else {
+      // It's not a URL or no text is selected, so just paste the text
+      document.execCommand('insertText', false, pastedText);
+    }
+
+    // After the command, the DOM is updated. We need to sync React's state.
+    // We use a timeout to ensure the DOM update has completed.
+    setTimeout(() => {
+      if (editorRef.current) {
+        const newHtml = editorRef.current.innerHTML;
+        setHtmlContent(newHtml);
+        onDescriptionChange(newHtml);
+      }
+    }, 0);
+  };
+
   return (
     <div className="description-editor-container">
       <div className="description-editor-tabs">
@@ -478,6 +628,7 @@ function DescriptionEditor({ description, onDescriptionChange }: { description: 
           dangerouslySetInnerHTML={{ __html: htmlContent }}
           onBlur={handleBlur}
           onKeyDown={handleRichTextKeyDown}
+          onPaste={handlePaste}
           ref={editorRef}
         />
       ) : (
@@ -845,6 +996,8 @@ function App() {
     isYearlyRecurring: false,
     isAutocomplete: false,
     description: '',
+    attachments: [],
+    notes: '',
   });
 
   // Load words from localStorage on initial component mount
@@ -1086,6 +1239,40 @@ function App() {
     return () => window.removeEventListener('keydown', handleBrowserToggle);
   }, [settings.activeBrowserIndex, settings.browsers]);
 
+  // Effect to handle search command from selection context menu
+  useEffect(() => {
+    const handleSearchSelection = (selectionText: string) => {
+      const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(selectionText)}`;
+      
+      // Check if any external link is configured to override the browser for search
+      const useDefault = settings.useDefaultBrowserForSearch;
+      const activeBrowser = settings.browsers[settings.activeBrowserIndex];
+
+      const payload = {
+        url: searchUrl,
+        browserPath: useDefault ? undefined : activeBrowser?.path,
+      };
+      window.electronAPI.openExternalLink(payload);
+    };
+    const cleanup = window.electronAPI.on('search-google-selection', handleSearchSelection);
+    return cleanup;
+  }, [settings.browsers, settings.activeBrowserIndex, settings.useDefaultBrowserForSearch]);
+
+  // Effect for global context menu on text selection
+  useEffect(() => {
+    const handleGlobalContextMenu = (e: MouseEvent) => {
+      const selection = window.getSelection();
+      const selectedText = selection?.toString().trim();
+      if (selectedText) {
+        // If text is selected, prevent default and show our menu
+        e.preventDefault();
+        window.electronAPI.showSelectionContextMenu(selectedText);
+      }
+    };
+    document.addEventListener('contextmenu', handleGlobalContextMenu);
+    return () => document.removeEventListener('contextmenu', handleGlobalContextMenu);
+  }, []); // Empty array ensures this runs only once
+
   const getFontSize = (index: number, total: number) => {
     if (total <= 1) {
       return settings.maxFontSize; // Only one word, make it the max size.
@@ -1294,6 +1481,8 @@ function App() {
     isYearlyRecurring: false,
         isAutocomplete: false,
         imageLinks: [],
+        attachments: [],
+        notes: '',
         description: '',
       });
     }
@@ -2392,7 +2581,27 @@ function App() {
             <DescriptionEditor 
               description={newTask.description || ''} 
               onDescriptionChange={(html) => setNewTask({ ...newTask, description: html })} 
+              settings={settings}
             />
+            <div className="description-container">
+              <strong>Attachments:</strong>
+              {(newTask.attachments || []).map((file, index) => (
+                <div key={index} className="attachment-edit">
+                  <span className="attachment-name" title={file.path}>📄 {file.name}</span>
+                  <button onClick={() => setNewTask({ ...newTask, attachments: (newTask.attachments || []).filter((_, i) => i !== index) })}>-</button>
+                </div>
+              ))}
+              <button className="add-link-btn" onClick={async () => {
+                const newFile = await window.electronAPI.manageFile({ action: 'select' });
+                if (newFile) {
+                  setNewTask({ ...newTask, attachments: [...(newTask.attachments || []), newFile] });
+                }
+              }}>+ Attach File</button>
+            </div>
+            <div className="description-container">
+              <strong>Notes:</strong>
+              <DescriptionEditor description={newTask.notes || ''} onDescriptionChange={(html) => setNewTask({ ...newTask, notes: html })} settings={settings} />
+            </div>
             <label className="checkbox-label flexed-column">
               <input type="checkbox" checked={newTask.isRecurring || false} onChange={(e) => setNewTask({ ...newTask, isRecurring: e.target.checked })} />
               <span className='checkbox-label-text'>Re-occurring Task</span>
@@ -2482,39 +2691,52 @@ function App() {
           </button>
         </SimpleAccordion>
         <SimpleAccordion title="External Link Manager">
-          {settings.externalLinks.map((link, index) => (
-            <div key={index} className="external-link-manager-item">
-              <input type="checkbox" checked={link.openInDefault || false} onChange={(e) => {
-                const newLinks = [...settings.externalLinks];
-                newLinks[index].openInDefault = e.target.checked;
-                setSettings(prev => ({ ...prev, externalLinks: newLinks }));
-              }} />
-              <input 
-                type="text" 
-                placeholder="Link Name" 
-                value={link.name} 
-                onChange={(e) => {
-                  const newLinks = [...settings.externalLinks];
-                  newLinks[index].name = e.target.value;
-                  setSettings(prev => ({ ...prev, externalLinks: newLinks }));
-                }} 
-              />
-              <input 
-                type="text" 
-                placeholder="https://example.com" 
-                value={link.url} 
-                onChange={(e) => {
-                  const newLinks = [...settings.externalLinks];
-                  newLinks[index].url = e.target.value;
-                  setSettings(prev => ({ ...prev, externalLinks: newLinks }));
-                }} 
-              />
-              <button onClick={() => setSettings(prev => ({ ...prev, externalLinks: prev.externalLinks.filter((_, i) => i !== index) }))}>-</button>
-            </div>
-          ))}
-          <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, externalLinks: [...prev.externalLinks, { name: '', url: '', openInDefault: false }] }))}>
-            + Add Link
-          </button>
+          <div className="link-manager-section">
+            <h4>Header Links</h4>
+            {settings.externalLinks.map((link, index) => (
+              <div key={index} className="external-link-manager-item">
+                <label title="Open this link in the system's default browser, ignoring the active browser setting.">
+                  <input type="checkbox" checked={link.openInDefault || false} onChange={(e) => {
+                    const newLinks = [...settings.externalLinks];
+                    newLinks[index].openInDefault = e.target.checked;
+                    setSettings(prev => ({ ...prev, externalLinks: newLinks }));
+                  }} /> Open Default
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="Link Name" 
+                  value={link.name} 
+                  onChange={(e) => {
+                    const newLinks = [...settings.externalLinks];
+                    newLinks[index].name = e.target.value;
+                    setSettings(prev => ({ ...prev, externalLinks: newLinks }));
+                  }} 
+                />
+                <input 
+                  type="text" 
+                  placeholder="https://example.com" 
+                  value={link.url} 
+                  onChange={(e) => {
+                    const newLinks = [...settings.externalLinks];
+                    newLinks[index].url = e.target.value;
+                    setSettings(prev => ({ ...prev, externalLinks: newLinks }));
+                  }} 
+                />
+                <button onClick={() => setSettings(prev => ({ ...prev, externalLinks: prev.externalLinks.filter((_, i) => i !== index) }))}>-</button>
+              </div>
+            ))}
+            <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, externalLinks: [...prev.externalLinks, { name: '', url: '', openInDefault: false }] }))}>
+              + Add Link
+            </button>
+          </div>
+          <div className="link-manager-section">
+            <h4>Context Menu</h4>
+            <label title="Use default browser for the 'Search Google' context menu action.">
+              <input type="checkbox" checked={settings.useDefaultBrowserForSearch || false} onChange={(e) => {
+                setSettings(prev => ({ ...prev, useDefaultBrowserForSearch: e.target.checked }));
+              }} /> Open "Search Google" in default browser
+            </label>
+          </div>
         </SimpleAccordion>
 
         <SimpleAccordion title="Time Management">
