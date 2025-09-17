@@ -8,17 +8,21 @@ body {
 }
 
 .app-container {
-  display: flex;
-  flex-direction: row;
-  height: 100vh;
+    display: flex;
+    flex-direction: row;
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
 }
 
 .main-content {
-  flex-grow: 1;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+    flex-grow: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+    max-height: 100vh;
 }
 .list-view-container {
   width: 100%;
@@ -116,6 +120,29 @@ body {
   border-bottom-color: #61dafb;
 }
 
+.sub-category-tabs {
+  display: flex;
+  margin-bottom: 20px;
+  padding-left: 20px; /* Indent the sub-category bar */
+  gap: 10px;
+  align-items: center;
+}
+
+.sub-category-tabs button {
+  padding: 4px 12px;
+  cursor: pointer;
+  border: 1px solid #555;
+  background-color: #3a3f4b;
+  color: #aaa;
+  border-radius: 15px; /* Pill shape */
+}
+
+.sub-category-tabs button.active {
+  background-color: #61dafb;
+  color: #21252b;
+  border-color: #61dafb;
+}
+
 .canvas-container {
   display: flex;
   flex-direction: column;
@@ -143,15 +170,17 @@ body {
 }
 
 .sidebar {
-  width: 300px;
-  padding: 20px;
-  background-color: #21252b;
-  border-left: 1px solid #444;
-  display: flex;
-  flex-direction: column;
-  max-height: 100vh;
-  overflow-x: hidden;
-  overflow-y: scroll;
+    width: 300px;
+    padding: 20px;
+    background-color: #21252b;
+    border-left: 1px solid #444;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    position: fixed;
+    right: 0;
 }
 .sidebar h2, .sidebar h3 {
   margin-top: 0;
@@ -190,6 +219,25 @@ body {
   flex-grow: 1;
   margin-bottom: 0;
   margin-top: 0;
+}
+.date-input-group {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+input[type="datetime-local"] + .button-group {
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+input[type="datetime-local"] + .button-group button {
+    width: auto;
+    font-size: 10px;
+}
+
+button[title="Clear Date"] {
+    /* background: red; */
+    /* color: white; */
 }
 
 .sidebar label input {
@@ -460,9 +508,18 @@ body {
   margin-bottom: 5px;
 }
 
-.add-link-btn {
-  width: auto !important; /* Override default button width */
-  align-self: flex-start;
+.add-link-btn, .remove-link-btn {
+    width: auto !important;
+    align-self: flex-start;
+    margin: 0 !important;
+    padding: 8px 12px !important;
+}
+.sub {
+    margin-left: 10px;
+}
+.category-manager-group:has(.category-manager-item.sub) {
+    margin-bottom: 15px;
+    
 }
 
 .image-link-actions {
@@ -655,10 +712,49 @@ body {
   border: 1px solid #555;
   border-radius: 3px;
   padding: 8px;
-  min-height: 60px; /* Equivalent to rows=3 on a textarea */
+  min-height: 100px;
   color: white;
   outline: none; /* Remove default focus outline */
   cursor: text;
+}
+
+.description-editor-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.description-editor-tabs {
+  display: flex;
+  gap: 5px;
+  margin-bottom: -1px; /* Overlap the border of the editor */
+}
+
+.description-editor-tabs button {
+  padding: 4px 12px;
+  border: 1px solid #555;
+  border-bottom: none;
+  background-color: #282c34;
+  color: #aaa;
+  border-radius: 3px 3px 0 0;
+}
+
+.description-editor-tabs button.active {
+  background-color: #3a3f4b;
+  color: white;
+}
+
+.html-editor {
+  background-color: #3a3f4b;
+  border: 1px solid #555;
+  border-radius: 3px;
+  padding: 8px;
+  min-height: 60px; /* Equivalent to rows=3 on a textarea */
+  color: white;
+  outline: none; /* Remove default focus outline */
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .shortcut-key {
@@ -779,17 +875,10 @@ body {
   margin-bottom: 5px;
   align-items: center;
 }
-
+.category-manager-item button,
 .external-link-manager-item input[type="checkbox"] {
   width: auto;
   margin: 0;
-}
-
-.category-manager-item {
-  display: flex;
-  gap: 5px;
-  margin-bottom: 5px;
-  align-items: center;
 }
 
 .category-manager-item {

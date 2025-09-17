@@ -40,14 +40,15 @@
     "style-loader": "^3.3.4",
     "ts-loader": "^9.5.4",
     "ts-node": "^10.9.2",
-    "typescript": "^5.4.5",
-    "tsconfig-paths": "^4.2.0"
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.4.5"
   },
   "dependencies": {
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^10.1.0",
+    "electron-window-state": "^5.0.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

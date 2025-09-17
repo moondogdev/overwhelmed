@@ -49,6 +49,7 @@ interface Word {
   manualTime?: number; // Manually tracked time in ms
   payRate?: number; // Dollars per hour
   isRecurring?: boolean;
+  isAutocomplete?: boolean;
   manualTimeRunning?: boolean;
   manualTimeStart?: number; // Timestamp when manual timer was started
 }
@@ -61,6 +62,7 @@ interface Browser {
 interface Category {
   id: number;
   name: string;
+  parentId?: number; // If present, this is a sub-category
 }
 
 interface ExternalLink {
@@ -87,6 +89,9 @@ interface Settings {
   categories: Category[];
   externalLinks: ExternalLink[];
   currentView: 'meme' | 'list';
+  activeCategoryId?: number | 'all';
+  activeSubCategoryId?: number | 'all';
+  warningTime: number; // in minutes
 }
 
 
@@ -99,13 +104,14 @@ interface TabbedViewProps {
   word: Word;
   onUpdate: (updatedWord: Word) => void;
   formatTimestamp: (ts: number) => string;
-  setCopyStatus: (message: string) => void;
-  handleRichTextKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
+  setCopyStatus: (message: string) => void;  
+  onDescriptionChange: (html: string) => void;
   settings: Settings; // Pass down settings for browser selection
   startInEditMode?: boolean;
+  className?: string;
 }
 
-function SimpleAccordion({ title, children, startOpen = false, onToggle }: AccordionProps & { startOpen?: boolean, onToggle?: (isOpen: boolean) => void }) {
+function SimpleAccordion({ title, children, startOpen = false, onToggle, className }: AccordionProps & { startOpen?: boolean, onToggle?: (isOpen: boolean) => void, className?: string }) {
   const [isOpen, setIsOpen] = useState(startOpen);
 
   useEffect(() => {
@@ -114,7 +120,7 @@ function SimpleAccordion({ title, children, startOpen = false, onToggle }: Accor
   }, [startOpen]);
 
   return (
-    <div className="accordion">
+    <div className={`accordion ${className || ''}`}>
       <div className="accordion-header" onClick={() => { setIsOpen(!isOpen); if(onToggle) onToggle(!isOpen); }}>
         <h4>{title}</h4>
         <span className="accordion-icon">{isOpen ? '−' : '+'}</span>
@@ -167,7 +173,7 @@ function LinkModal({ isOpen, onClose, onConfirm }: LinkModalProps) {
   );
 }
 
-function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRichTextKeyDown, settings, startInEditMode = false }: TabbedViewProps) {
+function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange }: TabbedViewProps) {
   const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(word.completedDuration ? 'ticket' : 'ticket'); // Default to ticket view
 
   useEffect(() => {
@@ -223,7 +229,7 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
             <p><strong>Open Date:</strong> {formatTimestamp(word.openDate)}</p>
             <p><strong>Time Open:</strong> <TimeOpen startDate={word.createdAt} /></p>
             {word.completeBy && <p><strong>Complete By:</strong> {formatTimestamp(word.completeBy)}</p>}
-            {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft completeBy={word.completeBy} /></p>}
+            {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft completeBy={word.completeBy} settings={settings} /></p>}
             {word.company && <p><strong>Company:</strong> <span className="link-with-copy">{word.company}<button className="copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); setCopyStatus('Company copied!'); }}>📋</button></span></p>}
             <div><strong>Work Timer:</strong>
               <ManualStopwatch word={word} onUpdate={(updatedWord) => onUpdate(updatedWord)} />
@@ -279,34 +285,66 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
               <input type="text" value={word.text} onChange={(e) => handleFieldChange('text', e.target.value)} />
             </label>
             <label><h4>Category:</h4>
-              <select value={word.categoryId} onChange={(e) => handleFieldChange('categoryId', Number(e.target.value))}>
-                {settings.categories.map((cat: Category) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+              <select value={word.categoryId || ''} onChange={(e) => handleFieldChange('categoryId', Number(e.target.value))}>
+                <CategoryOptions categories={settings.categories} />
               </select>
             </label>
             <label><h4>Task Title URL:</h4>
               <input type="text" value={word.url || ''} onChange={(e) => handleFieldChange('url', e.target.value)} placeholder="https://example.com" />
             </label>
-            <label><h4>Priority:</h4>
-              <select value={word.priority || 'Medium'} onChange={(e) => handleFieldChange('priority', e.target.value as any)}>
+            <label><h4>Priority:</h4><select value={word.priority || 'Medium'} onChange={(e) => handleFieldChange('priority', e.target.value as any)}>
                 <option value="High">High</option>
                 <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
               </select>
             </label>
             <label><h4>Open Date:</h4>
-              <input type="date" value={new Date(word.openDate).toISOString().split('T')[0]} onChange={(e) => handleFieldChange('openDate', new Date(e.target.valueAsNumber).getTime())} />
+              <div className="date-input-group">
+                <input type="datetime-local" value={formatTimestampForInput(word.openDate)} onChange={(e) => handleFieldChange('openDate', parseInputTimestamp(e.target.value))} />
+                <div className="button-group">{(() => {
+                    const subtractTime = (amount: number, unit: 'minutes' | 'hours' | 'days') => {
+                      const baseTime = word.openDate ? new Date(word.openDate) : new Date();
+                      if (unit === 'minutes') baseTime.setMinutes(baseTime.getMinutes() - amount);
+                      if (unit === 'hours') baseTime.setHours(baseTime.getHours() - amount);
+                      if (unit === 'days') baseTime.setDate(baseTime.getDate() - amount);
+                      handleFieldChange('openDate', baseTime.getTime());
+                    };
+                    return <>
+                      <button onClick={() => handleFieldChange('openDate', undefined)} title="Clear Date">❌</button>
+                      <button onClick={() => handleFieldChange('openDate', new Date().getTime())} title="Set to Now">NOW</button>
+                      <button onClick={() => { const d = new Date(word.openDate || Date.now()); d.setMinutes(0,0,0); handleFieldChange('openDate', d.getTime()); }} title="Round to Hour">:00</button>
+                      <button onClick={() => subtractTime(15, 'minutes')}>-15m</button> <button onClick={() => subtractTime(30, 'minutes')}>-30m</button>
+                      <button onClick={() => subtractTime(1, 'hours')}>-1h</button> <button onClick={() => subtractTime(2, 'hours')}>-2h</button>
+                      <button onClick={() => subtractTime(1, 'days')}>-1d</button> <button onClick={() => subtractTime(3, 'days')}>-3d</button>
+                    </>;
+                  })()}
+                </div>
+              </div>
             </label>
             <label><h4>Complete By:</h4>
               <div className="date-input-group">
                 <input type="datetime-local" value={formatTimestampForInput(word.completeBy)} onChange={(e) => handleFieldChange('completeBy', parseInputTimestamp(e.target.value))} />
-                <div className="button-group">
-                  <button onClick={() => handleFieldChange('completeBy', new Date().getTime() + 15 * 60 * 1000)}>+15m</button>
-                  <button onClick={() => handleFieldChange('completeBy', new Date().getTime() + 30 * 60 * 1000)}>+30m</button>
-                  <button onClick={() => handleFieldChange('completeBy', new Date().getTime() + 60 * 60 * 1000)}>+1h</button>
-                  <button onClick={() => handleFieldChange('completeBy', new Date().getTime() + 2 * 60 * 60 * 1000)}>+2h</button>
-                  <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 1); handleFieldChange('completeBy', d.getTime()); }}>+1d</button>
-                  <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 3); handleFieldChange('completeBy', d.getTime()); }}>+3d</button>
-                </div>
+                <div className="button-group">{(() => {
+                    const addTime = (amount: number, unit: 'minutes' | 'hours' | 'days') => {
+                      const baseTime = word.completeBy ? new Date(word.completeBy) : new Date();
+                      if (unit === 'minutes') baseTime.setMinutes(baseTime.getMinutes() + amount);
+                      if (unit === 'hours') baseTime.setHours(baseTime.getHours() + amount);
+                      if (unit === 'days') baseTime.setDate(baseTime.getDate() + amount);
+                      handleFieldChange('completeBy', baseTime.getTime());
+                    };
+                    return <>
+                      <button onClick={() => handleFieldChange('completeBy', undefined)} title="Clear Date">❌</button>
+                      <button onClick={() => handleFieldChange('completeBy', new Date().getTime())} title="Set to Now">NOW</button>
+                      <button onClick={() => {
+                        const baseTime = word.completeBy ? new Date(word.completeBy) : new Date();
+                        baseTime.setMinutes(0, 0, 0); // Set minutes, seconds, and ms to 0
+                        handleFieldChange('completeBy', baseTime.getTime());
+                      }} title="Round to Hour">:00</button>
+                      <button onClick={() => addTime(15, 'minutes')}>+15m</button> <button onClick={() => addTime(30, 'minutes')}>+30m</button>
+                      <button onClick={() => addTime(1, 'hours')}>+1h</button> <button onClick={() => addTime(2, 'hours')}>+2h</button>
+                      <button onClick={() => addTime(1, 'days')}>+1d</button> <button onClick={() => addTime(3, 'days')}>+3d</button>
+                    </>;
+                  })()}</div>
               </div>
             </label>
             <label><h4>Company:</h4>
@@ -334,20 +372,14 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
               + Add Image Link
             </button>
             {tabHeaders}
-            <label><h4>Description:</h4>
-              <div className="rich-text-editor" contentEditable dangerouslySetInnerHTML={{ __html: word.description || '' }} onBlur={(e: React.FocusEvent<HTMLDivElement>) => handleFieldChange('description', e.target.innerHTML)} onKeyDown={handleRichTextKeyDown} />
-              <div className="shortcut-key">
-                <span>Shortcuts:</span>
-                <span><b>Ctrl+B</b>: Bold</span>
-                <span><i>Ctrl+I</i>: Italic</span>
-                <span><u>Ctrl+U</u>: Underline</span>
-                <span><b>Ctrl+K</b>: Link</span>
-                <span><b>Ctrl+L</b>: List</span>
-              </div>
-            </label>
+            <DescriptionEditor description={word.description || ''} onDescriptionChange={(html) => handleFieldChange('description', html)} />
             <label className="checkbox-label flexed-column">
               <input type="checkbox" checked={word.isRecurring || false} onChange={(e) => handleFieldChange('isRecurring', e.target.checked)} /> 
               <span className="checkbox-label-text">Re-occurring Task</span>
+            </label>
+            <label className="checkbox-label flexed-column">
+              <input type="checkbox" checked={word.isAutocomplete || false} onChange={(e) => handleFieldChange('isAutocomplete', e.target.checked)} />
+              <span className="checkbox-label-text">Autocomplete on Deadline</span>
             </label>
           </div>
         )}
@@ -355,6 +387,116 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
     </div>
   );
 }
+
+function DescriptionEditor({ description, onDescriptionChange }: { description: string, onDescriptionChange: (html: string) => void }) {
+  const [activeView, setActiveView] = useState<'view' | 'html'>('view');
+  const [htmlContent, setHtmlContent] = useState(description);
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  // State for link modal
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [selectionRange, setSelectionRange] = useState<Range | null>(null);
+
+  const handleBlur = (e: React.FocusEvent<HTMLDivElement | HTMLTextAreaElement>) => {
+    const newHtml = activeView === 'view' ? (e.target as HTMLDivElement).innerHTML : (e.target as HTMLTextAreaElement).value;
+    setHtmlContent(newHtml);
+    onDescriptionChange(newHtml);
+  };
+
+  const handleConfirmLink = (url: string) => {
+    // Ensure the URL has a protocol
+    let fullUrl = url;
+    if (!/^https?:\/\//i.test(fullUrl)) {
+      fullUrl = `https://${fullUrl}`;
+    }
+
+    if (selectionRange) {
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(selectionRange);
+      document.execCommand('createLink', false, fullUrl);
+      // After command, update state
+      if (editorRef.current) {
+        onDescriptionChange(editorRef.current.innerHTML);
+      }
+    }
+    setIsLinkModalOpen(false);
+  };
+
+  const handleRichTextKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Pass a callback to update state after execCommand runs
+    handleGlobalRichTextKeyDown(e, () => {
+      if (editorRef.current) {
+        onDescriptionChange(editorRef.current.innerHTML);
+      }
+    }, setIsLinkModalOpen, setSelectionRange);
+  };
+
+  return (
+    <div className="description-editor-container">
+      <div className="description-editor-tabs">
+        <button onClick={() => setActiveView('view')} className={activeView === 'view' ? 'active' : ''}>View</button>
+        <button onClick={() => setActiveView('html')} className={activeView === 'html' ? 'active' : ''}>Edit HTML</button>
+      </div>
+      <LinkModal 
+        isOpen={isLinkModalOpen} 
+        onClose={() => setIsLinkModalOpen(false)} 
+        onConfirm={handleConfirmLink} 
+      />
+      {activeView === 'view' ? (
+        <div
+          className="rich-text-editor"
+          contentEditable
+          dangerouslySetInnerHTML={{ __html: htmlContent }}
+          onBlur={handleBlur}
+          onKeyDown={handleRichTextKeyDown}
+          ref={editorRef}
+        />
+      ) : (
+        <textarea
+          className="html-editor"
+          value={htmlContent}
+          onChange={(e) => setHtmlContent(e.target.value)}
+          onBlur={handleBlur}
+        />
+      )}
+      <div className="shortcut-key">
+        <span>Shortcuts:</span>
+        <span dangerouslySetInnerHTML={{ __html: `${headerShortcutKeyDisplay}, ${otherShortcutKeys}` }} />
+      </div>
+    </div>
+  );
+}
+
+const moveCategory = (categories: Category[], categoryId: number, direction: 'up' | 'down'): Category[] => {
+  const newCategories = [...categories];
+  const category = newCategories.find(c => c.id === categoryId);
+  if (!category) return categories;
+
+  const siblings = newCategories.filter(c => c.parentId === category.parentId);
+  const currentIndex = siblings.findIndex(c => c.id === categoryId);
+
+  if ((direction === 'up' && currentIndex === 0) || (direction === 'down' && currentIndex === siblings.length - 1)) {
+    return categories; // Cannot move further
+  }
+
+  const swapWithIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+  const swapWithCategory = siblings[swapWithIndex];
+
+  // Find original indices in the main array
+  const originalIndex = newCategories.findIndex(c => c.id === categoryId);
+  const originalSwapWithIndex = newCategories.findIndex(c => c.id === swapWithCategory.id);
+
+  // Swap them in the main array
+  [newCategories[originalIndex], newCategories[originalSwapWithIndex]] = [newCategories[originalSwapWithIndex], newCategories[originalIndex]];
+
+  return newCategories;
+};
+
+const headerShortcutKeys = ['1', '2', '3', '4', '5', '6'];
+const headerShortcutKeyDisplay = headerShortcutKeys.map(key => `<b>Alt+${key}</b>: H${key}`).join(', ');
+const otherShortcutKeys = `<span><b>Ctrl+B</b>: Bold, <i>Ctrl+I</i>: Italic, <u>Ctrl+U</u>: Underline, <b>Ctrl+K</b>: Link, <b>Ctrl+L</b>: List, <b>Ctrl+P</b>: Paragraph, <b>Ctrl+\\</b>: Clear Format</span>`;
+
 
 const formatTimestampForInput = (ts: number | undefined) => {
   if (!ts) return '';
@@ -369,21 +511,20 @@ const formatTimestampForInput = (ts: number | undefined) => {
 const parseInputTimestamp = (datetime: string) => {
   return new Date(datetime).getTime();
 };
-function TaskAccordion({ title, children, startOpen = false, word }: AccordionProps & { startOpen?: boolean, word: Word }) {
-  const [isOpen, setIsOpen] = useState(startOpen);
+function TaskAccordion({ title, children, isOpen, onToggle, word }: AccordionProps & { isOpen: boolean, onToggle: () => void, word: Word }) {
   const [content, headerActions] = React.Children.toArray(children);
 
   useEffect(() => {
     // If the startOpen prop becomes true, force the accordion to open.
-    if (startOpen) setIsOpen(true);
-  }, [startOpen]);
+    // This effect is no longer needed as the parent controls the open state.
+  }, []);
 
   return (
     <div className="accordion">
       <div className="accordion-header-container 2">
         <div
           className="accordion-header"
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={onToggle}
           onContextMenu={(e) => {
             e.preventDefault();
             window.electronAPI.showTicketContextMenu(word.id);
@@ -399,8 +540,9 @@ function TaskAccordion({ title, children, startOpen = false, word }: AccordionPr
   );
 }
 
-function TimeLeft({ completeBy }: { completeBy: number | undefined }) {
+function TimeLeft({ completeBy, settings }: { completeBy: number | undefined, settings: Settings }) {
   const [timeLeft, setTimeLeft] = useState('');
+  const [className, setClassName] = useState('');
 
   useEffect(() => {
     if (!completeBy) {
@@ -412,17 +554,26 @@ function TimeLeft({ completeBy }: { completeBy: number | undefined }) {
       const ms = completeBy - Date.now();
       if (ms < 0) {
         setTimeLeft('Overdue');
+        setClassName('priority-high');
         return;
       }
+
+      // Set class to yellow if less than an hour left
+      if (ms < (settings.warningTime * 60000)) { // Convert minutes to milliseconds
+        setClassName('priority-medium');
+      } else {
+        setClassName('');
+      }
+
       setTimeLeft(formatTime(ms));
     };
 
     update();
     const interval = setInterval(update, 1000); // Update every second
     return () => clearInterval(interval);
-  }, [completeBy]);
+  }, [completeBy, settings.warningTime]);
 
-  return <span className={timeLeft === 'Overdue' ? 'priority-high' : ''}>{timeLeft}</span>;
+  return <span className={className}>{timeLeft}</span>;
 }
 
 function TimeOpen({ startDate }: { startDate: number }) {
@@ -458,6 +609,11 @@ const formatTime = (ms: number) => {
 const formatTimestamp = (ts: number) => {
   if (typeof ts !== 'number') return 'N/A';
   return new Date(ts).toLocaleString();
+};
+
+const formatDate = (ts: number) => {
+  if (typeof ts !== 'number') return 'N/A';
+  return new Date(ts).toLocaleDateString();
 };
 
 function Stopwatch({ word, onTogglePause }: { word: Word, onTogglePause: (id: number) => void }) {
@@ -578,6 +734,9 @@ const defaultSettings: Settings = {
     { name: 'GitHub', url: 'https://github.com/moondogdev/overwhelmed' },
   ],
   currentView: 'meme',
+  activeCategoryId: 'all',
+  activeSubCategoryId: 'all',
+  warningTime: 60, // Default to 60 minutes
 };
 
 function App() {
@@ -613,14 +772,12 @@ function App() {
   const [isDirty, setIsDirty] = useState(false);
 
   // State for the new detailed task form
-  const [activeCategoryId, setActiveCategoryId] = useState<number | 'all'>('all');
+  const activeCategoryId = settings.activeCategoryId ?? 'all';
+  const activeSubCategoryId = settings.activeSubCategoryId ?? 'all';
 
   const [editingViaContext, setEditingViaContext] = useState<number | null>(null);
+  const [openAccordionIds, setOpenAccordionIds] = useState<Set<number>>(new Set());
 
-  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
-  const [selectionRange, setSelectionRange] = useState<Range | null>(null);
-
-  // Refs for autofocus functionality
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const newTaskTitleInputRef = useRef<HTMLInputElement>(null);
 
@@ -629,8 +786,8 @@ function App() {
     text: '',
     url: '',
     priority: 'Medium' as 'High' | 'Medium' | 'Low',
-    categoryId: 1,
-    openDate: new Date().toISOString().split('T')[0],
+    categoryId: 1, // Default to first category
+    openDate: new Date().getTime(),
     completeBy: undefined, // No deadline by default
     company: '',
     websiteUrl: '',
@@ -640,6 +797,7 @@ function App() {
     manualTimeStart: 0,
     payRate: 0,
     isRecurring: false,
+    isAutocomplete: false,
     description: '',
   });
 
@@ -665,6 +823,14 @@ function App() {
     loadDataFromStore();
     // isInitialLoad will be managed by the isLoading state now
   }, []); // Empty dependency array means this runs only once
+
+  const setActiveCategoryId = (id: number | 'all') => {
+    setSettings(prev => ({ ...prev, activeCategoryId: id }));
+  };
+
+  const setActiveSubCategoryId = (id: number | 'all') => {
+    setSettings(prev => ({ ...prev, activeSubCategoryId: id }));
+  };
 
   // Effect to notify the main process whenever the dirty state changes
   useEffect(() => {
@@ -740,6 +906,10 @@ function App() {
           // The `TaskAccordion` component's `startOpen` prop handles this.
           setEditingViaContext(wordId);
           break;
+    case 'open-in-list':
+      setOpenAccordionIds(prev => new Set(prev).add(wordId));
+      setSettings(prev => ({ ...prev, currentView: 'list' }));
+      break;
         case 'complete':
           handleCompleteWord(targetWord);
           break;
@@ -759,25 +929,37 @@ function App() {
   useEffect(() => {
     if (editingViaContext !== null) {
       // Reset after a short delay to allow the UI to update
+      setOpenAccordionIds(prev => new Set(prev).add(editingViaContext));
       const timer = setTimeout(() => setEditingViaContext(null), 100);
       return () => clearTimeout(timer);
     }
   }, [editingViaContext]);
 
-  const handleConfirmLink = (url: string) => {
-    // Ensure the URL has a protocol, otherwise it will be treated as a relative path.
-    let fullUrl = url;
-    if (!/^https/i.test(fullUrl) && !/^http/i.test(fullUrl)) {
-      fullUrl = `https://${fullUrl}`;
-    }
-
-    if (selectionRange) {
-      const selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(selectionRange);
-      document.execCommand('createLink', false, fullUrl);
-    }
+  const handleAccordionToggle = (wordId: number) => {
+    setOpenAccordionIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(wordId)) {
+        newSet.delete(wordId);
+      } else {
+        newSet.add(wordId);
+      }
+      return newSet;
+    });
   };
+
+  // Effect to handle autocomplete tasks
+  useEffect(() => {
+    const autocompleteInterval = setInterval(() => {
+      const now = Date.now();
+      words.forEach(word => {
+        if (word.isAutocomplete && word.completeBy && now >= word.completeBy) {
+          handleCompleteWord(word);
+        }
+      });
+    }, 1000); // Check every second
+
+    return () => clearInterval(autocompleteInterval);
+  }, [words]); // Rerun when words change
 
   const focusAddTaskInput = () => {
     setIsAddTaskOpen(true);
@@ -785,32 +967,18 @@ function App() {
     // This works even if the accordion was already open.
     setTimeout(() => {
       newTaskTitleInputRef.current?.focus();
-    });
-  };
-
-  const handleRichTextKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.ctrlKey && e.key === 'k') {
-      e.preventDefault();
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        setSelectionRange(selection.getRangeAt(0));
-        setIsLinkModalOpen(true);
-      }
-    } else if (e.ctrlKey && e.key === 'l') {
-      e.preventDefault();
-      document.execCommand('insertUnorderedList', false, null);
-    } else if (e.ctrlKey && e.key === 'b') {
-      e.preventDefault();
-      document.execCommand('bold', false, null);
-    } else if (e.ctrlKey && e.key === 'b') {
-      e.preventDefault();
-      document.execCommand('bold', false, null);
-    }
+    }, 50); // A small delay helps ensure the element is visible
   };
 
   // Effect to handle browser toggle hotkey
   useEffect(() => {
     const handleBrowserToggle = (e: KeyboardEvent) => {
+      // Prevent hotkey from firing if an input field is focused
+      const activeElement = document.activeElement;
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || (activeElement as HTMLElement).isContentEditable)) {
+        return;
+      }
+
       if (e.key === '`') {
         const newIndex = (settings.activeBrowserIndex + 1) % settings.browsers.length;
         setSettings(prev => ({ ...prev, activeBrowserIndex: newIndex }));
@@ -995,7 +1163,7 @@ function App() {
         id: Date.now(),
         text: newTask.text.trim(),
         // Use the value from the form, or default to now if it's empty
-        openDate: newTask.openDate ? new Date(newTask.openDate + 'T00:00:00').getTime() : Date.now(),
+        openDate: newTask.openDate || Date.now(),
         x, 
         y,
         manualTime: 0,
@@ -1015,8 +1183,8 @@ function App() {
         text: '',
         url: '',
         priority: 'Medium',
-        categoryId: settings.categories[0]?.id || 1,
-        openDate: new Date().toISOString().split('T')[0],
+        categoryId: newTask.categoryId, // Keep the selected category
+        openDate: new Date().getTime(),
         completeBy: undefined,
         company: '',
         websiteUrl: '',
@@ -1025,6 +1193,7 @@ function App() {
         manualTimeStart: 0,
         payRate: 0,
         isRecurring: false,
+        isAutocomplete: false,
         imageLinks: [],
         description: '',
       });
@@ -1369,16 +1538,21 @@ function App() {
     setTimeout(() => setCopyStatus(''), 2000); // Clear message after 2 seconds
   };
 
-  const moveWord = (index: number, direction: 'up' | 'down') => {
-    if ((direction === 'up' && index === 0) || (direction === 'down' && index === words.length - 1)) {
-      return; // Can't move further
+  const moveWord = (wordIdToMove: number, targetWordId: number) => {
+    const newWords = [...words];
+    const indexToMove = newWords.findIndex(w => w.id === wordIdToMove);
+    const indexToSwap = newWords.findIndex(w => w.id === targetWordId);
+
+    if (indexToMove === -1 || indexToSwap === -1) {
+      console.error("Could not find one or both words to swap.");
+      return; // One of the words wasn't found, abort.
     }
 
-    const newWords = [...words];
-    const item = newWords.splice(index, 1)[0];
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    newWords.splice(newIndex, 0, item);
-
+    // Simple and robust swap
+    const temp = newWords[indexToMove];
+    newWords[indexToMove] = newWords[indexToSwap];
+    newWords[indexToSwap] = temp;
+    
     setWords(newWords);
   };
 
@@ -1473,11 +1647,6 @@ function App() {
 
   return (
     <div className="app-container">
-      <LinkModal 
-        isOpen={isLinkModalOpen} 
-        onClose={() => setIsLinkModalOpen(false)} 
-        onConfirm={handleConfirmLink} 
-      />
       {copyStatus && <div className="copy-status-toast">{copyStatus}</div>}
       <div className="main-content">
         <header className="app-header">
@@ -1519,22 +1688,70 @@ function App() {
         {settings.currentView === 'list' && (
           <div className="list-view-container">
             {(() => {
-              const filteredWords = words.filter(word => activeCategoryId === 'all' || word.categoryId === activeCategoryId);
+              const parentCategories = settings.categories.filter(c => !c.parentId);
+              const subCategoriesForActive = activeCategoryId !== 'all' ? settings.categories.filter(c => c.parentId === activeCategoryId) : [];
+
+              const filteredWords = words.filter(word => {
+                if (activeCategoryId === 'all') return true; // Show all words
+                
+                // Find the parent category if the active one is a sub-category
+                const activeCategory = settings.categories.find(c => c.id === activeCategoryId);
+                const parentId = activeCategory?.parentId || activeCategoryId;
+
+                const subCategoriesForActive = settings.categories.filter(c => c.parentId === parentId);
+
+                // If a sub-category is selected, filter by it directly
+                if (activeSubCategoryId !== 'all') {
+                  return word.categoryId === activeSubCategoryId;
+                }
+
+                // If 'all' sub-categories are selected for a parent, show all words in that parent and its children
+                const categoryIdsToShow = [parentId, ...subCategoriesForActive.map(sc => sc.id)];
+                return categoryIdsToShow.includes(word.categoryId);
+              });
+
               return (
                 <>
                   <div className="category-tabs">
-                    <button onClick={() => setActiveCategoryId('all')} className={activeCategoryId === 'all' ? 'active' : ''}>
+                    <button onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); }} className={activeCategoryId === 'all' ? 'active' : ''}>
                       All ({words.length})
                     </button>
-                    {settings.categories.map((cat: Category) => {
-                      const count = words.filter(w => w.categoryId === cat.id).length;
+                    {parentCategories.map((cat: Category) => {
+                      // Count words in parent AND its sub-categories
+                      const subCatIds = settings.categories.filter(sc => sc.parentId === cat.id).map(sc => sc.id);
+                      const count = words.filter(w => 
+                        w.categoryId === cat.id || 
+                        (w.categoryId && subCatIds.includes(w.categoryId))
+                      ).length;
                       return (
-                        <button key={cat.id} onClick={() => setActiveCategoryId(cat.id)} className={activeCategoryId === cat.id ? 'active' : ''}>
+                        <button key={cat.id} onClick={() => { setActiveCategoryId(cat.id); setActiveSubCategoryId('all'); }} className={activeCategoryId === cat.id ? 'active' : ''}>
                           {cat.name} ({count})
                         </button>
                       );
                     })}
                   </div>
+                  {subCategoriesForActive.length > 0 && (
+                    <div className="sub-category-tabs">
+                      {(() => {
+                        const parentCategory = settings.categories.find(c => c.id === activeCategoryId);
+                        const subCatIds = settings.categories.filter(sc => sc.parentId === parentCategory?.id).map(sc => sc.id);
+                        const totalCount = words.filter(w => w.categoryId === parentCategory?.id || (w.categoryId && subCatIds.includes(w.categoryId))).length;
+                        return (
+                          <button onClick={() => setActiveSubCategoryId('all')} className={activeSubCategoryId === 'all' ? 'active' : ''}>All ({totalCount})</button>
+                        );
+                      })()}
+                      {subCategoriesForActive.map(subCat => (
+                        (() => {
+                          // Calculate count from the full 'words' list, not the filtered one,
+                          // to ensure counts are stable regardless of the active sub-filter.
+                          const count = words.filter(w => w.categoryId === subCat.id).length;
+                          return <button key={subCat.id} onClick={() => setActiveSubCategoryId(subCat.id)} className={activeSubCategoryId === subCat.id ? 'active' : ''}>
+                            {subCat.name} ({count})
+                          </button>
+                        })()
+                      ))}
+                    </div>
+                  )}
                   {filteredWords.length > 0 ? (
                     <>
                       <div className="list-header">
@@ -1542,12 +1759,25 @@ function App() {
                         <div className="list-header-actions" onContextMenu={(e) => { e.stopPropagation(); }}>
                           <button onClick={() => {
                             focusAddTaskInput();
-                            if (activeCategoryId !== 'all') {
-                              setNewTask(prev => ({ ...prev, categoryId: activeCategoryId }));
+                            setOpenAccordionIds(new Set()); // Collapse others when adding new
+                            // Prioritize the active sub-category, otherwise fall back to the parent category
+                            const defaultCategoryId = activeSubCategoryId !== 'all' 
+                              ? activeSubCategoryId 
+                              : (activeCategoryId !== 'all' ? activeCategoryId : undefined);
+
+                            if (defaultCategoryId) {
+                              setNewTask(prev => ({ ...prev, categoryId: defaultCategoryId }));
                             }
                           }} title="Add New Task">+</button>
                           <button onClick={handleClearAll} title="Clear All Tasks">🗑️</button>
                           <button onClick={handleCopyList} title="Copy Open Tasks">📋</button>
+                        </div>
+                        <div className="button-group">
+                          <button onClick={() => {
+                            const allVisibleIds = new Set(filteredWords.map(w => w.id));
+                            setOpenAccordionIds(allVisibleIds);
+                          }} title="Expand All">📂</button>
+                          <button onClick={() => setOpenAccordionIds(new Set())} title="Collapse All">📁</button>
                         </div>
                       </div>
                       <div className="priority-list-main">
@@ -1565,21 +1795,40 @@ function App() {
                             ) : (
                               <TaskAccordion
                                 word={word}
-                                startOpen={editingViaContext === word.id}
+                                isOpen={openAccordionIds.has(word.id)}
+                                onToggle={() => handleAccordionToggle(word.id)}
                                 title={
                                 <>
                                   <div className="accordion-title-container">
                                     <span className="accordion-main-title">{word.text}</span>
-                                    {word.categoryId && (
-                                      <span className="category-pill" onClick={(e) => { e.stopPropagation(); setActiveCategoryId(word.categoryId); }}>
-                                        {settings.categories.find(c => c.id === word.categoryId)?.name}
-                                      </span>
-                                    )}
+                                    {(() => {
+                                      if (!word.categoryId) return null;
+                                      const category = settings.categories.find(c => c.id === word.categoryId);
+                                      if (!category) return null;
+
+                                      const parentCategory = category.parentId ? settings.categories.find(c => c.id === category.parentId) : null;
+
+                                      const handlePillClick = (e: React.MouseEvent, catId: number, parentId?: number) => {
+                                        e.stopPropagation();
+                                        setActiveCategoryId(parentId || catId);
+                                        if (parentId) setActiveSubCategoryId(catId);
+                                      };
+
+                                      return (
+                                        <>
+                                          {parentCategory && (
+                                            <span className="category-pill" onClick={(e) => handlePillClick(e, parentCategory.id)}>{parentCategory.name}</span>
+                                          )}
+                                          <span className="category-pill" onClick={(e) => handlePillClick(e, category.id, parentCategory?.id)}>{category.name}</span>
+                                        </>
+                                      );
+                                    })()}
                                   </div>
                                   <div className="accordion-subtitle">
                                     {word.company && <span>{word.company}</span>}
-                                    <span>{formatTimestamp(word.openDate)}</span>
-                                    <span><TimeLeft completeBy={word.completeBy} /></span>
+                                    <span>{formatDate(word.openDate)} {new Date(word.openDate).toLocaleTimeString()}</span>
+                                    {word.completeBy && <span>Due: {formatDate(word.completeBy)} {new Date(word.completeBy).toLocaleTimeString()}</span>}
+                                    <span><TimeLeft completeBy={word.completeBy} settings={settings} /></span>
                                     <span className={`priority-indicator priority-${(word.priority || 'Medium').toLowerCase()}`}>
                                       <span className="priority-dot"></span>
                                       {word.priority || 'Medium'}
@@ -1594,8 +1843,8 @@ function App() {
                                     onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))}
                                     formatTimestamp={formatTimestamp}
                                     setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
-                                    settings={settings}
-                                    handleRichTextKeyDown={handleRichTextKeyDown}
+                                  onDescriptionChange={(html) => setWords(words.map(w => w.id === word.id ? { ...w, description: html } : w))}
+                                    settings={settings}                                    
                                   />
                                   <div className="word-item-display">
                                     <span className="stopwatch date-opened">
@@ -1605,14 +1854,33 @@ function App() {
                                   </div>
                                 </>
                                 <div className="list-item-controls">
-                                <button onClick={() => setWords(words.map(w => w.id === word.id ? { ...w, isRecurring: !w.isRecurring } : w))} title="Toggle Re-occurring" className={`recurring-toggle ${word.isRecurring ? 'active' : ''}`}>
+                                <button onClick={() => {
+                                  const newAutocompleteState = !word.isAutocomplete;
+                                  setWords(words.map(w => w.id === word.id ? { ...w, isAutocomplete: newAutocompleteState } : w));
+                                  setCopyStatus(`Autocomplete ${newAutocompleteState ? 'enabled' : 'disabled'}.`);
+                                  setTimeout(() => setCopyStatus(''), 2000);
+                                }} title="Toggle Autocomplete" className={`recurring-toggle ${word.isAutocomplete ? 'active' : ''}`}>
+                                  🤖
+                                </button>
+                                <button onClick={() => {
+                                  const newRecurringState = !word.isRecurring;
+                                  setWords(words.map(w => w.id === word.id ? { ...w, isRecurring: newRecurringState } : w));
+                                  setCopyStatus(`Re-occurring task ${newRecurringState ? 'enabled' : 'disabled'}.`);
+                                  setTimeout(() => setCopyStatus(''), 2000);
+                                }} title="Toggle Re-occurring" className={`recurring-toggle ${word.isRecurring ? 'active' : ''}`}>
                                   🔁
                                 </button>
-                                  <button onClick={() => handleCompleteWord(word)} className="complete-btn">✓</button>
-                                  <button onClick={() => handleEdit(word)}>Rename</button>
-                                  <button onClick={() => moveWord(index, 'up')} disabled={index === 0}>↑</button>
-                                  <button onClick={() => moveWord(index, 'down')} disabled={index === words.length - 1}>↓</button>
-                                  <button onClick={() => removeWord(word.id)} className="remove-btn">×</button>
+                                  <button onClick={() => handleCompleteWord(word)} className="complete-btn" title="Complete Task">✓</button>
+                                  <button onClick={() => handleEdit(word)} title="Rename Task">Rename</button>
+                                  <button onClick={() => {
+                                    const targetWord = filteredWords[index - 1];
+                                    if (targetWord) moveWord(word.id, targetWord.id);
+                                  }} disabled={index === 0} title="Move Up">↑</button>
+                                  <button onClick={() => {
+                                    const targetWord = filteredWords[index + 1];
+                                    if (targetWord) moveWord(word.id, targetWord.id);
+                                  }} disabled={index === filteredWords.length - 1} title="Move Down">↓</button>
+                                  <button onClick={() => removeWord(word.id)} className="remove-btn" title="Delete Task">×</button>
                                 </div>
                               </TaskAccordion>
                             )}
@@ -1621,8 +1889,13 @@ function App() {
                         <div className="add-task-row">
                           <button className="add-task-button" onClick={() => {
                             focusAddTaskInput();
-                            if (activeCategoryId !== 'all') {
-                              setNewTask(prev => ({ ...prev, categoryId: activeCategoryId }));
+                            // Prioritize the active sub-category, otherwise fall back to the parent category
+                            const defaultCategoryId = activeSubCategoryId !== 'all' 
+                              ? activeSubCategoryId 
+                              : (activeCategoryId !== 'all' ? activeCategoryId : undefined);
+
+                            if (defaultCategoryId) {
+                              setNewTask(prev => ({ ...prev, categoryId: defaultCategoryId }));
                             }
                           }}>+ Open Task</button>
                         </div>
@@ -1630,11 +1903,23 @@ function App() {
                     </>
                   ) : (
                     <div className="empty-list-placeholder">
-                      <h3>No Open Tasks for {activeCategoryId === 'all' ? 'any category' : settings.categories.find(c => c.id === activeCategoryId)?.name || 'this category'}</h3>
+                      <h3>No Open Tasks for {(() => {
+                        if (activeCategoryId === 'all') return 'any category';
+                        if (activeSubCategoryId !== 'all') {
+                          return settings.categories.find(c => c.id === activeSubCategoryId)?.name || 'this category';
+                        }
+                        const parentCategory = settings.categories.find(c => c.id === activeCategoryId);
+                        return parentCategory?.name || 'this category';
+                      })()}</h3>
                       <button onClick={() => {
                         focusAddTaskInput();
-                        if (activeCategoryId !== 'all') {
-                          setNewTask(prev => ({ ...prev, categoryId: activeCategoryId }));
+                        // Prioritize the active sub-category, otherwise fall back to the parent category
+                        const defaultCategoryId = activeSubCategoryId !== 'all' 
+                          ? activeSubCategoryId 
+                          : (activeCategoryId !== 'all' ? activeCategoryId : undefined);
+
+                        if (defaultCategoryId) {
+                          setNewTask(prev => ({ ...prev, categoryId: defaultCategoryId }));
                         }
                       }}>+ Open Task</button>
                     </div>
@@ -1642,16 +1927,32 @@ function App() {
                 </>
               );
             })()}
-            {completedWords.filter(word => activeCategoryId === 'all' || word.categoryId === activeCategoryId).length > 0 && (
+            {(() => {
+              const filteredCompletedWords = completedWords.filter(word => {
+                if (activeCategoryId === 'all') return true;
+
+                const activeCategory = settings.categories.find(c => c.id === activeCategoryId);
+                const parentId = activeCategory?.parentId || activeCategoryId;
+                const subCategoriesForActive = settings.categories.filter(c => c.parentId === parentId);
+
+                if (activeSubCategoryId !== 'all') {
+                  return word.categoryId === activeSubCategoryId;
+                }
+
+                const categoryIdsToShow = [parentId, ...subCategoriesForActive.map(sc => sc.id)];
+                return categoryIdsToShow.includes(word.categoryId);
+              });
+
+              if (filteredCompletedWords.length === 0) return null;
+
+              return (
               <SimpleAccordion title="Completed Items">
                 <div className="completed-actions">
                   <button onClick={handleClearCompleted} title="Clear Completed List">🗑️</button>
                   <button onClick={handleCopyReport} title="Copy Report">📋</button>
                 </div>
                 <div className="priority-list-main">
-                  {completedWords
-                    .filter(word => activeCategoryId === 'all' || word.categoryId === activeCategoryId)
-                    .map((word) => {
+                  {filteredCompletedWords.map((word) => {
                     const title = (
                       <>
                         <div className="accordion-main-title">{word.text}</div>
@@ -1664,15 +1965,15 @@ function App() {
                     );
                     return (
                       <div key={word.id} className="priority-list-item completed-item">
-                        <TaskAccordion word={word} title={title} startOpen={false}>
+                        <TaskAccordion word={word} title={title} isOpen={openAccordionIds.has(word.id)} onToggle={() => handleAccordionToggle(word.id)}>
                           {/* This first child is the 'content' for the accordion */}
                           <TabbedView 
                             word={word} 
                             onUpdate={() => {}} // No updates for completed items
                             formatTimestamp={formatTimestamp}
                             setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
+                            onDescriptionChange={() => {}}
                             settings={settings}
-                            handleRichTextKeyDown={() => {}} // Pass a no-op for completed items
                           />
                           {/* This second child is the 'headerActions' for the accordion */}
                           <div className="list-item-controls">
@@ -1685,7 +1986,8 @@ function App() {
                   })}
                 </div>
               </SimpleAccordion>
-            )}
+              );
+            })()}
           </div>
         )}
       </div>
@@ -1707,7 +2009,7 @@ function App() {
             </label>
             <label><h4>Category:</h4>
               <select value={newTask.categoryId} onChange={(e) => setNewTask({ ...newTask, categoryId: Number(e.target.value) })}>
-                {settings.categories.map((cat: Category) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                <CategoryOptions categories={settings.categories} />
               </select>
             </label>
             <label><h4>Priority:</h4>
@@ -1718,18 +2020,51 @@ function App() {
               </select>
             </label>
             <label><h4>Open Date:</h4>
-              <input type="date" value={newTask.openDate} onChange={(e) => setNewTask({ ...newTask, openDate: e.target.value })} />
+              <div className="date-input-group">
+                <input type="datetime-local" value={formatTimestampForInput(newTask.openDate)} onChange={(e) => setNewTask({ ...newTask, openDate: parseInputTimestamp(e.target.value) })} />
+                <div className="button-group">{(() => {
+                    const subtractTime = (amount: number, unit: 'minutes' | 'hours' | 'days') => {
+                      const baseTime = newTask.openDate ? new Date(newTask.openDate) : new Date();
+                      if (unit === 'minutes') baseTime.setMinutes(baseTime.getMinutes() - amount);
+                      if (unit === 'hours') baseTime.setHours(baseTime.getHours() - amount);
+                      if (unit === 'days') baseTime.setDate(baseTime.getDate() - amount);
+                      setNewTask({ ...newTask, openDate: baseTime.getTime() });
+                    };
+                    return <>
+                      <button onClick={() => setNewTask({ ...newTask, openDate: undefined })} title="Clear Date">❌</button>
+                      <button onClick={() => setNewTask({ ...newTask, openDate: new Date().getTime() })} title="Set to Now">NOW</button>
+                      <button onClick={() => { const d = new Date(newTask.openDate || Date.now()); d.setMinutes(0,0,0); setNewTask({ ...newTask, openDate: d.getTime() }); }} title="Round to Hour">:00</button>
+                      <button onClick={() => subtractTime(15, 'minutes')}>-15m</button> <button onClick={() => subtractTime(30, 'minutes')}>-30m</button>
+                      <button onClick={() => subtractTime(1, 'hours')}>-1h</button> <button onClick={() => subtractTime(2, 'hours')}>-2h</button>
+                      <button onClick={() => subtractTime(1, 'days')}>-1d</button> <button onClick={() => subtractTime(3, 'days')}>-3d</button>
+                    </>;
+                  })()}
+                </div>
+              </div>
             </label>
             <label><h4>Complete By:</h4>
             <input type="datetime-local" value={formatTimestampForInput(newTask.completeBy)} onChange={(e) => setNewTask({ ...newTask, completeBy: parseInputTimestamp(e.target.value) })} />
-              <div className="button-group">
-                <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().getTime() + 15 * 60 * 1000 })}>+15m</button>
-                <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().getTime() + 30 * 60 * 1000 })}>+30m</button>
-                <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().getTime() + 60 * 60 * 1000 })}>+1h</button>
-                <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().getTime() + 2 * 60 * 60 * 1000 })}>+2h</button>
-                <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 1); setNewTask({ ...newTask, completeBy: d.getTime() }); }}>+1d</button>
-                <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 3); setNewTask({ ...newTask, completeBy: d.getTime() }); }}>+3d</button>
-              </div>
+              <div className="button-group">{(() => {
+                  const addTime = (amount: number, unit: 'minutes' | 'hours' | 'days') => {
+                    const baseTime = newTask.completeBy ? new Date(newTask.completeBy) : new Date();
+                    if (unit === 'minutes') baseTime.setMinutes(baseTime.getMinutes() + amount);
+                    if (unit === 'hours') baseTime.setHours(baseTime.getHours() + amount);
+                    if (unit === 'days') baseTime.setDate(baseTime.getDate() + amount);
+                    setNewTask({ ...newTask, completeBy: baseTime.getTime() });
+                  };
+                  return <>
+                    <button onClick={() => setNewTask({ ...newTask, completeBy: undefined })} title="Clear Date">❌</button>
+                    <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().getTime() })} title="Set to Now">NOW</button>
+                    <button onClick={() => {
+                      const baseTime = newTask.completeBy ? new Date(newTask.completeBy) : new Date();
+                      baseTime.setMinutes(0, 0, 0); // Set minutes, seconds, and ms to 0
+                      setNewTask({ ...newTask, completeBy: baseTime.getTime() });
+                    }} title="Round to Hour">:00</button>
+                    <button onClick={() => addTime(15, 'minutes')}>+15m</button> <button onClick={() => addTime(30, 'minutes')}>+30m</button>
+                    <button onClick={() => addTime(1, 'hours')}>+1h</button> <button onClick={() => addTime(2, 'hours')}>+2h</button>
+                    <button onClick={() => addTime(1, 'days')}>+1d</button> <button onClick={() => addTime(3, 'days')}>+3d</button>
+                  </>;
+                })()}</div>
             </label>
             <label><h4>Company:</h4>
               <input type="text" value={newTask.company} onChange={(e) => setNewTask({ ...newTask, company: e.target.value })} />
@@ -1755,29 +2090,123 @@ function App() {
                 + Add Image Link
               </button>
             </label>
-            <label><h4>Description:</h4>
-              <div 
-                className="rich-text-editor" 
-                contentEditable 
-                onBlur={(e: React.FocusEvent<HTMLDivElement>) => setNewTask({ ...newTask, description: e.target.innerHTML })} onKeyDown={handleRichTextKeyDown}
-              />
-              <div className="shortcut-key">
-                <span>Shortcuts:</span>
-                <span><b>Ctrl+B</b>: Bold</span>
-                <span><i>Ctrl+I</i>: Italic</span>
-                <span><u>Ctrl+U</u>: Underline</span>
-                <span><b>Ctrl+K</b>: Link</span>
-                <span><b>Ctrl+L</b>: List</span>
-              </div>
-            </label>
+            <DescriptionEditor 
+              description={newTask.description || ''} 
+              onDescriptionChange={(html) => setNewTask({ ...newTask, description: html })} 
+            />
             <label className="checkbox-label flexed-column">
               <input type="checkbox" checked={newTask.isRecurring || false} onChange={(e) => setNewTask({ ...newTask, isRecurring: e.target.checked })} />
-              <span className='checkbox-label-text'>Re-occurring Task</span>              
+              <span className='checkbox-label-text'>Re-occurring Task</span>
+            </label>
+            <label className="checkbox-label flexed-column">
+              <input type="checkbox" checked={newTask.isAutocomplete || false} onChange={(e) => setNewTask({ ...newTask, isAutocomplete: e.target.checked })} />
+              <span className='checkbox-label-text'>Autocomplete on Deadline</span>
             </label>
             <button onClick={() => handleInputKeyDown({ key: 'Enter' } as React.KeyboardEvent<HTMLInputElement>)}>
               Add Task
             </button>
           </div>
+        </SimpleAccordion>
+
+        <SimpleAccordion className="accordion-category-manager" title="Category Manager">
+          {settings.categories.filter(c => !c.parentId).map((parentCat: Category) => (
+            <div key={parentCat.id} className="category-manager-group">
+              <div className="category-manager-item parent">
+                <input 
+                  type="text" 
+                  value={parentCat.name}
+                  onChange={(e) => {
+                    const newCategories = settings.categories.map(c => c.id === parentCat.id ? { ...c, name: e.target.value } : c);
+                    setSettings(prev => ({ ...prev, categories: newCategories }));
+                  }}
+                />
+                <button onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, parentCat.id, 'up') }))} title="Move Up">↑</button>
+                <button onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, parentCat.id, 'down') }))} title="Move Down">↓</button>
+                <button className="remove-link-btn" onClick={() => {
+                  const subCategoryCount = settings.categories.filter(c => c.parentId === parentCat.id).length;
+                  const confirmationMessage = `Are you sure you want to delete the category "${parentCat.name}"? This will also delete its ${subCategoryCount} sub-categories.`;
+                  if (window.confirm(confirmationMessage)) {
+                    const newCategories = settings.categories.filter(c => c.id !== parentCat.id && c.parentId !== parentCat.id);
+                    setWords(words.map(w => w.categoryId === parentCat.id ? { ...w, categoryId: undefined } : w));
+                    setSettings(prev => ({ ...prev, categories: newCategories }));
+                  }
+                }}>-</button>
+                <button className="add-link-btn" onClick={() => {
+                  const newSubCategory = { id: Date.now(), name: 'New Sub-Category', parentId: parentCat.id };
+                  setSettings(prev => ({ ...prev, categories: [...prev.categories, newSubCategory] }));
+                }} title="Add Sub-Category">+</button>
+              </div>
+              {settings.categories.filter(c => c.parentId === parentCat.id).map((subCat: Category) => (
+                <div key={subCat.id} className="category-manager-item sub">
+                  <input 
+                    type="text" 
+                    value={subCat.name}
+                    onChange={(e) => { // Correctly update sub-category name
+                        const newCategories = settings.categories.map(c => 
+                            c.id === subCat.id ? { ...c, name: e.target.value } : c
+                        );
+                        setSettings(prev => ({ ...prev, categories: newCategories }));
+                    }}
+                  />
+                  <button onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, subCat.id, 'up') }))} title="Move Up">↑</button>
+                  <button onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, subCat.id, 'down') }))} title="Move Down">↓</button>
+                  <button className="remove-link-btn" onClick={() => {
+                    if (window.confirm(`Are you sure you want to delete the sub-category "${subCat.name}"?`)) {
+                      const newCategories = settings.categories.filter(c => c.id !== subCat.id);
+                      // Also un-categorize any words that were in this sub-category by moving them to the parent
+                      setWords(words.map(w => w.categoryId === subCat.id ? { ...w, categoryId: parentCat.id } : w));
+                      setSettings(prev => ({ ...prev, categories: newCategories }));
+                    }
+                  }}>-</button>
+                </div>
+              ))}
+            </div>
+          ))}
+          <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, categories: [...prev.categories, { id: Date.now(), name: 'New Category' }] }))}>
+            + Add Category
+          </button>
+        </SimpleAccordion>
+        <SimpleAccordion title="External Link Manager">
+          {settings.externalLinks.map((link, index) => (
+            <div key={index} className="external-link-manager-item">
+              <input type="checkbox" checked={link.openInDefault || false} onChange={(e) => {
+                const newLinks = [...settings.externalLinks];
+                newLinks[index].openInDefault = e.target.checked;
+                setSettings(prev => ({ ...prev, externalLinks: newLinks }));
+              }} />
+              <input 
+                type="text" 
+                placeholder="Link Name" 
+                value={link.name} 
+                onChange={(e) => {
+                  const newLinks = [...settings.externalLinks];
+                  newLinks[index].name = e.target.value;
+                  setSettings(prev => ({ ...prev, externalLinks: newLinks }));
+                }} 
+              />
+              <input 
+                type="text" 
+                placeholder="https://example.com" 
+                value={link.url} 
+                onChange={(e) => {
+                  const newLinks = [...settings.externalLinks];
+                  newLinks[index].url = e.target.value;
+                  setSettings(prev => ({ ...prev, externalLinks: newLinks }));
+                }} 
+              />
+              <button onClick={() => setSettings(prev => ({ ...prev, externalLinks: prev.externalLinks.filter((_, i) => i !== index) }))}>-</button>
+            </div>
+          ))}
+          <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, externalLinks: [...prev.externalLinks, { name: '', url: '', openInDefault: false }] }))}>
+            + Add Link
+          </button>
+        </SimpleAccordion>
+
+        <SimpleAccordion title="Time Management">
+          <label>
+            Warning Time (minutes):
+            <input type="number" value={settings.warningTime} onChange={(e) => setSettings(prev => ({ ...prev, warningTime: Number(e.target.value) }))} />
+          </label>
         </SimpleAccordion>
 
         {/* Moved Bulk Add and Project Actions to be globally available */}
@@ -1884,97 +2313,27 @@ function App() {
                 <input type="range" min="-50" max="50" value={settings.shadowOffsetY} onChange={(e) => setSettings(prev => ({ ...prev, shadowOffsetY: Number(e.target.value) }))} />
               </label>
             </SimpleAccordion>
-            <SimpleAccordion title="Browser Settings">
-              {settings.browsers.map((browser, index) => (
-                <div key={index} className="browser-setting-item">
-                  <input 
-                    type="text" 
-                    placeholder="Browser Name" 
-                    value={browser.name} 
-                    onChange={(e) => {
-                      const newBrowsers = [...settings.browsers];
-                      newBrowsers[index].name = e.target.value;
-                      setSettings(prev => ({ ...prev, browsers: newBrowsers }));
-                    }} 
-                  />
-                  <input 
-                    type="text" 
-                    placeholder="C:\path\to\browser.exe" 
-                    value={browser.path} 
-                    onChange={(e) => {
-                      const newBrowsers = [...settings.browsers];
-                      newBrowsers[index].path = e.target.value;
-                      setSettings(prev => ({ ...prev, browsers: newBrowsers }));
-                    }} 
-                  />
-                  <button onClick={() => setSettings(prev => ({ ...prev, browsers: prev.browsers.filter((_, i) => i !== index) }))}>-</button>
-                </div>
-              ))}
-              <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, browsers: [...prev.browsers, { name: '', path: '' }] }))}>+ Add Browser</button>
-            </SimpleAccordion>
-            <SimpleAccordion title="Category Manager">
-              {settings.categories.map((cat: Category, index: number) => (
-                <div key={cat.id} className="category-manager-item">
-                  <input 
-                    type="text" 
-                    value={cat.name}
-                    onChange={(e) => {
-                      const newCategories = [...settings.categories];
-                      newCategories[index].name = e.target.value;
-                      setSettings(prev => ({ ...prev, categories: newCategories }));
-                    }}
-                  />
-                  <button onClick={() => {
-                    const newCategories = settings.categories.filter((c: Category) => c.id !== cat.id);
-                    // Also un-categorize any words that were in this category
-                    setWords(words.map(w => w.categoryId === cat.id ? { ...w, categoryId: undefined } : w));
-                    setSettings(prev => ({ ...prev, categories: newCategories }));
-                  }}>-</button>
-                </div>
-              ))}
-              <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, categories: [...prev.categories, { id: Date.now(), name: 'New Category' }] }))}>
-                + Add Category
-              </button>
-            </SimpleAccordion>
-            <SimpleAccordion title="External Link Manager">
-              {settings.externalLinks.map((link, index) => (
-                <div key={index} className="external-link-manager-item">
-                  <input type="checkbox" checked={link.openInDefault || false} onChange={(e) => {
-                    const newLinks = [...settings.externalLinks];
-                    newLinks[index].openInDefault = e.target.checked;
-                    setSettings(prev => ({ ...prev, externalLinks: newLinks }));
-                  }} />
-                  <input 
-                    type="text" 
-                    placeholder="Link Name" 
-                    value={link.name} 
-                    onChange={(e) => {
-                      const newLinks = [...settings.externalLinks];
-                      newLinks[index].name = e.target.value;
-                      setSettings(prev => ({ ...prev, externalLinks: newLinks }));
-                    }} 
-                  />
-                  <input 
-                    type="text" 
-                    placeholder="https://example.com" 
-                    value={link.url} 
-                    onChange={(e) => {
-                      const newLinks = [...settings.externalLinks];
-                      newLinks[index].url = e.target.value;
-                      setSettings(prev => ({ ...prev, externalLinks: newLinks }));
-                    }} 
-                  />
-                  <button onClick={() => setSettings(prev => ({ ...prev, externalLinks: prev.externalLinks.filter((_, i) => i !== index) }))}>-</button>
-                </div>
-              ))}
-              <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, externalLinks: [...prev.externalLinks, { name: '', url: '', openInDefault: false }] }))}>
-                + Add Link
-              </button>
-            </SimpleAccordion>
           </>
         )}
       </div>
     </div>
+  );
+}
+
+function CategoryOptions({ categories }: { categories: Category[] }) {
+  const parentCategories = categories.filter(c => !c.parentId);
+
+  return (
+    <>
+      {parentCategories.map(parent => {
+        const children = categories.filter(sub => sub.parentId === parent.id);
+        return (
+          <React.Fragment key={parent.id}>
+            <option value={parent.id}>{parent.name}</option>
+            {children.map(child => <option key={child.id} value={child.id}>&nbsp;&nbsp;{child.name}</option>)}
+          </React.Fragment>
+        )})}
+    </>
   );
 }
 
@@ -1985,3 +2344,54 @@ document.body.appendChild(rootElement);
 
 const root = createRoot(rootElement);
 root.render(<React.StrictMode><App /></React.StrictMode>);
+
+// A global, reusable handler for rich text key events.
+// It accepts a callback to sync state after a DOM command.
+const handleGlobalRichTextKeyDown = (
+  e: React.KeyboardEvent<HTMLDivElement>, 
+  onStateUpdate: () => void,
+  setIsLinkModalOpen?: (isOpen: boolean) => void,
+  setSelectionRange?: (range: Range) => void
+) => {
+  let commandExecuted = false;
+
+  // Handle Alt+1-6 for Header tags. We check for !e.ctrlKey to avoid conflicts.
+  if (e.altKey && !e.shiftKey && !e.ctrlKey && headerShortcutKeys.includes(e.key)) {
+    e.preventDefault();
+    const headerLevel = e.key;
+    document.execCommand('removeFormat', false, null);
+    document.execCommand('formatBlock', false, `H${headerLevel}`);
+    commandExecuted = true;
+  }
+  // Handle Ctrl-based shortcuts
+  else if (e.ctrlKey) {
+    switch (e.key.toLowerCase()) {
+      case 'k': // Link
+        if (setIsLinkModalOpen && setSelectionRange) {
+          e.preventDefault();
+          const selection = window.getSelection();
+          if (selection && selection.rangeCount > 0) {
+            setSelectionRange(selection.getRangeAt(0));
+            setIsLinkModalOpen(true);
+          }
+        }
+        break;
+      // For Bold, Italic, and Underline, we can let the browser do its default action.
+      // No 'case' is needed, so they fall through and don't trigger preventDefault().
+      case 'l': e.preventDefault(); document.execCommand('insertUnorderedList', false, null); commandExecuted = true; break;      
+      case '\\': e.preventDefault(); document.execCommand('removeFormat', false, null); commandExecuted = true; break;
+      case 'p': e.preventDefault(); document.execCommand('formatBlock', false, 'P'); commandExecuted = true; break;
+      // Other Ctrl+key combinations (like C, V, Z, B, I, U) are allowed to perform their default action.
+      default:
+        // No-op, allow default browser behavior
+    }
+  }
+
+  // If a command was executed that changed the DOM, call the state update callback.
+  // We use a timeout to ensure the DOM has been updated by the browser before we read it.
+  if (commandExecuted) {
+    setTimeout(() => {
+      onStateUpdate();
+    }, 0);
+  }
+};
