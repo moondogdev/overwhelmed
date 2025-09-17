@@ -18,7 +18,14 @@ All notable changes to this project will be documented in this file.
 -   **Rich Text Editing**: Added WYSIWYG support to description fields, including keyboard shortcuts for Bold (`Ctrl+B`), Italic (`Ctrl+I`), Underline (`Ctrl+U`), Link (`Ctrl+K`), and List (`Ctrl+L`).
 -   **Task Actions**: Added a context menu and buttons for completing, reopening, copying, and deleting tasks.
 -   **Manual Work Timer**: Added a manual stopwatch to each task to track active work time.
+-   **Category Management**: Implemented a full category system with a manager in the sidebar to add, rename, and delete categories.
+-   **Tabbed Task Filtering**: Added a tab bar to the "List View" to filter tasks by category, including counters for open tasks in each tab.
+-   **Re-occurring Tasks**: Added a toggle to mark tasks as re-occurring, which automatically recreates them upon completion.
+-   **Deadline Timers**: Enhanced the "Complete By" field to include a time, with a live "Time Left" countdown visible in the task header and details.
+-   **Pay Rate & Cost Calculation**: Added a "Pay Rate" field to tasks to automatically calculate and display the total task cost based on time tracked.
+-   **External Link Manager**: Added a section in the settings to manage a list of quick-access external website links, which are displayed in the main header.
 -   **Custom Browser Selection**: Added a new settings section to define a list of browsers. Users can now cycle through the list with a hotkey (` ` `) and open links in the selected browser instead of the system default.
+-   **View Persistence**: The application now remembers the last active view ("Meme View" or "List View") and restores it on startup.
 -   **Data Persistence**: Replaced `localStorage` with `electron-store` for robust, file-based data persistence, following secure Electron patterns.
 -   **Save State Management**: The application now tracks an "unsaved changes" (dirty) state, providing clear visual feedback to the user.
 -   **Dynamic Save Button**: Implemented a single save button that dynamically changes its text and color (red for "Unsaved", green for "Saved") to reflect the current project state.
@@ -32,5 +39,7 @@ All notable changes to this project will be documented in this file.
 -   **List View Input**: Fixed a bug that prevented adding new words by pressing "Enter" while in "List View".
 -   **Canvas Redraw**: Fixed a bug where the background image would disappear when switching from "List View" back to "Meme View".
 -   **UI/UX Improvements**: Refined the UI with consistent icons, non-intrusive toast notifications for user actions, and improved layout for the task list to be cleaner and more intuitive.
+-   **Clickable Category Pills**: Added clickable category "pills" to task headers for quick navigation between category views.
+-   **Dynamic UI**: The UI now intelligently hides empty sections (like "Priority List" or "Completed Items") and provides helpful "Open Task" buttons to improve workflow.
 -   **External Link Handling**: Fixed a bug where hyperlinks created in the description field would navigate inside the app instead of opening in the user's default browser.
 -   **Context Menu Logic**: Resolved event propagation conflicts to ensure the correct context menu (for links vs. tickets) appears reliably.

@@ -31,6 +31,16 @@ body {
   width: 100%;
   padding-bottom: 20px;
   display: flex;
+  justify-content: center; /* Center the main buttons */
+  align-items: center;
+  position: relative; /* For absolute positioning of link groups */
+}
+
+.external-links {
+  position: absolute;
+  left: 0;
+  display: flex;
+  gap: 10px;
   justify-content: space-between;
   align-items: center;
 }
@@ -66,6 +76,44 @@ body {
 .app-header button:disabled {
   background-color: #4caf50;
   cursor: default;
+}
+
+.empty-list-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  border: 2px dashed #444;
+  border-radius: 5px;
+  color: #aaa;
+}
+
+.empty-list-placeholder button {
+  width: auto;
+}
+
+.category-tabs {
+  display: flex;
+  border-bottom: 1px solid #444;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.category-tabs button {
+  padding: 10px 20px;
+  cursor: pointer;
+  border: none;
+  background-color: transparent;
+  color: #aaa;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  font-size: 1em;
+}
+
+.category-tabs button.active {
+  color: white;
+  border-bottom-color: #61dafb;
 }
 
 .canvas-container {
@@ -162,8 +210,17 @@ body {
   align-items: center;
   justify-content: flex-start; /* Align items to the left */
   gap: 8px; /* Add a small gap between the box and text */
+  display: flex;
 }
-
+.checkbox-label.flexed-column {
+    flex-direction: row;
+    align-items: center;
+    margin: 10px 0;
+}
+.checkbox-label.flexed-column input[type="checkbox" i] {
+    width: auto;
+    margin: 0;
+}
 .button-group {
   display: flex;
   gap: 5px;
@@ -208,6 +265,23 @@ body {
 .accordion-icon {
   font-size: 1.2em;
   padding: 0 10px;
+}
+
+.accordion-title-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.category-pill {
+  font-size: 0.7em;
+  font-weight: bold;
+  background-color: #555;
+  color: #ddd;
+  padding: 2px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap; /* Prevent the pill from wrapping */
 }
 
 .accordion-main-title {
@@ -427,6 +501,11 @@ body {
   margin-left: 8px;
 }
 
+.list-header-actions button[title="Add New Task"] {
+  font-weight: bold;
+  font-size: 1.2em;
+}
+
 .list-header-actions button[title="Clear All Words"] {
   font-size: 1.1em; /* Make trashcan slightly larger */
 }
@@ -490,6 +569,19 @@ body {
   align-items: center;
   flex-wrap: wrap; /* Allow controls to wrap if needed */
 }
+.add-task-row {
+  padding: 8px 12px;
+  margin-bottom: 5px;
+}
+
+.add-task-button {
+  width: 100%;
+  padding: 10px;
+  background-color: #3a3f4b;
+  border: 2px dashed #555;
+  color: #aaa;
+  cursor: pointer;
+}
 .list-item-controls {
   display: flex; /* This is now a flex item within accordion-header-container */
   justify-content: flex-end; /* Align buttons to the right */
@@ -517,6 +609,15 @@ body {
   background-color: #4caf50;
 }
 
+.recurring-toggle {
+  background-color: #555 !important;
+  opacity: 0.5;
+}
+
+.recurring-toggle.active {
+  opacity: 1;
+  background-color: #61dafb !important; /* Use a distinct color for active state */
+}
 .stopwatch-container {
   display: flex;
   align-items: center;
@@ -666,6 +767,32 @@ body {
 }
 
 .browser-setting-item {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 5px;
+  align-items: center;
+}
+
+.external-link-manager-item {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 5px;
+  align-items: center;
+}
+
+.external-link-manager-item input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.category-manager-item {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 5px;
+  align-items: center;
+}
+
+.category-manager-item {
   display: flex;
   gap: 5px;
   margin-bottom: 5px;

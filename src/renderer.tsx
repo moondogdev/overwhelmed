@@ -32,7 +32,8 @@ interface Word {
   // New Task Manager Fields
   url?: string;
   priority?: 'High' | 'Medium' | 'Low';
-  completeBy?: string; // Storing as string for input type='date'
+  categoryId?: number;
+  completeBy?: number; // Storing as a timestamp
   company?: string;
   websiteUrl?: string;
   imageLinks?: string[];
@@ -46,6 +47,8 @@ interface Word {
   pausedDuration?: number;
   completedDuration?: number; // The final duration when completed
   manualTime?: number; // Manually tracked time in ms
+  payRate?: number; // Dollars per hour
+  isRecurring?: boolean;
   manualTimeRunning?: boolean;
   manualTimeStart?: number; // Timestamp when manual timer was started
 }
@@ -53,6 +56,17 @@ interface Word {
 interface Browser {
   name: string;
   path: string;
+}
+
+interface Category {
+  id: number;
+  name: string;
+}
+
+interface ExternalLink {
+  name: string;
+  url: string;
+  openInDefault?: boolean;
 }
 
 interface Settings {
@@ -70,6 +84,8 @@ interface Settings {
   maxFontSize: number;
   browsers: Browser[];
   activeBrowserIndex: number;
+  categories: Category[];
+  externalLinks: ExternalLink[];
   currentView: 'meme' | 'list';
 }
 
@@ -89,12 +105,17 @@ interface TabbedViewProps {
   startInEditMode?: boolean;
 }
 
-function SimpleAccordion({ title, children }: AccordionProps) {
-  const [isOpen, setIsOpen] = useState(false);
+function SimpleAccordion({ title, children, startOpen = false, onToggle }: AccordionProps & { startOpen?: boolean, onToggle?: (isOpen: boolean) => void }) {
+  const [isOpen, setIsOpen] = useState(startOpen);
+
+  useEffect(() => {
+    // If the startOpen prop is used to control the accordion, update its internal state.
+    setIsOpen(startOpen);
+  }, [startOpen]);
 
   return (
     <div className="accordion">
-      <div className="accordion-header" onClick={() => setIsOpen(!isOpen)}>
+      <div className="accordion-header" onClick={() => { setIsOpen(!isOpen); if(onToggle) onToggle(!isOpen); }}>
         <h4>{title}</h4>
         <span className="accordion-icon">{isOpen ? '−' : '+'}</span>
       </div>
@@ -196,16 +217,21 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
         {activeTab === 'ticket' && (
           <div className="ticket-display-view">
             <h3 onContextMenu={handleTicketContextMenu}>{word.text}</h3>
-            <p><strong>URL:</strong> {word.url ? <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.url}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); setCopyStatus('URL copied!'); }}>📋</button></span> : 'N/A'}</p>
+            {word.url && <p><strong>URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.url}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); setCopyStatus('URL copied!'); }}>📋</button></span></p>}
+            <p><strong>Category:</strong> {settings.categories.find(c => c.id === word.categoryId)?.name || 'Uncategorized'}</p>
             <p><strong>Priority:</strong> {word.priority || 'Medium'}</p>
             <p><strong>Open Date:</strong> {formatTimestamp(word.openDate)}</p>
-            <p><strong>Time Open:</strong> <TimeOpen startDate={word.openDate} /></p>
-            <p><strong>Complete By:</strong> {word.completeBy || 'N/A'}</p>
-            <p><strong>Company:</strong> {word.company ? <span className="link-with-copy">{word.company}<button className="copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); setCopyStatus('Company copied!'); }}>📋</button></span> : 'N/A'}</p>
+            <p><strong>Time Open:</strong> <TimeOpen startDate={word.createdAt} /></p>
+            {word.completeBy && <p><strong>Complete By:</strong> {formatTimestamp(word.completeBy)}</p>}
+            {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft completeBy={word.completeBy} /></p>}
+            {word.company && <p><strong>Company:</strong> <span className="link-with-copy">{word.company}<button className="copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); setCopyStatus('Company copied!'); }}>📋</button></span></p>}
             <div><strong>Work Timer:</strong>
               <ManualStopwatch word={word} onUpdate={(updatedWord) => onUpdate(updatedWord)} />
             </div>
-            <p><strong>Website URL:</strong> {word.websiteUrl ? <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.websiteUrl, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.websiteUrl}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.websiteUrl); setCopyStatus('Website URL copied!'); }}>📋</button></span> : 'N/A'}</p>
+            <div><strong>Task Cost:</strong>
+              <span> ${(((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0)).toFixed(2)}</span>
+            </div>
+            {word.websiteUrl && <p><strong>Website URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.websiteUrl, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.websiteUrl}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.websiteUrl); setCopyStatus('Website URL copied!'); }}>📋</button></span></p>}
             <div><strong>Image Links:</strong>
               <div className="image-links-display">
                 {(word.imageLinks || []).map((link, index) => (
@@ -252,6 +278,11 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
             <label><h4>Task Title:</h4>
               <input type="text" value={word.text} onChange={(e) => handleFieldChange('text', e.target.value)} />
             </label>
+            <label><h4>Category:</h4>
+              <select value={word.categoryId} onChange={(e) => handleFieldChange('categoryId', Number(e.target.value))}>
+                {settings.categories.map((cat: Category) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+              </select>
+            </label>
             <label><h4>Task Title URL:</h4>
               <input type="text" value={word.url || ''} onChange={(e) => handleFieldChange('url', e.target.value)} placeholder="https://example.com" />
             </label>
@@ -267,15 +298,22 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
             </label>
             <label><h4>Complete By:</h4>
               <div className="date-input-group">
-                <input type="date" value={word.completeBy || ''} onChange={(e) => handleFieldChange('completeBy', e.target.value)} />
-                <div className="date-input-group-actions">
-                  <button onClick={() => handleFieldChange('completeBy', new Date().toISOString().split('T')[0])}>Today</button>
-                  <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 3); handleFieldChange('completeBy', d.toISOString().split('T')[0]); }}>+3d</button>
+                <input type="datetime-local" value={formatTimestampForInput(word.completeBy)} onChange={(e) => handleFieldChange('completeBy', parseInputTimestamp(e.target.value))} />
+                <div className="button-group">
+                  <button onClick={() => handleFieldChange('completeBy', new Date().getTime() + 15 * 60 * 1000)}>+15m</button>
+                  <button onClick={() => handleFieldChange('completeBy', new Date().getTime() + 30 * 60 * 1000)}>+30m</button>
+                  <button onClick={() => handleFieldChange('completeBy', new Date().getTime() + 60 * 60 * 1000)}>+1h</button>
+                  <button onClick={() => handleFieldChange('completeBy', new Date().getTime() + 2 * 60 * 60 * 1000)}>+2h</button>
+                  <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 1); handleFieldChange('completeBy', d.getTime()); }}>+1d</button>
+                  <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 3); handleFieldChange('completeBy', d.getTime()); }}>+3d</button>
                 </div>
               </div>
             </label>
             <label><h4>Company:</h4>
               <input type="text" value={word.company || ''} onChange={(e) => handleFieldChange('company', e.target.value)} />
+            </label>
+            <label><h4>Pay Rate ($/hr):</h4>
+              <input type="number" value={word.payRate || 0} onChange={(e) => handleFieldChange('payRate', Number(e.target.value))} />
             </label>
             <label><h4>Website URL:</h4>
               <input type="text" value={word.websiteUrl || ''} onChange={(e) => handleFieldChange('websiteUrl', e.target.value)} placeholder="https://company.com" />
@@ -307,6 +345,10 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
                 <span><b>Ctrl+L</b>: List</span>
               </div>
             </label>
+            <label className="checkbox-label flexed-column">
+              <input type="checkbox" checked={word.isRecurring || false} onChange={(e) => handleFieldChange('isRecurring', e.target.checked)} /> 
+              <span className="checkbox-label-text">Re-occurring Task</span>
+            </label>
           </div>
         )}
       </div>
@@ -314,6 +356,19 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, handleRich
   );
 }
 
+const formatTimestampForInput = (ts: number | undefined) => {
+  if (!ts) return '';
+  const date = new Date(ts);
+  // Adjust for timezone offset to display correctly in the user's local time
+  const timezoneOffset = date.getTimezoneOffset() * 60000;
+  const localDate = new Date(date.getTime() - timezoneOffset);
+  // Format to 'YYYY-MM-DDTHH:mm'
+  return localDate.toISOString().slice(0, 16);
+};
+
+const parseInputTimestamp = (datetime: string) => {
+  return new Date(datetime).getTime();
+};
 function TaskAccordion({ title, children, startOpen = false, word }: AccordionProps & { startOpen?: boolean, word: Word }) {
   const [isOpen, setIsOpen] = useState(startOpen);
   const [content, headerActions] = React.Children.toArray(children);
@@ -325,7 +380,7 @@ function TaskAccordion({ title, children, startOpen = false, word }: AccordionPr
 
   return (
     <div className="accordion">
-      <div className="accordion-header-container">
+      <div className="accordion-header-container 2">
         <div
           className="accordion-header"
           onClick={() => setIsOpen(!isOpen)}
@@ -342,6 +397,32 @@ function TaskAccordion({ title, children, startOpen = false, word }: AccordionPr
       {isOpen && <div className="accordion-content">{content}</div>}
     </div>
   );
+}
+
+function TimeLeft({ completeBy }: { completeBy: number | undefined }) {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    if (!completeBy) {
+      setTimeLeft('No Deadline');
+      return;
+    }
+
+    const update = () => {
+      const ms = completeBy - Date.now();
+      if (ms < 0) {
+        setTimeLeft('Overdue');
+        return;
+      }
+      setTimeLeft(formatTime(ms));
+    };
+
+    update();
+    const interval = setInterval(update, 1000); // Update every second
+    return () => clearInterval(interval);
+  }, [completeBy]);
+
+  return <span className={timeLeft === 'Overdue' ? 'priority-high' : ''}>{timeLeft}</span>;
 }
 
 function TimeOpen({ startDate }: { startDate: number }) {
@@ -487,6 +568,15 @@ const defaultSettings: Settings = {
     { name: 'Chrome', path: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' },
   ],
   activeBrowserIndex: 0,
+  categories: [
+    { id: 1, name: 'Work' },
+    { id: 2, name: 'Projects' },
+    { id: 3, name: 'Development' },
+  ],
+  externalLinks: [
+    { name: 'Ticket Site', url: 'https://americancreative.freshdesk.com/a/tickets/filters/search?label=Unresolved%20tickets&q[]=status%3Fis_in%3A%5B0%5D&q[]=agent%3Fis_in%3A%5B0%5D&ref=unresolved' },
+    { name: 'GitHub', url: 'https://github.com/moondogdev/overwhelmed' },
+  ],
   currentView: 'meme',
 };
 
@@ -523,24 +613,33 @@ function App() {
   const [isDirty, setIsDirty] = useState(false);
 
   // State for the new detailed task form
+  const [activeCategoryId, setActiveCategoryId] = useState<number | 'all'>('all');
+
   const [editingViaContext, setEditingViaContext] = useState<number | null>(null);
 
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [selectionRange, setSelectionRange] = useState<Range | null>(null);
+
+  // Refs for autofocus functionality
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
+  const newTaskTitleInputRef = useRef<HTMLInputElement>(null);
 
 
   const [newTask, setNewTask] = useState({
     text: '',
     url: '',
     priority: 'Medium' as 'High' | 'Medium' | 'Low',
+    categoryId: 1,
     openDate: new Date().toISOString().split('T')[0],
-    completeBy: new Date().toISOString().split('T')[0], // Default to today
+    completeBy: undefined, // No deadline by default
     company: '',
     websiteUrl: '',
     imageLinks: [],
     manualTime: 0,
     manualTimeRunning: false,
     manualTimeStart: 0,
+    payRate: 0,
+    isRecurring: false,
     description: '',
   });
 
@@ -678,6 +777,15 @@ function App() {
       selection.addRange(selectionRange);
       document.execCommand('createLink', false, fullUrl);
     }
+  };
+
+  const focusAddTaskInput = () => {
+    setIsAddTaskOpen(true);
+    // Use a timeout to ensure the accordion is open before focusing.
+    // This works even if the accordion was already open.
+    setTimeout(() => {
+      newTaskTitleInputRef.current?.focus();
+    });
   };
 
   const handleRichTextKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -907,13 +1015,16 @@ function App() {
         text: '',
         url: '',
         priority: 'Medium',
+        categoryId: settings.categories[0]?.id || 1,
         openDate: new Date().toISOString().split('T')[0],
-        completeBy: new Date().toISOString().split('T')[0], // Reset to today
+        completeBy: undefined,
         company: '',
         websiteUrl: '',
         manualTime: 0,
         manualTimeRunning: false,
         manualTimeStart: 0,
+        payRate: 0,
+        isRecurring: false,
         imageLinks: [],
         description: '',
       });
@@ -985,6 +1096,26 @@ function App() {
     setWords(words.filter(word => word.id !== wordToComplete.id));
     setCopyStatus('Task completed!');
     setTimeout(() => setCopyStatus(''), 2000);
+
+    // If the task is re-occurring, create a new one
+    if (wordToComplete.isRecurring) {
+      let newCompleteBy: number | undefined = undefined;
+      if (wordToComplete.completeBy && wordToComplete.createdAt) {
+        // Calculate the original duration and add it to the current time
+        const originalDuration = wordToComplete.completeBy - wordToComplete.createdAt;
+        newCompleteBy = Date.now() + originalDuration;
+      }
+
+      const recurringTask: Word = {
+        ...wordToComplete,
+        id: Date.now(),
+        createdAt: Date.now(),
+        openDate: Date.now(),
+        completedDuration: undefined,
+        completeBy: newCompleteBy,
+      };
+      setWords(prev => [recurringTask, ...prev]);
+    }
   };
 
   const handleClearCompleted = () => {
@@ -1087,6 +1218,7 @@ function App() {
         id: Date.now() + Math.random(), // Add random to avoid collision in fast loops
         text,
         x, y,
+        categoryId: activeCategoryId === 'all' ? (settings.categories[0]?.id || 1) : activeCategoryId,
         manualTime: 0,
         manualTimeRunning: false,
         manualTimeStart: 0,
@@ -1349,6 +1481,19 @@ function App() {
       {copyStatus && <div className="copy-status-toast">{copyStatus}</div>}
       <div className="main-content">
         <header className="app-header">
+          <div className="external-links">
+            {settings.externalLinks.map((link, index) => (
+              <button key={index} onClick={() => {
+                const payload = {
+                  url: link.url,
+                  browserPath: link.openInDefault ? undefined : settings.browsers[settings.activeBrowserIndex]?.path
+                };
+                window.electronAPI.openExternalLink(payload);
+              }}>
+                {link.name}
+              </button>
+            ))}
+          </div>
           <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'meme' }))} disabled={settings.currentView === 'meme'}>Meme View</button>
           <div className="header-center-stack">
             <div className="current-browser-display">Active Browser: <b>{settings.browsers[settings.activeBrowserIndex]?.name || 'Default'}</b></div>
@@ -1373,116 +1518,174 @@ function App() {
         )}
         {settings.currentView === 'list' && (
           <div className="list-view-container">
-            <div className="list-header">
-              <h3>Priority List</h3>
-              <div className="list-header-actions" onContextMenu={(e) => {
-                // Prevent context menu on the header actions themselves
-                e.stopPropagation();
-              }}>
-                <button onClick={handleClearAll} title="Clear All Words">🗑️</button>
-                <button onClick={handleCopyList} title="Copy Open Tasks">📋</button>
-              </div>
-            </div>
-            <div className="priority-list-main">
-              {words.map((word, index) => (
-                <div key={word.id} className="priority-list-item">
-                  {editingWordId === word.id ? (
-                    <input
-                      type="text"
-                      value={editingText}
-                      onChange={handleEditChange}
-                      onKeyDown={(e) => handleEditKeyDown(e, word.id)}
-                      onBlur={() => setEditingWordId(null)} // Optional: cancel edit on blur
-                      autoFocus
-                    />
+            {(() => {
+              const filteredWords = words.filter(word => activeCategoryId === 'all' || word.categoryId === activeCategoryId);
+              return (
+                <>
+                  <div className="category-tabs">
+                    <button onClick={() => setActiveCategoryId('all')} className={activeCategoryId === 'all' ? 'active' : ''}>
+                      All ({words.length})
+                    </button>
+                    {settings.categories.map((cat: Category) => {
+                      const count = words.filter(w => w.categoryId === cat.id).length;
+                      return (
+                        <button key={cat.id} onClick={() => setActiveCategoryId(cat.id)} className={activeCategoryId === cat.id ? 'active' : ''}>
+                          {cat.name} ({count})
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {filteredWords.length > 0 ? (
+                    <>
+                      <div className="list-header">
+                        <h3>Priority List</h3>
+                        <div className="list-header-actions" onContextMenu={(e) => { e.stopPropagation(); }}>
+                          <button onClick={() => {
+                            focusAddTaskInput();
+                            if (activeCategoryId !== 'all') {
+                              setNewTask(prev => ({ ...prev, categoryId: activeCategoryId }));
+                            }
+                          }} title="Add New Task">+</button>
+                          <button onClick={handleClearAll} title="Clear All Tasks">🗑️</button>
+                          <button onClick={handleCopyList} title="Copy Open Tasks">📋</button>
+                        </div>
+                      </div>
+                      <div className="priority-list-main">
+                        {filteredWords.map((word, index) => (
+                          <div key={word.id} className="priority-list-item">
+                            {editingWordId === word.id ? (
+                              <input
+                                type="text"
+                                value={editingText}
+                                onChange={handleEditChange}
+                                onKeyDown={(e) => handleEditKeyDown(e, word.id)}
+                                onBlur={() => setEditingWordId(null)}
+                                autoFocus
+                              />
+                            ) : (
+                              <TaskAccordion
+                                word={word}
+                                startOpen={editingViaContext === word.id}
+                                title={
+                                <>
+                                  <div className="accordion-title-container">
+                                    <span className="accordion-main-title">{word.text}</span>
+                                    {word.categoryId && (
+                                      <span className="category-pill" onClick={(e) => { e.stopPropagation(); setActiveCategoryId(word.categoryId); }}>
+                                        {settings.categories.find(c => c.id === word.categoryId)?.name}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="accordion-subtitle">
+                                    {word.company && <span>{word.company}</span>}
+                                    <span>{formatTimestamp(word.openDate)}</span>
+                                    <span><TimeLeft completeBy={word.completeBy} /></span>
+                                    <span className={`priority-indicator priority-${(word.priority || 'Medium').toLowerCase()}`}>
+                                      <span className="priority-dot"></span>
+                                      {word.priority || 'Medium'}
+                                    </span>
+                                  </div>
+                                </>
+                              }>
+                                <>
+                                  <TabbedView 
+                                    startInEditMode={editingViaContext === word.id}
+                                    word={word} 
+                                    onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))}
+                                    formatTimestamp={formatTimestamp}
+                                    setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
+                                    settings={settings}
+                                    handleRichTextKeyDown={handleRichTextKeyDown}
+                                  />
+                                  <div className="word-item-display">
+                                    <span className="stopwatch date-opened">
+                                      Started at: {formatTimestamp(word.createdAt)}
+                                    </span>
+                                    <Stopwatch word={word} onTogglePause={handleTogglePause} />
+                                  </div>
+                                </>
+                                <div className="list-item-controls">
+                                <button onClick={() => setWords(words.map(w => w.id === word.id ? { ...w, isRecurring: !w.isRecurring } : w))} title="Toggle Re-occurring" className={`recurring-toggle ${word.isRecurring ? 'active' : ''}`}>
+                                  🔁
+                                </button>
+                                  <button onClick={() => handleCompleteWord(word)} className="complete-btn">✓</button>
+                                  <button onClick={() => handleEdit(word)}>Rename</button>
+                                  <button onClick={() => moveWord(index, 'up')} disabled={index === 0}>↑</button>
+                                  <button onClick={() => moveWord(index, 'down')} disabled={index === words.length - 1}>↓</button>
+                                  <button onClick={() => removeWord(word.id)} className="remove-btn">×</button>
+                                </div>
+                              </TaskAccordion>
+                            )}
+                          </div>
+                        ))}
+                        <div className="add-task-row">
+                          <button className="add-task-button" onClick={() => {
+                            focusAddTaskInput();
+                            if (activeCategoryId !== 'all') {
+                              setNewTask(prev => ({ ...prev, categoryId: activeCategoryId }));
+                            }
+                          }}>+ Open Task</button>
+                        </div>
+                      </div>
+                    </>
                   ) : (
-                    <TaskAccordion
-                      word={word}
-                      startOpen={editingViaContext === word.id}
-                      title={
+                    <div className="empty-list-placeholder">
+                      <h3>No Open Tasks for {activeCategoryId === 'all' ? 'any category' : settings.categories.find(c => c.id === activeCategoryId)?.name || 'this category'}</h3>
+                      <button onClick={() => {
+                        focusAddTaskInput();
+                        if (activeCategoryId !== 'all') {
+                          setNewTask(prev => ({ ...prev, categoryId: activeCategoryId }));
+                        }
+                      }}>+ Open Task</button>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+            {completedWords.filter(word => activeCategoryId === 'all' || word.categoryId === activeCategoryId).length > 0 && (
+              <SimpleAccordion title="Completed Items">
+                <div className="completed-actions">
+                  <button onClick={handleClearCompleted} title="Clear Completed List">🗑️</button>
+                  <button onClick={handleCopyReport} title="Copy Report">📋</button>
+                </div>
+                <div className="priority-list-main">
+                  {completedWords
+                    .filter(word => activeCategoryId === 'all' || word.categoryId === activeCategoryId)
+                    .map((word) => {
+                    const title = (
                       <>
                         <div className="accordion-main-title">{word.text}</div>
                         <div className="accordion-subtitle">
                           {word.company && <span>{word.company}</span>}
                           <span>{formatTimestamp(word.openDate)}</span>
-                          <span className={`priority-indicator priority-${(word.priority || 'Medium').toLowerCase()}`}>
-                            <span className="priority-dot"></span>
-                            {word.priority || 'Medium'}
-                          </span>
+                          <span>Completed in: {formatTime(word.completedDuration ?? 0)}</span>
                         </div>
                       </>
-                    }>
-                      {/* This first child is the 'content' for the accordion */}
-                      <>
-                        <TabbedView 
-                          startInEditMode={editingViaContext === word.id}
-                          word={word} 
-                          onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))}
-                          formatTimestamp={formatTimestamp}
-                          setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
-                          settings={settings}
-                          handleRichTextKeyDown={handleRichTextKeyDown}
-                        />
-                        <div className="word-item-display">
-                          <span className="stopwatch date-opened">
-                            Started at: {formatTimestamp(word.createdAt)}
-                          </span>
-                          <Stopwatch word={word} onTogglePause={handleTogglePause} />
-                        </div>
-                      </>
-                      {/* This second child is the 'headerActions' for the accordion */}
-                      <div className="list-item-controls">
-                        <button onClick={() => handleCompleteWord(word)} className="complete-btn">✓</button>
-                        <button onClick={() => handleEdit(word)}>Rename</button>
-                        <button onClick={() => moveWord(index, 'up')} disabled={index === 0}>↑</button>
-                        <button onClick={() => moveWord(index, 'down')} disabled={index === words.length - 1}>↓</button>
-                        <button onClick={() => removeWord(word.id)} className="remove-btn">×</button>
+                    );
+                    return (
+                      <div key={word.id} className="priority-list-item completed-item">
+                        <TaskAccordion word={word} title={title} startOpen={false}>
+                          {/* This first child is the 'content' for the accordion */}
+                          <TabbedView 
+                            word={word} 
+                            onUpdate={() => {}} // No updates for completed items
+                            formatTimestamp={formatTimestamp}
+                            setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
+                            settings={settings}
+                            handleRichTextKeyDown={() => {}} // Pass a no-op for completed items
+                          />
+                          {/* This second child is the 'headerActions' for the accordion */}
+                          <div className="list-item-controls">
+                            <button onClick={() => handleReopenTask(word)} title="Reopen Task">↩️</button>
+                            <button onClick={() => handleCopyTask(word)} title="Copy Task">📋</button>
+                          </div>
+                        </TaskAccordion>
                       </div>
-                    </TaskAccordion>
-                  )}
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-            <SimpleAccordion title="Completed Items">
-              <div className="completed-actions">
-                <button onClick={handleClearCompleted} title="Clear Completed List">🗑️</button>
-                <button onClick={handleCopyReport} title="Copy Report">📋</button>
-              </div>
-              <div className="priority-list-main">
-                {completedWords.map((word) => {
-                  const title = (
-                    <>
-                      <div className="accordion-main-title">{word.text}</div>
-                      <div className="accordion-subtitle">
-                        {word.company && <span>{word.company}</span>}
-                        <span>{formatTimestamp(word.openDate)}</span>
-                        <span>Completed in: {formatTime(word.completedDuration ?? 0)}</span>
-                      </div>
-                    </>
-                  );
-                  return (
-                    <div key={word.id} className="priority-list-item completed-item">
-                      <TaskAccordion word={word} title={title} startOpen={false}>
-                        {/* This first child is the 'content' for the accordion */}
-                        <TabbedView 
-                          word={word} 
-                          onUpdate={() => {}} // No updates for completed items
-                          formatTimestamp={formatTimestamp}
-                          setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
-                          settings={settings}
-                          handleRichTextKeyDown={() => {}} // Pass a no-op for completed items
-                        />
-                        {/* This second child is the 'headerActions' for the accordion */}
-                        <div className="list-item-controls">
-                          <button onClick={() => handleReopenTask(word)} title="Reopen Task">↩️</button>
-                          <button onClick={() => handleCopyTask(word)} title="Copy Task">📋</button>
-                        </div>
-                      </TaskAccordion>
-                    </div>
-                  );
-                })}
-              </div>
-            </SimpleAccordion>
+              </SimpleAccordion>
+            )}
           </div>
         )}
       </div>
@@ -1494,13 +1697,18 @@ function App() {
         >
           {isDirty ? 'Save Project (Unsaved)' : 'Project Saved'}
         </button>
-        <SimpleAccordion title="Add New Task">
+        <SimpleAccordion title="Add New Task" startOpen={isAddTaskOpen} onToggle={setIsAddTaskOpen}>
           <div className="new-task-form">
             <label><h4>Task Title:</h4>
-              <input type="text" placeholder="Enter a title and press Enter" value={newTask.text} onChange={(e) => setNewTask({ ...newTask, text: e.target.value })} onKeyDown={handleInputKeyDown} />
+              <input ref={newTaskTitleInputRef} type="text" placeholder="Enter a title and press Enter" value={newTask.text} onChange={(e) => setNewTask({ ...newTask, text: e.target.value })} onKeyDown={handleInputKeyDown} />
             </label>
             <label><h4>URL:</h4>
               <input type="text" placeholder="https://example.com" value={newTask.url} onChange={(e) => setNewTask({ ...newTask, url: e.target.value })} />
+            </label>
+            <label><h4>Category:</h4>
+              <select value={newTask.categoryId} onChange={(e) => setNewTask({ ...newTask, categoryId: Number(e.target.value) })}>
+                {settings.categories.map((cat: Category) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+              </select>
             </label>
             <label><h4>Priority:</h4>
               <select value={newTask.priority} onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as any })}>
@@ -1513,14 +1721,21 @@ function App() {
               <input type="date" value={newTask.openDate} onChange={(e) => setNewTask({ ...newTask, openDate: e.target.value })} />
             </label>
             <label><h4>Complete By:</h4>
-            <input type="date" value={newTask.completeBy} onChange={(e) => setNewTask({ ...newTask, completeBy: e.target.value })} />
-              <div className="date-input-group">                                
-                <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().toISOString().split('T')[0] })}>Today</button>
-                <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 3); setNewTask({ ...newTask, completeBy: d.toISOString().split('T')[0] }); }}>+3d</button>                
+            <input type="datetime-local" value={formatTimestampForInput(newTask.completeBy)} onChange={(e) => setNewTask({ ...newTask, completeBy: parseInputTimestamp(e.target.value) })} />
+              <div className="button-group">
+                <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().getTime() + 15 * 60 * 1000 })}>+15m</button>
+                <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().getTime() + 30 * 60 * 1000 })}>+30m</button>
+                <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().getTime() + 60 * 60 * 1000 })}>+1h</button>
+                <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().getTime() + 2 * 60 * 60 * 1000 })}>+2h</button>
+                <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 1); setNewTask({ ...newTask, completeBy: d.getTime() }); }}>+1d</button>
+                <button onClick={() => { const d = new Date(); d.setDate(d.getDate() + 3); setNewTask({ ...newTask, completeBy: d.getTime() }); }}>+3d</button>
               </div>
             </label>
             <label><h4>Company:</h4>
               <input type="text" value={newTask.company} onChange={(e) => setNewTask({ ...newTask, company: e.target.value })} />
+            </label>
+            <label><h4>Pay Rate ($/hr):</h4>
+              <input type="number" value={newTask.payRate || 0} onChange={(e) => setNewTask({ ...newTask, payRate: Number(e.target.value) })} />
             </label>
             <label><h4>Website URL:</h4>
               <input type="text" placeholder="https://company.com" value={newTask.websiteUrl} onChange={(e) => setNewTask({ ...newTask, websiteUrl: e.target.value })} />
@@ -1555,6 +1770,10 @@ function App() {
                 <span><b>Ctrl+L</b>: List</span>
               </div>
             </label>
+            <label className="checkbox-label flexed-column">
+              <input type="checkbox" checked={newTask.isRecurring || false} onChange={(e) => setNewTask({ ...newTask, isRecurring: e.target.checked })} />
+              <span className='checkbox-label-text'>Re-occurring Task</span>              
+            </label>
             <button onClick={() => handleInputKeyDown({ key: 'Enter' } as React.KeyboardEvent<HTMLInputElement>)}>
               Add Task
             </button>
@@ -1581,9 +1800,9 @@ function App() {
             <h2>Settings</h2>
             <button onClick={handleResetSettings}>Reset All Settings</button>
             <SimpleAccordion title="Overlay Settings">
-              <label className="checkbox-label">
+              <label className="checkbox-label flexed-column">
                 <input type="checkbox" checked={settings.isOverlayEnabled} onChange={(e) => setSettings(prev => ({ ...prev, isOverlayEnabled: e.target.checked }))} />
-                Enable Overlay
+                <span className='checkbox-label-text'>Enable Overlay</span>
               </label>
               {settings.isOverlayEnabled && (
                 <>
@@ -1626,9 +1845,9 @@ function App() {
                   <button onClick={() => handleFontScaleChange('large')}>Large</button>
                 </div>
               </label>
-              <label className="checkbox-label">
+              <label className="checkbox-label flexed-column">
                 <input type="checkbox" checked={settings.isDebugModeEnabled} onChange={(e) => setSettings(prev => ({ ...prev, isDebugModeEnabled: e.target.checked }))} />
-                Enable Debug Mode
+                <span className='checkbox-label-text'>Debug Mode</span>
               </label>
               <button onClick={handleSaveImage}>Save Image</button>
             </SimpleAccordion>
@@ -1692,6 +1911,65 @@ function App() {
                 </div>
               ))}
               <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, browsers: [...prev.browsers, { name: '', path: '' }] }))}>+ Add Browser</button>
+            </SimpleAccordion>
+            <SimpleAccordion title="Category Manager">
+              {settings.categories.map((cat: Category, index: number) => (
+                <div key={cat.id} className="category-manager-item">
+                  <input 
+                    type="text" 
+                    value={cat.name}
+                    onChange={(e) => {
+                      const newCategories = [...settings.categories];
+                      newCategories[index].name = e.target.value;
+                      setSettings(prev => ({ ...prev, categories: newCategories }));
+                    }}
+                  />
+                  <button onClick={() => {
+                    const newCategories = settings.categories.filter((c: Category) => c.id !== cat.id);
+                    // Also un-categorize any words that were in this category
+                    setWords(words.map(w => w.categoryId === cat.id ? { ...w, categoryId: undefined } : w));
+                    setSettings(prev => ({ ...prev, categories: newCategories }));
+                  }}>-</button>
+                </div>
+              ))}
+              <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, categories: [...prev.categories, { id: Date.now(), name: 'New Category' }] }))}>
+                + Add Category
+              </button>
+            </SimpleAccordion>
+            <SimpleAccordion title="External Link Manager">
+              {settings.externalLinks.map((link, index) => (
+                <div key={index} className="external-link-manager-item">
+                  <input type="checkbox" checked={link.openInDefault || false} onChange={(e) => {
+                    const newLinks = [...settings.externalLinks];
+                    newLinks[index].openInDefault = e.target.checked;
+                    setSettings(prev => ({ ...prev, externalLinks: newLinks }));
+                  }} />
+                  <input 
+                    type="text" 
+                    placeholder="Link Name" 
+                    value={link.name} 
+                    onChange={(e) => {
+                      const newLinks = [...settings.externalLinks];
+                      newLinks[index].name = e.target.value;
+                      setSettings(prev => ({ ...prev, externalLinks: newLinks }));
+                    }} 
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="https://example.com" 
+                    value={link.url} 
+                    onChange={(e) => {
+                      const newLinks = [...settings.externalLinks];
+                      newLinks[index].url = e.target.value;
+                      setSettings(prev => ({ ...prev, externalLinks: newLinks }));
+                    }} 
+                  />
+                  <button onClick={() => setSettings(prev => ({ ...prev, externalLinks: prev.externalLinks.filter((_, i) => i !== index) }))}>-</button>
+                </div>
+              ))}
+              <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, externalLinks: [...prev.externalLinks, { name: '', url: '', openInDefault: false }] }))}>
+                + Add Link
+              </button>
             </SimpleAccordion>
           </>
         )}
