@@ -179,25 +179,25 @@ app.whenReady().then(() => {
   ipcMain.on('notify-dirty-state', (_event, dirtyState) => {
     isDirty = dirtyState;
   });
-  ipcMain.on('show-ticket-context-menu', (event, wordId) => {
+  ipcMain.on('show-task-context-menu', (event, wordId) => {
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
       {
-        label: 'Edit Ticket',
+        label: 'Edit Task',
         click: () => webContents.send('context-menu-command', { command: 'edit', wordId }),
       },
       { type: 'separator' },
       {
-        label: 'Complete Ticket',
+        label: 'Complete Task',
         click: () => webContents.send('context-menu-command', { command: 'complete', wordId }),
       },
       {
-        label: 'Copy Ticket',
-        click: () => webContents.send('context-menu-command', { command: 'copy', wordId }),
+        label: 'Duplicate Task',
+        click: () => webContents.send('context-menu-command', { command: 'duplicate', wordId }),
       },
       { type: 'separator' },
       {
-        label: 'Trash Ticket',
+        label: 'Trash Task',
         click: () => webContents.send('context-menu-command', { command: 'trash', wordId }),
         
       },
@@ -238,6 +238,23 @@ app.whenReady().then(() => {
       });
       if (filePath) fs.writeFileSync(filePath, imageBuffer);
     } catch (error) { console.error('Failed to download image:', error); }
+  });
+
+  ipcMain.handle('save-csv', async (event, csvData: string) => {
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: 'Export Report to CSV',
+      defaultPath: `overwhelmed-report-${Date.now()}.csv`,
+      filters: [{ name: 'CSV Files', extensions: ['csv'] }],
+    });
+  
+    if (!canceled && filePath) {
+      try {
+        fs.writeFileSync(filePath, csvData, 'utf-8');
+      } catch (error) {
+        console.error('Failed to save CSV file:', error);
+        // Optionally, you could show an error dialog to the user
+      }
+    }
   });
 
   createWindow();

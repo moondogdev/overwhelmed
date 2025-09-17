@@ -42,6 +42,20 @@ All notable changes to this project will be documented in this file.
 -   **Enhanced UI Feedback**: Added confirmation dialogs for deleting sub-categories to prevent accidental data loss.
 -   **Improved Task Creation**: When creating a new task from a sub-category view, the new task form now correctly pre-selects that sub-category.
 -   **Consistent Sidebar**: The "Category Manager", "External Link Manager", and other settings accordions are now visible in both "Meme View" and "List View".
+-   **Advanced Recurring Tasks**: Added "Repeat Daily", "Weekly", "Monthly", and "Yearly" options, which automatically create a new task with an advanced due date upon completion. Quick-toggle buttons ('D', 'W', 'M', 'Y') were also added to the task header.
+-   **Collapsible Sidebar**: The sidebar can now be hidden and shown with a toggle button or an `Alt+S` hotkey to maximize screen space. The app remembers the sidebar's state between sessions.
+-   **Reports View**: Implemented a new "Reports" view with tabbed navigation to provide analytics on completed tasks.
+   **Data Visualization**: Added several charts to the Reports View using the `recharts` library, including pie charts for earnings and completions by category, a line chart for earnings over time, and a bar chart for recent activity.
+-   **Report Filtering & Export**: The Reports View now includes a date range filter, a "Clear Filter" button, and an "Export to CSV" feature.
+-   **Sort by Functionality**: Implemented a powerful sorting system for the active task list. Users can now sort tasks by Due Date, Priority, or Open Date. The sort preference is saved on a per-category basis, allowing for different default sort orders for different contexts (e.g., sort 'Work' by due date, 'Personal' by priority). Manual reordering is disabled when an automatic sort is active to prevent conflicts. 
+-   **Search Functionality**: Implemented a full-featured search bar in the "List View" to instantly filter active and completed tasks by name. The search bar includes a clear button, automatically resets when changing categories, and supports keyboard shortcuts (`Escape` to clear, auto-focus on clear) for a streamlined workflow.
+   **Dynamic List Headers**: The "Priority List" and "Completed Items" headers in the List View are now dynamic, displaying the name of the currently selected category and the total count of visible tasks (e.g., "Work: Priority List (9)").
+
+
+### Changed
+-   **UI Terminology**: Standardized the term "Ticket" to "Task" throughout the application, including context menus and UI labels, for better clarity and consistency.
+-   **Duplicate Task**: Renamed the "Copy Task" feature to "Duplicate Task" to more accurately describe its function of creating a new, editable copy of an existing task.
+-   **Overdue Timer**: The "Time Left" countdown now displays how long a task is overdue (e.g., "Overdue by 01:15:30") instead of just a static "Overdue" message.
 
 ### Fixed
 -   **Build System Overhaul**: Resolved a complex and persistent build loop involving conflicting TypeScript module configurations (`Cannot redeclare block-scoped variable` vs. `module is not defined`). The final solution involved renaming configuration files to `.cts` to enforce CommonJS module resolution, correcting `require` paths, and aligning all `@electron-forge` package versions in `package.json`. This stabilized the development environment and resolved the final `ERR_CONNECTION_REFUSED` white screen issue.
@@ -56,3 +70,4 @@ All notable changes to this project will be documented in this file.
 -   **External Link Handling**: Fixed a bug where hyperlinks created in the description field would navigate inside the app instead of opening in the user's default browser.
 -   **Context Menu Logic**: Resolved event propagation conflicts to ensure the correct context menu (for links vs. tickets) appears reliably.
 -   **List Reordering**: Fixed a critical bug where the up/down arrows for reordering tasks in the list view would fail when filters were active. The logic now correctly reorders items based on their visual position on the screen.
+-   **UI Polish**: Moved the "Save Project" button to be a fixed element on the screen, ensuring it's always visible. The "Add Task" buttons now automatically open the sidebar if it's closed.

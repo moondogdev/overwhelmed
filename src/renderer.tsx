@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import "./index.css";
 // Import the placeholder image
 import placeholderImage from "./assets/placeholder-image.jpg";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
 
 // Define the API exposed by the preload script
 declare global {
@@ -11,6 +12,7 @@ declare global {
     saveFile: (dataUrl: string) => Promise<void>;
     exportProject: (data: string) => Promise<void>;
     importProject: () => Promise<string | null>;
+    saveCsv: (csvData: string) => Promise<void>;
     openExternalLink: (payload: { url: string, browserPath?: string }) => void;
     showContextMenu: () => void;
     getStoreValue: (key: string) => Promise<any>;
@@ -18,7 +20,7 @@ declare global {
     send: (channel: string, data?: any) => void;
     on: (channel: string, callback: (...args: any[]) => void) => (() => void) | undefined;
     downloadImage: (url: string) => Promise<void>;
-    showTicketContextMenu: (wordId: number) => void;
+    showTaskContextMenu: (wordId: number) => void;
     notifyDirtyState: (isDirty: boolean) => void;
   } }
 }
@@ -49,6 +51,10 @@ interface Word {
   manualTime?: number; // Manually tracked time in ms
   payRate?: number; // Dollars per hour
   isRecurring?: boolean;
+  isDailyRecurring?: boolean;
+  isWeeklyRecurring?: boolean;
+  isMonthlyRecurring?: boolean;
+  isYearlyRecurring?: boolean;
   isAutocomplete?: boolean;
   manualTimeRunning?: boolean;
   manualTimeStart?: number; // Timestamp when manual timer was started
@@ -71,6 +77,10 @@ interface ExternalLink {
   openInDefault?: boolean;
 }
 
+interface PrioritySortConfig {
+  [key: string]: { key: keyof Word | 'timeOpen', direction: 'ascending' | 'descending' } | null;
+}
+
 interface Settings {
   fontFamily: string;
   fontColor: string;
@@ -88,10 +98,12 @@ interface Settings {
   activeBrowserIndex: number;
   categories: Category[];
   externalLinks: ExternalLink[];
-  currentView: 'meme' | 'list';
+  currentView: 'meme' | 'list' | 'reports';
   activeCategoryId?: number | 'all';
   activeSubCategoryId?: number | 'all';
   warningTime: number; // in minutes
+  isSidebarVisible: boolean;
+  prioritySortConfig?: PrioritySortConfig;
 }
 
 
@@ -176,19 +188,19 @@ function LinkModal({ isOpen, onClose, onConfirm }: LinkModalProps) {
 function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange }: TabbedViewProps) {
   const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(word.completedDuration ? 'ticket' : 'ticket'); // Default to ticket view
 
-  useEffect(() => {
-    // If the startInEditMode prop becomes true, switch to the edit tab
-    if (startInEditMode) setActiveTab('edit');
-  }, [startInEditMode]);
-
   const handleFieldChange = (field: keyof Word, value: any) => {
     onUpdate({ ...word, [field]: value });
   };
 
-  const handleTicketContextMenu = (e: React.MouseEvent) => {
+  const handleTaskContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    window.electronAPI.showTicketContextMenu(word.id);
+    window.electronAPI.showTaskContextMenu(word.id);
   };
+
+  useEffect(() => {
+    // If the startInEditMode prop becomes true, switch to the edit tab
+    if (startInEditMode) setActiveTab('edit');
+  }, [startInEditMode]);
 
   // Hooks must be called at the top level, not inside conditionals.
   const descriptionRef = useRef<HTMLDivElement>(null);
@@ -209,7 +221,7 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, 
 
   const tabHeaders = (
     <div className="tab-headers">
-      <button onClick={() => setActiveTab('ticket')} className={activeTab === 'ticket' ? 'active' : ''}>Ticket</button>
+      <button onClick={() => setActiveTab('ticket')} className={activeTab === 'ticket' ? 'active' : ''}>Task</button>
       {!word.completedDuration && ( // Only show Edit tab for non-completed items
         <button onClick={() => setActiveTab('edit')} className={activeTab === 'edit' ? 'active' : ''}>Edit</button>
       )}
@@ -222,14 +234,14 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, 
       <div className="tab-content" ref={tabContentRef}>
         {activeTab === 'ticket' && (
           <div className="ticket-display-view">
-            <h3 onContextMenu={handleTicketContextMenu}>{word.text}</h3>
+            <h3 onContextMenu={handleTaskContextMenu}>{word.text}</h3>
             {word.url && <p><strong>URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.url}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); setCopyStatus('URL copied!'); }}>📋</button></span></p>}
             <p><strong>Category:</strong> {settings.categories.find(c => c.id === word.categoryId)?.name || 'Uncategorized'}</p>
             <p><strong>Priority:</strong> {word.priority || 'Medium'}</p>
             <p><strong>Open Date:</strong> {formatTimestamp(word.openDate)}</p>
             <p><strong>Time Open:</strong> <TimeOpen startDate={word.createdAt} /></p>
-            {word.completeBy && <p><strong>Complete By:</strong> {formatTimestamp(word.completeBy)}</p>}
-            {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft completeBy={word.completeBy} settings={settings} /></p>}
+            {word.completeBy && <p><strong>Complete By:</strong> {formatTimestamp(word.completeBy)}</p>}            
+            {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft completeBy={word.completeBy} settings={settings}/></p>}
             {word.company && <p><strong>Company:</strong> <span className="link-with-copy">{word.company}<button className="copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); setCopyStatus('Company copied!'); }}>📋</button></span></p>}
             <div><strong>Work Timer:</strong>
               <ManualStopwatch word={word} onUpdate={(updatedWord) => onUpdate(updatedWord)} />
@@ -261,7 +273,7 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, 
                 const url = target.getAttribute('href');
                 if (url) window.electronAPI.send('show-link-context-menu', url);
               } else {
-                handleTicketContextMenu(e);
+                handleTaskContextMenu(e);
               }
             }} onClick={(e) => { // Also handle left-clicks for links
               const target = e.target as HTMLElement;
@@ -271,7 +283,7 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, 
                 if (url) window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
               }
             }}>
-              <div className="description-header" onContextMenu={handleTicketContextMenu}>
+              <div className="description-header" onContextMenu={handleTaskContextMenu}>
                 <strong>Description:</strong>
                 <button className="copy-btn" title="Copy Description Text" onClick={handleCopyDescription}>📋</button>
               </div>
@@ -376,6 +388,22 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, 
             <label className="checkbox-label flexed-column">
               <input type="checkbox" checked={word.isRecurring || false} onChange={(e) => handleFieldChange('isRecurring', e.target.checked)} /> 
               <span className="checkbox-label-text">Re-occurring Task</span>
+            </label>
+            <label className="checkbox-label flexed-column">
+              <input type="checkbox" checked={word.isDailyRecurring || false} onChange={(e) => handleFieldChange('isDailyRecurring', e.target.checked)} />
+              <span className="checkbox-label-text">Repeat Daily</span>
+            </label>
+            <label className="checkbox-label flexed-column">
+              <input type="checkbox" checked={word.isWeeklyRecurring || false} onChange={(e) => handleFieldChange('isWeeklyRecurring', e.target.checked)} />
+              <span className="checkbox-label-text">Repeat Weekly</span>
+            </label>
+            <label className="checkbox-label flexed-column">
+              <input type="checkbox" checked={word.isMonthlyRecurring || false} onChange={(e) => handleFieldChange('isMonthlyRecurring', e.target.checked)} />
+              <span className="checkbox-label-text">Repeat Monthly</span>
+            </label>
+            <label className="checkbox-label flexed-column">
+              <input type="checkbox" checked={word.isYearlyRecurring || false} onChange={(e) => handleFieldChange('isYearlyRecurring', e.target.checked)} />
+              <span className="checkbox-label-text">Repeat Yearly</span>
             </label>
             <label className="checkbox-label flexed-column">
               <input type="checkbox" checked={word.isAutocomplete || false} onChange={(e) => handleFieldChange('isAutocomplete', e.target.checked)} />
@@ -527,7 +555,7 @@ function TaskAccordion({ title, children, isOpen, onToggle, word }: AccordionPro
           onClick={onToggle}
           onContextMenu={(e) => {
             e.preventDefault();
-            window.electronAPI.showTicketContextMenu(word.id);
+            window.electronAPI.showTaskContextMenu(word.id);
           }}
         >
           <span className="accordion-icon">{isOpen ? '−' : '+'}</span>
@@ -553,8 +581,8 @@ function TimeLeft({ completeBy, settings }: { completeBy: number | undefined, se
     const update = () => {
       const ms = completeBy - Date.now();
       if (ms < 0) {
-        setTimeLeft('Overdue');
         setClassName('priority-high');
+        setTimeLeft(`Overdue by ${formatTime(Math.abs(ms))}`);
         return;
       }
 
@@ -578,10 +606,19 @@ function TimeLeft({ completeBy, settings }: { completeBy: number | undefined, se
 
 function TimeOpen({ startDate }: { startDate: number }) {
   const [timeOpen, setTimeOpen] = useState('');
+  const [className, setClassName] = useState('');
 
   useEffect(() => {
     const update = () => {
       const ms = Date.now() - startDate;
+      const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+
+      if (ms > sevenDaysInMs) {
+        setClassName('priority-high'); // This class makes the text red
+      } else {
+        setClassName('');
+      }
+
       const days = Math.floor(ms / (1000 * 60 * 60 * 24));
       const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
@@ -589,11 +626,11 @@ function TimeOpen({ startDate }: { startDate: number }) {
     };
 
     update();
-    const interval = setInterval(update, 60000); // Update every minute
+    const interval = setInterval(update, 60000); // Update every minute is sufficient
     return () => clearInterval(interval);
   }, [startDate]);
 
-  return <span>{timeOpen}</span>;
+  return <span className={className}>{timeOpen}</span>;
 }
 
 const formatTime = (ms: number) => {
@@ -737,6 +774,8 @@ const defaultSettings: Settings = {
   activeCategoryId: 'all',
   activeSubCategoryId: 'all',
   warningTime: 60, // Default to 60 minutes
+  isSidebarVisible: true,
+  prioritySortConfig: {}, // Now an object to store sort configs per category
 };
 
 function App() {
@@ -778,8 +817,11 @@ function App() {
   const [editingViaContext, setEditingViaContext] = useState<number | null>(null);
   const [openAccordionIds, setOpenAccordionIds] = useState<Set<number>>(new Set());
 
+  const [searchQuery, setSearchQuery] = useState('');
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const newTaskTitleInputRef = useRef<HTMLInputElement>(null);
+  const sortSelectRef = useRef<HTMLSelectElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
 
   const [newTask, setNewTask] = useState({
@@ -797,6 +839,10 @@ function App() {
     manualTimeStart: 0,
     payRate: 0,
     isRecurring: false,
+    isDailyRecurring: false,
+    isWeeklyRecurring: false,
+    isMonthlyRecurring: false,
+    isYearlyRecurring: false,
     isAutocomplete: false,
     description: '',
   });
@@ -823,6 +869,32 @@ function App() {
     loadDataFromStore();
     // isInitialLoad will be managed by the isLoading state now
   }, []); // Empty dependency array means this runs only once
+
+  const handleDuplicateTask = (taskToCopy: Word) => {
+    // Create a new task with a new ID and open date, but keep the content
+    const newTask: Word = {
+      ...taskToCopy,
+      id: Date.now(),
+      openDate: Date.now(),
+      createdAt: Date.now(),
+      completedDuration: undefined,
+    };
+    setWords(prevWords => [newTask, ...prevWords]);
+    setCopyStatus('Task duplicated!');
+    setTimeout(() => setCopyStatus(''), 2000);
+  };
+
+  const removeWord = (idToRemove: number) => {    
+    // Remove from either list, whichever one it's in.
+    const wasInActive = words.some(w => w.id === idToRemove);
+    if (wasInActive) {
+      setWords(prev => prev.filter(word => word.id !== idToRemove));
+    } else {
+      setCompletedWords(prev => prev.filter(word => word.id !== idToRemove));
+    }
+    setCopyStatus('Task removed.');
+    setTimeout(() => setCopyStatus(''), 2000);
+  }; 
 
   const setActiveCategoryId = (id: number | 'all') => {
     setSettings(prev => ({ ...prev, activeCategoryId: id }));
@@ -895,35 +967,40 @@ function App() {
 
   // Effect to handle commands from the ticket context menu
   useEffect(() => {
-    const handleMenuCommand = (_event: any, { command, wordId }: { command: string, wordId: number }) => {
-      const targetWord = words.find(w => w.id === wordId);
+    // This is the definitive handler for all context menu commands.
+    const handleMenuCommand = (payload: { command: string, wordId: number }) => {
+      const { command, wordId } = payload;
+
+      // Find the target word in EITHER the active or completed list.
+      const targetWord = [...words, ...completedWords].find(w => w.id === wordId);
+
       if (!targetWord) return;
 
       switch (command) {
         case 'edit':
-          // Set the ID of the word to be edited, which will trigger a re-render.
-          // We also need to ensure the accordion is open if it's not already.
-          // The `TaskAccordion` component's `startOpen` prop handles this.
-          setEditingViaContext(wordId);
+          // Guard: Only edit active (non-completed) tasks.
+          if (!targetWord.completedDuration) {
+             setEditingViaContext(wordId);
+          }
           break;
-    case 'open-in-list':
-      setOpenAccordionIds(prev => new Set(prev).add(wordId));
-      setSettings(prev => ({ ...prev, currentView: 'list' }));
-      break;
         case 'complete':
-          handleCompleteWord(targetWord);
+          // Guard: Only complete active tasks.
+          if (!targetWord.completedDuration) {
+            handleCompleteWord(targetWord);
+          }
           break;
-        case 'copy':
-          handleCopyTask(targetWord);
+        case 'duplicate':
+          handleDuplicateTask(targetWord);
           break;
         case 'trash':
+          // This works for both active and completed tasks.
           removeWord(wordId);
           break;
       }
     };
     const cleanup = window.electronAPI.on('context-menu-command', handleMenuCommand);
     return cleanup;
-  }, [words]); // Dependency on words ensures the handler has the latest list
+  }, [words, completedWords]); // Dependency on words ensures the handler has the latest list
 
   // Effect to reset the context menu editing state after it has been applied
   useEffect(() => {
@@ -963,12 +1040,30 @@ function App() {
 
   const focusAddTaskInput = () => {
     setIsAddTaskOpen(true);
+    setSettings(prev => ({ ...prev, isSidebarVisible: true }));
     // Use a timeout to ensure the accordion is open before focusing.
     // This works even if the accordion was already open.
     setTimeout(() => {
       newTaskTitleInputRef.current?.focus();
     }, 50); // A small delay helps ensure the element is visible
   };
+
+  // Effect to handle sidebar toggle hotkey
+  useEffect(() => {
+    const handleSidebarToggle = (e: KeyboardEvent) => {
+      // Prevent hotkey from firing if an input field is focused
+      const activeElement = document.activeElement;
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || (activeElement as HTMLElement).isContentEditable)) {
+        return;
+      }
+
+      if (e.altKey && e.key.toLowerCase() === 's') {
+        setSettings(prev => ({ ...prev, isSidebarVisible: !prev.isSidebarVisible }));
+      }
+    };
+    window.addEventListener('keydown', handleSidebarToggle);
+    return () => window.removeEventListener('keydown', handleSidebarToggle);
+  }, []); // Empty dependency array, runs once
 
   // Effect to handle browser toggle hotkey
   useEffect(() => {
@@ -1193,6 +1288,10 @@ function App() {
         manualTimeStart: 0,
         payRate: 0,
         isRecurring: false,
+        isDailyRecurring: false,
+        isWeeklyRecurring: false,
+        isMonthlyRecurring: false,
+    isYearlyRecurring: false,
         isAutocomplete: false,
         imageLinks: [],
         description: '',
@@ -1284,6 +1383,84 @@ function App() {
         completeBy: newCompleteBy,
       };
       setWords(prev => [recurringTask, ...prev]);
+    }
+
+    // If the task is a daily recurring one, create a new one for the next day
+    if (wordToComplete.isDailyRecurring) {
+      const oneDay = 24 * 60 * 60 * 1000;
+      const newOpenDate = wordToComplete.openDate + oneDay;
+      const newCompleteBy = wordToComplete.completeBy ? wordToComplete.completeBy + oneDay : undefined;
+
+      const dailyTask: Word = {
+        ...wordToComplete,
+        id: Date.now(),
+        createdAt: newOpenDate, // Set createdAt to the new open date
+        openDate: newOpenDate,
+        completeBy: newCompleteBy,
+        completedDuration: undefined, // Reset completion status
+      };
+      setWords(prev => [dailyTask, ...prev]);
+    }
+
+    // If the task is a weekly recurring one, create a new one for the next week
+    if (wordToComplete.isWeeklyRecurring) {
+      const oneWeek = 7 * 24 * 60 * 60 * 1000;
+      const newOpenDate = wordToComplete.openDate + oneWeek;
+      const newCompleteBy = wordToComplete.completeBy ? wordToComplete.completeBy + oneWeek : undefined;
+
+      const weeklyTask: Word = {
+        ...wordToComplete,
+        id: Date.now(),
+        createdAt: newOpenDate, // Set createdAt to the new open date
+        openDate: newOpenDate,
+        completeBy: newCompleteBy,
+        completedDuration: undefined, // Reset completion status
+      };
+      setWords(prev => [weeklyTask, ...prev]);
+    }
+
+    // If the task is a monthly recurring one, create a new one for the next month
+    if (wordToComplete.isMonthlyRecurring) {
+      const newOpenDate = new Date(wordToComplete.openDate);
+      newOpenDate.setMonth(newOpenDate.getMonth() + 1);
+
+      let newCompleteBy: number | undefined = undefined;
+      if (wordToComplete.completeBy) {
+        const completeByDate = new Date(wordToComplete.completeBy);
+        completeByDate.setMonth(completeByDate.getMonth() + 1);
+        newCompleteBy = completeByDate.getTime();
+      }
+
+      const monthlyTask: Word = {
+        ...wordToComplete,
+        id: Date.now(),
+        openDate: newOpenDate.getTime(),
+        completeBy: newCompleteBy,
+        completedDuration: undefined,
+      };
+      setWords(prev => [monthlyTask, ...prev]);
+    }
+
+    // If the task is a yearly recurring one, create a new one for the next year
+    if (wordToComplete.isYearlyRecurring) {
+      const newOpenDate = new Date(wordToComplete.openDate);
+      newOpenDate.setFullYear(newOpenDate.getFullYear() + 1);
+
+      let newCompleteBy: number | undefined = undefined;
+      if (wordToComplete.completeBy) {
+        const completeByDate = new Date(wordToComplete.completeBy);
+        completeByDate.setFullYear(completeByDate.getFullYear() + 1);
+        newCompleteBy = completeByDate.getTime();
+      }
+
+      const yearlyTask: Word = {
+        ...wordToComplete,
+        id: Date.now(),
+        openDate: newOpenDate.getTime(),
+        completeBy: newCompleteBy,
+        completedDuration: undefined,
+      };
+      setWords(prev => [yearlyTask, ...prev]);
     }
   };
 
@@ -1447,13 +1624,6 @@ function App() {
     }
   };
 
-
-  const removeWord = (idToRemove: number) => {
-    setWords(words.filter(word => word.id !== idToRemove));
-    setCopyStatus('Task removed.');
-    setTimeout(() => setCopyStatus(''), 2000);
-  };
-
   const handleReopenTask = (taskToReopen: Word) => {
     // Remove from completed list
     setCompletedWords(completedWords.filter(w => w.id !== taskToReopen.id));
@@ -1463,20 +1633,6 @@ function App() {
     setWords([reopenedTask, ...words]);
 
     setCopyStatus('Task reopened!');
-    setTimeout(() => setCopyStatus(''), 2000);
-  };
-
-  const handleCopyTask = (taskToCopy: Word) => {
-    // Create a new task with a new ID and open date, but keep the content
-    const newTask: Word = {
-      ...taskToCopy,
-      id: Date.now(),
-      openDate: Date.now(),
-      createdAt: Date.now(),
-      completedDuration: undefined,
-    };
-    setWords([newTask, ...words]);
-    setCopyStatus('Task copied to active list!');
     setTimeout(() => setCopyStatus(''), 2000);
   };
 
@@ -1647,6 +1803,18 @@ function App() {
 
   return (
     <div className="app-container">
+      <div className="clock-save-container"> 
+        <div className="header-center-stack">
+          <div className="current-browser-display">Active Browser: <b>{settings.browsers[settings.activeBrowserIndex]?.name || 'Default'}</b></div>        
+        </div>       
+        <button
+          onClick={handleSaveProject}
+          className={`dynamic-save-button ${isDirty ? 'unsaved' : 'saved'}`}
+          disabled={isLoading}
+        >
+          {isDirty ? 'Save Project (Unsaved)' : 'Project Saved'}
+        </button>        
+      </div>
       {copyStatus && <div className="copy-status-toast">{copyStatus}</div>}
       <div className="main-content">
         <header className="app-header">
@@ -1662,13 +1830,16 @@ function App() {
                 {link.name}
               </button>
             ))}
+          </div>      
+          <div className='app-header-nav-centered'>
+            <div className='clock-header-container'><LiveClock /></div>
+            <div className="app-nav-buttons">
+              <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'meme' }))} disabled={settings.currentView === 'meme'}>Meme View</button>          
+              <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'list' }))} disabled={settings.currentView === 'list'}>List View</button>
+              <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'reports' }))} disabled={settings.currentView === 'reports'}>Reports View</button>          
+            </div>
           </div>
-          <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'meme' }))} disabled={settings.currentView === 'meme'}>Meme View</button>
-          <div className="header-center-stack">
-            <div className="current-browser-display">Active Browser: <b>{settings.browsers[settings.activeBrowserIndex]?.name || 'Default'}</b></div>
-            <LiveClock />
-          </div>
-          <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'list' }))} disabled={settings.currentView === 'list'}>List View</button>
+          <button onClick={() => setSettings(prev => ({ ...prev, isSidebarVisible: !prev.isSidebarVisible }))} title="Toggle Sidebar (Alt+S)">⚙️</button>
         </header>
         {settings.currentView === 'meme' && (
           <div className="canvas-container">
@@ -1685,18 +1856,24 @@ function App() {
               title={hoveredWordId ? 'Search Google' : ''} />
           </div>
         )}
+        {settings.currentView === 'reports' && <ReportsView completedWords={completedWords} categories={settings.categories} setCopyStatus={setCopyStatus} />}
         {settings.currentView === 'list' && (
           <div className="list-view-container">
             {(() => {
               const parentCategories = settings.categories.filter(c => !c.parentId);
               const subCategoriesForActive = activeCategoryId !== 'all' ? settings.categories.filter(c => c.parentId === activeCategoryId) : [];
 
-              const filteredWords = words.filter(word => {
+              const filteredWords = words.filter(word => {                
+                // Category filter
                 if (activeCategoryId === 'all') return true; // Show all words
                 
                 // Find the parent category if the active one is a sub-category
                 const activeCategory = settings.categories.find(c => c.id === activeCategoryId);
                 const parentId = activeCategory?.parentId || activeCategoryId;
+
+                // Search filter
+                const matchesSearch = searchQuery ? word.text.toLowerCase().includes(searchQuery.toLowerCase()) : true;
+                if (!matchesSearch) return false;
 
                 const subCategoriesForActive = settings.categories.filter(c => c.parentId === parentId);
 
@@ -1710,10 +1887,40 @@ function App() {
                 return categoryIdsToShow.includes(word.categoryId);
               });
 
+              const currentSortConfig = settings.prioritySortConfig?.[String(activeCategoryId)] || null;
+              // Apply sorting to the filtered words
+              if (currentSortConfig) {
+                filteredWords.sort((a, b) => {
+                  let aValue: any;
+                  let bValue: any;
+
+                  // Handle special case for 'timeOpen' which is derived from 'createdAt'
+                  if (currentSortConfig.key === 'timeOpen') {
+                    aValue = a.createdAt;
+                    bValue = b.createdAt;
+                  } else if (currentSortConfig.key === 'priority') {
+                    const priorityOrder = { 'High': 1, 'Medium': 2, 'Low': 3 };
+                    aValue = priorityOrder[a.priority || 'Medium'];
+                    bValue = priorityOrder[b.priority || 'Medium'];
+                  } else {
+                    aValue = a[currentSortConfig.key as keyof Word] || 0;
+                    bValue = b[currentSortConfig.key as keyof Word] || 0;
+                  }
+
+                  if (aValue < bValue) {
+                    return currentSortConfig.direction === 'ascending' ? -1 : 1;
+                  }
+                  if (aValue > bValue) {
+                    return currentSortConfig.direction === 'ascending' ? 1 : -1;
+                  }
+                  return 0;
+                });
+              }
+
               return (
                 <>
                   <div className="category-tabs">
-                    <button onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); }} className={activeCategoryId === 'all' ? 'active' : ''}>
+                    <button onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); setSearchQuery(''); }} className={activeCategoryId === 'all' ? 'active' : ''}>
                       All ({words.length})
                     </button>
                     {parentCategories.map((cat: Category) => {
@@ -1724,7 +1931,7 @@ function App() {
                         (w.categoryId && subCatIds.includes(w.categoryId))
                       ).length;
                       return (
-                        <button key={cat.id} onClick={() => { setActiveCategoryId(cat.id); setActiveSubCategoryId('all'); }} className={activeCategoryId === cat.id ? 'active' : ''}>
+                        <button key={cat.id} onClick={() => { setActiveCategoryId(cat.id); setActiveSubCategoryId('all'); setSearchQuery(''); }} className={activeCategoryId === cat.id ? 'active' : ''}>
                           {cat.name} ({count})
                         </button>
                       );
@@ -1737,7 +1944,7 @@ function App() {
                         const subCatIds = settings.categories.filter(sc => sc.parentId === parentCategory?.id).map(sc => sc.id);
                         const totalCount = words.filter(w => w.categoryId === parentCategory?.id || (w.categoryId && subCatIds.includes(w.categoryId))).length;
                         return (
-                          <button onClick={() => setActiveSubCategoryId('all')} className={activeSubCategoryId === 'all' ? 'active' : ''}>All ({totalCount})</button>
+                          <button onClick={() => { setActiveSubCategoryId('all'); setSearchQuery(''); }} className={activeSubCategoryId === 'all' ? 'active' : ''}>All ({totalCount})</button>
                         );
                       })()}
                       {subCategoriesForActive.map(subCat => (
@@ -1745,30 +1952,45 @@ function App() {
                           // Calculate count from the full 'words' list, not the filtered one,
                           // to ensure counts are stable regardless of the active sub-filter.
                           const count = words.filter(w => w.categoryId === subCat.id).length;
-                          return <button key={subCat.id} onClick={() => setActiveSubCategoryId(subCat.id)} className={activeSubCategoryId === subCat.id ? 'active' : ''}>
+                          return <button key={subCat.id} onClick={() => { setActiveSubCategoryId(subCat.id); setSearchQuery(''); }} className={activeSubCategoryId === subCat.id ? 'active' : ''}>
                             {subCat.name} ({count})
                           </button>
                         })()
                       ))}
                     </div>
                   )}
+                  <div className="list-view-controls">
+                    <div className="list-header-search" style={{width: '100%'}}>
+                      <input 
+                        ref={searchInputRef}
+                        type="text" 
+                        placeholder="Search tasks..." 
+                        value={searchQuery} 
+                        onChange={(e) => setSearchQuery(e.target.value)} 
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            setSearchQuery('');
+                          }
+                        }} />
+                      {searchQuery && (
+                        <button className="clear-search-btn" onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }} title="Clear Search">×</button>
+                      )}
+                    </div>
+                  </div>
                   {filteredWords.length > 0 ? (
                     <>
                       <div className="list-header">
-                        <h3>Priority List</h3>
-                        <div className="list-header-actions" onContextMenu={(e) => { e.stopPropagation(); }}>
-                          <button onClick={() => {
-                            focusAddTaskInput();
-                            setOpenAccordionIds(new Set()); // Collapse others when adding new
-                            // Prioritize the active sub-category, otherwise fall back to the parent category
-                            const defaultCategoryId = activeSubCategoryId !== 'all' 
-                              ? activeSubCategoryId 
-                              : (activeCategoryId !== 'all' ? activeCategoryId : undefined);
-
-                            if (defaultCategoryId) {
-                              setNewTask(prev => ({ ...prev, categoryId: defaultCategoryId }));
+                        <h3>
+                          {(() => {
+                            if (activeCategoryId === 'all') return 'All Open Tasks';
+                            if (activeSubCategoryId !== 'all') {
+                              return `${settings.categories.find(c => c.id === activeSubCategoryId)?.name || 'Sub-Category'}: Priority List`;
                             }
-                          }} title="Add New Task">+</button>
+                            const parentCategory = settings.categories.find(c => c.id === activeCategoryId);
+                            return `${parentCategory?.name || 'Category'}: Priority List`;
+                          })()} ({filteredWords.length})
+                        </h3>
+                        <div className="list-header-actions" onContextMenu={(e) => { e.stopPropagation(); }}>
                           <button onClick={handleClearAll} title="Clear All Tasks">🗑️</button>
                           <button onClick={handleCopyList} title="Copy Open Tasks">📋</button>
                         </div>
@@ -1779,6 +2001,30 @@ function App() {
                           }} title="Expand All">📂</button>
                           <button onClick={() => setOpenAccordionIds(new Set())} title="Collapse All">📁</button>
                         </div>
+                      </div>
+                      <div className="list-header-sort">
+                        <label>Sort by:
+                          <select ref={sortSelectRef} onChange={(e) => {
+                            const value = e.target.value;
+                            const newSortConfig = { ...settings.prioritySortConfig };
+                            if (value === 'none') {
+                              newSortConfig[String(activeCategoryId)] = null;
+                            } else {
+                              const [key, direction] = value.split('-');
+                              newSortConfig[String(activeCategoryId)] = { key: key as any, direction: direction as any };
+                            }
+                            setSettings(prev => ({ ...prev, prioritySortConfig: newSortConfig }));
+                          }} value={currentSortConfig ? `${currentSortConfig.key}-${currentSortConfig.direction}` : 'none'}>
+                            <option value="none">Default (Manual)</option>
+                            <option value="completeBy-ascending">Due Date (Soonest First)</option>
+                            <option value="priority-ascending">Priority (High to Low)</option>
+                            <option value="openDate-descending">Open Date (Newest First)</option>
+                            <option value="openDate-ascending">Open Date (Oldest First)</option>
+                          </select>
+                        </label>
+                        {currentSortConfig && (
+                          <button className="clear-sort-btn" onClick={() => { setSettings(prev => ({ ...prev, prioritySortConfig: { ...prev.prioritySortConfig, [String(activeCategoryId)]: null } })); if (sortSelectRef.current) sortSelectRef.current.value = 'none'; }} title="Clear Sort">×</button>
+                        )}
                       </div>
                       <div className="priority-list-main">
                         {filteredWords.map((word, index) => (
@@ -1868,18 +2114,53 @@ function App() {
                                   setCopyStatus(`Re-occurring task ${newRecurringState ? 'enabled' : 'disabled'}.`);
                                   setTimeout(() => setCopyStatus(''), 2000);
                                 }} title="Toggle Re-occurring" className={`recurring-toggle ${word.isRecurring ? 'active' : ''}`}>
-                                  🔁
+                                  <span title="Generic Re-occurring">🔁</span>
+                                </button>
+                                <button onClick={() => {
+                                  const newState = !word.isDailyRecurring;
+                                  setWords(words.map(w => w.id === word.id ? { ...w, isDailyRecurring: newState } : w));
+                                  setCopyStatus(`Daily Repeat ${newState ? 'enabled' : 'disabled'}.`);
+                                  setTimeout(() => setCopyStatus(''), 2000);
+                                }} title="Toggle Daily Repeat" className={`recurring-toggle ${word.isDailyRecurring ? 'active' : ''}`}>
+                                  <span title="Daily Repeat">D</span>
+                                </button>
+                                <button onClick={() => {
+                                  const newState = !word.isWeeklyRecurring;
+                                  setWords(words.map(w => w.id === word.id ? { ...w, isWeeklyRecurring: newState } : w));
+                                  setCopyStatus(`Weekly Repeat ${newState ? 'enabled' : 'disabled'}.`);
+                                  setTimeout(() => setCopyStatus(''), 2000);
+                                }} title="Toggle Weekly Repeat" className={`recurring-toggle ${word.isWeeklyRecurring ? 'active' : ''}`}>
+                                  <span title="Weekly Repeat">W</span>
+                                </button>
+                                <button onClick={() => {
+                                  const newState = !word.isMonthlyRecurring;
+                                  setWords(words.map(w => w.id === word.id ? { ...w, isMonthlyRecurring: newState } : w));
+                                  setCopyStatus(`Monthly Repeat ${newState ? 'enabled' : 'disabled'}.`);
+                                  setTimeout(() => setCopyStatus(''), 2000);
+                                }} title="Toggle Monthly Repeat" className={`recurring-toggle ${word.isMonthlyRecurring ? 'active' : ''}`}>
+                                  <span title="Monthly Repeat">M</span>
+                                </button>
+                                <button onClick={() => {
+                                  const newState = !word.isYearlyRecurring;
+                                  setWords(words.map(w => w.id === word.id ? { ...w, isYearlyRecurring: newState } : w));
+                                  setCopyStatus(`Yearly Repeat ${newState ? 'enabled' : 'disabled'}.`);
+                                  setTimeout(() => setCopyStatus(''), 2000);
+                                }} title="Toggle Yearly Repeat" className={`recurring-toggle ${word.isYearlyRecurring ? 'active' : ''}`}>
+                                  <span title="Yearly Repeat">Y</span>
                                 </button>
                                   <button onClick={() => handleCompleteWord(word)} className="complete-btn" title="Complete Task">✓</button>
-                                  <button onClick={() => handleEdit(word)} title="Rename Task">Rename</button>
-                                  <button onClick={() => {
-                                    const targetWord = filteredWords[index - 1];
-                                    if (targetWord) moveWord(word.id, targetWord.id);
-                                  }} disabled={index === 0} title="Move Up">↑</button>
-                                  <button onClick={() => {
-                                    const targetWord = filteredWords[index + 1];
-                                    if (targetWord) moveWord(word.id, targetWord.id);
-                                  }} disabled={index === filteredWords.length - 1} title="Move Down">↓</button>
+                                  {currentSortConfig === null && (
+                                    <>
+                                      <button onClick={() => {
+                                        const targetWord = filteredWords[index - 1];
+                                        if (targetWord) moveWord(word.id, targetWord.id);
+                                      }} disabled={index === 0} title="Move Up">↑</button>
+                                      <button onClick={() => {
+                                        const targetWord = filteredWords[index + 1];
+                                        if (targetWord) moveWord(word.id, targetWord.id);
+                                      }} disabled={index === filteredWords.length - 1} title="Move Down">↓</button>
+                                    </>
+                                  )}
                                   <button onClick={() => removeWord(word.id)} className="remove-btn" title="Delete Task">×</button>
                                 </div>
                               </TaskAccordion>
@@ -1928,7 +2209,12 @@ function App() {
               );
             })()}
             {(() => {
-              const filteredCompletedWords = completedWords.filter(word => {
+              const filteredCompletedWords = completedWords.filter(word => {                
+                // Search filter first
+                const matchesSearch = searchQuery ? word.text.toLowerCase().includes(searchQuery.toLowerCase()) : true;
+                if (!matchesSearch) return false;
+
+                // Then category filter
                 if (activeCategoryId === 'all') return true;
 
                 const activeCategory = settings.categories.find(c => c.id === activeCategoryId);
@@ -1945,8 +2231,29 @@ function App() {
 
               if (filteredCompletedWords.length === 0) return null;
 
+              const totalTrackedTime = filteredCompletedWords.reduce((acc, word) => acc + (word.manualTime || 0), 0);
+              const totalEarnings = filteredCompletedWords.reduce((sum, word) => {
+                const hours = (word.manualTime || 0) / (1000 * 60 * 60);
+                return sum + (hours * (word.payRate || 0));
+              }, 0);
+
+              const completedTitle = (() => {
+                if (activeCategoryId === 'all') return 'All Completed Tasks';
+                if (activeSubCategoryId !== 'all') {
+                  return `${settings.categories.find(c => c.id === activeSubCategoryId)?.name || 'Sub-Category'}: Completed List`;
+                }
+                const parentCategory = settings.categories.find(c => c.id === activeCategoryId);
+                return `${parentCategory?.name || 'Category'}: Completed List`;
+              })();
+
               return (
-              <SimpleAccordion title="Completed Items">
+              <SimpleAccordion title={(
+                <>
+                  {completedTitle} ({filteredCompletedWords.length})
+                  <span className="accordion-title-summary">Total Time Tracked: {formatTime(totalTrackedTime)}</span>
+                  <span className="accordion-title-summary">Total Earnings: ${totalEarnings.toFixed(2)}</span>
+                </>
+              )}>
                 <div className="completed-actions">
                   <button onClick={handleClearCompleted} title="Clear Completed List">🗑️</button>
                   <button onClick={handleCopyReport} title="Copy Report">📋</button>
@@ -1978,7 +2285,7 @@ function App() {
                           {/* This second child is the 'headerActions' for the accordion */}
                           <div className="list-item-controls">
                             <button onClick={() => handleReopenTask(word)} title="Reopen Task">↩️</button>
-                            <button onClick={() => handleCopyTask(word)} title="Copy Task">📋</button>
+                            <button onClick={() => handleDuplicateTask(word)} title="Duplicate Task">📋</button>
                           </div>
                         </TaskAccordion>
                       </div>
@@ -1991,15 +2298,7 @@ function App() {
           </div>
         )}
       </div>
-      <div className="sidebar">
-        <button
-          onClick={handleSaveProject}
-          className={`dynamic-save-button ${isDirty ? 'unsaved' : 'saved'}`}
-          disabled={isLoading}
-        >
-          {isDirty ? 'Save Project (Unsaved)' : 'Project Saved'}
-        </button>
-        <SimpleAccordion title="Add New Task" startOpen={isAddTaskOpen} onToggle={setIsAddTaskOpen}>
+      <div className={`sidebar ${settings.isSidebarVisible ? '' : 'hidden'}`}>        <SimpleAccordion title="Add New Task" startOpen={isAddTaskOpen} onToggle={setIsAddTaskOpen}>
           <div className="new-task-form">
             <label><h4>Task Title:</h4>
               <input ref={newTaskTitleInputRef} type="text" placeholder="Enter a title and press Enter" value={newTask.text} onChange={(e) => setNewTask({ ...newTask, text: e.target.value })} onKeyDown={handleInputKeyDown} />
@@ -2099,6 +2398,22 @@ function App() {
               <span className='checkbox-label-text'>Re-occurring Task</span>
             </label>
             <label className="checkbox-label flexed-column">
+              <input type="checkbox" checked={newTask.isDailyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isDailyRecurring: e.target.checked })} />
+              <span className='checkbox-label-text'>Repeat Daily</span>
+            </label>
+            <label className="checkbox-label flexed-column">
+              <input type="checkbox" checked={newTask.isWeeklyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isWeeklyRecurring: e.target.checked })} />
+              <span className='checkbox-label-text'>Repeat Weekly</span>
+            </label>
+            <label className="checkbox-label flexed-column">
+              <input type="checkbox" checked={newTask.isMonthlyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isMonthlyRecurring: e.target.checked })} />
+              <span className='checkbox-label-text'>Repeat Monthly</span>
+            </label>
+            <label className="checkbox-label flexed-column">
+              <input type="checkbox" checked={newTask.isYearlyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isYearlyRecurring: e.target.checked })} />
+              <span className='checkbox-label-text'>Repeat Yearly</span>
+            </label>
+            <label className="checkbox-label flexed-column">
               <input type="checkbox" checked={newTask.isAutocomplete || false} onChange={(e) => setNewTask({ ...newTask, isAutocomplete: e.target.checked })} />
               <span className='checkbox-label-text'>Autocomplete on Deadline</span>
             </label>
@@ -2141,12 +2456,12 @@ function App() {
                   <input 
                     type="text" 
                     value={subCat.name}
-                    onChange={(e) => { // Correctly update sub-category name
-                        const newCategories = settings.categories.map(c => 
-                            c.id === subCat.id ? { ...c, name: e.target.value } : c
-                        );
-                        setSettings(prev => ({ ...prev, categories: newCategories }));
-                    }}
+                    onChange={(e) => {
+                      const newCategories = settings.categories.map(c => 
+                          c.id === subCat.id ? { ...c, name: e.target.value } : c
+                      );
+                      setSettings(prev => ({ ...prev, categories: newCategories }));
+                  }}
                   />
                   <button onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, subCat.id, 'up') }))} title="Move Up">↑</button>
                   <button onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, subCat.id, 'down') }))} title="Move Down">↓</button>
@@ -2333,6 +2648,610 @@ function CategoryOptions({ categories }: { categories: Category[] }) {
             {children.map(child => <option key={child.id} value={child.id}>&nbsp;&nbsp;{child.name}</option>)}
           </React.Fragment>
         )})}
+    </>
+  );
+}
+
+const renderCustomizedLabel = (props: any) => {
+  const { cx, cy, midAngle, innerRadius, outerRadius, percent, payload } = props;
+  const { name } = payload;
+
+  const RADIAN = Math.PI / 180;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.6; // Adjust label position
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
+      {`${name} ${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
+};
+
+function ReportsView({ completedWords, categories, setCopyStatus }: { completedWords: Word[], categories: Category[], setCopyStatus: (message: string) => void }) {
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [activeTab, setActiveTab] = useState('summary');
+  const [activeCategoryId, setActiveCategoryId] = useState<number | 'all'>('all');
+  const [activeSubCategoryId, setActiveSubCategoryId] = useState<number | 'all'>('all');
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Word | 'earnings' | 'categoryName' | 'completionDate', direction: 'ascending' | 'descending' } | null>({ key: 'completionDate', direction: 'descending' });
+
+  const [historyCount, setHistoryCount] = useState<number>(20);
+
+  // First, filter by date range
+  const dateFilteredWords = completedWords.filter(word => {
+    if (!word.completedDuration) return false;
+    const completionTime = word.createdAt + word.completedDuration;
+    const start = startDate ? new Date(startDate).getTime() : 0;
+    // Set end date to the end of the selected day
+    const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
+    return completionTime >= start && completionTime <= end;
+  });
+
+  // Then, filter by the selected category
+  const filteredCompletedWords = dateFilteredWords.filter(word => {
+    if (activeCategoryId === 'all') return true;
+
+    const activeCategory = categories.find(c => c.id === activeCategoryId);
+    const parentId = activeCategory?.parentId || activeCategoryId;
+    const subCategoriesForActive = categories.filter(c => c.parentId === parentId);
+
+    if (activeSubCategoryId !== 'all') return word.categoryId === activeSubCategoryId;
+
+    const categoryIdsToShow = [parentId, ...subCategoriesForActive.map(sc => sc.id)];
+    return categoryIdsToShow.includes(word.categoryId);
+  });
+
+  // Then, sort the data for the table
+  const sortedFilteredWords = React.useMemo(() => {
+    let sortableItems = [...filteredCompletedWords];
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
+
+        if (sortConfig.key === 'earnings') {
+          aValue = ((a.manualTime || 0) / (1000 * 60 * 60)) * (a.payRate || 0);
+          bValue = ((b.manualTime || 0) / (1000 * 60 * 60)) * (b.payRate || 0);
+        } else if (sortConfig.key === 'categoryName') {
+          aValue = categories.find(c => c.id === a.categoryId)?.name || 'Uncategorized';
+          bValue = categories.find(c => c.id === b.categoryId)?.name || 'Uncategorized';
+        } else if (sortConfig.key === 'completionDate') {
+          aValue = a.createdAt + (a.completedDuration || 0);
+          bValue = b.createdAt + (b.completedDuration || 0);
+        } else {
+          aValue = a[sortConfig.key as keyof Word];
+          bValue = b[sortConfig.key as keyof Word];
+        }
+
+        if (aValue < bValue) {
+          return sortConfig.direction === 'ascending' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'ascending' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [filteredCompletedWords, sortConfig, categories]);
+
+  // Calculate grand total earnings from ALL completed words, ignoring filters
+  const grandTotalEarnings = completedWords.reduce((sum, word) => {
+    const hours = (word.manualTime || 0) / (1000 * 60 * 60);
+    return sum + (hours * (word.payRate || 0));
+  }, 0);
+
+  // Calculate grand total tasks from ALL completed words, ignoring filters
+  const grandTotalTasks = completedWords.length;
+
+  // Calculate grand total time tracked from ALL completed words, ignoring filters
+  const grandTotalTimeTracked = completedWords.reduce((sum, word) => sum + (word.manualTime || 0), 0);
+
+  if (filteredCompletedWords.length === 0) {
+    return (
+      <div className="reports-view">
+        <h2>Reports</h2>
+        <div className="report-section grand-total-summary">
+          <h3>Lifetime Summary</h3>
+          <p><strong>Total Tasks Completed (All Time):</strong> {grandTotalTasks}</p>
+          <p><strong>Total Time Tracked (All Time):</strong> {formatTime(grandTotalTimeTracked)}</p>
+          <p><strong>Grand Total Earnings (All Time):</strong> ${grandTotalEarnings.toFixed(2)}</p></div>
+        <hr />
+        {/* Keep filters visible even when there's no data */}
+        <ReportFilters startDate={startDate} setStartDate={setStartDate} endDate={endDate} setEndDate={setEndDate} onExportCsv={() => {}} exportDisabled={true} categories={categories} activeCategoryId={activeCategoryId} setActiveCategoryId={setActiveCategoryId} activeSubCategoryId={activeSubCategoryId} setActiveSubCategoryId={setActiveSubCategoryId} dateFilteredWords={dateFilteredWords} />
+        <p>No completed tasks in the selected date range to generate a report from.</p>
+      </div>
+    );
+  }
+
+  // --- Data Processing ---
+
+  // 1. Tasks completed per day
+  const completionsByDay = filteredCompletedWords.reduce((acc, word) => {
+    const completionDate = new Date(word.createdAt + (word.completedDuration || 0)).toLocaleDateString();
+    acc[completionDate] = (acc[completionDate] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // 2. Task completion frequency by name
+  const completionsByName = filteredCompletedWords.reduce((acc, word) => {
+    acc[word.text] = (acc[word.text] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // 3. Task completion by category
+  const completionsByCategory = filteredCompletedWords.reduce((acc, word) => {
+    const category = categories.find(c => c.id === word.categoryId);
+    const categoryName = category?.name || 'Uncategorized';
+    acc[categoryName] = (acc[categoryName] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const maxCompletionsByCategory = Math.max(...Object.values(completionsByCategory), 1);
+  const maxCompletionsByDay = Math.max(...Object.values(completionsByDay), 1);
+
+  // 4. Aggregate stats
+  const totalTasksCompleted = filteredCompletedWords.length;
+  const totalTimeTracked = filteredCompletedWords.reduce((sum, word) => sum + (word.manualTime || 0), 0);
+  const totalEarnings = filteredCompletedWords.reduce((sum, word) => {
+    const hours = (word.manualTime || 0) / (1000 * 60 * 60);
+    return sum + (hours * (word.payRate || 0));
+  }, 0);
+
+  // 5. Earnings by category
+  const earningsByCategory = filteredCompletedWords.reduce((acc, word) => {
+    const category = categories.find(c => c.id === word.categoryId);
+    const categoryName = category?.name || 'Uncategorized';
+    const hours = (word.manualTime || 0) / (1000 * 60 * 60);
+    const earnings = hours * (word.payRate || 0);
+    acc[categoryName] = (acc[categoryName] || 0) + earnings;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // 6. Earnings over time
+  const earningsOverTime = filteredCompletedWords.reduce((acc, word) => {
+    const completionDate = new Date(word.createdAt + (word.completedDuration || 0)).toLocaleDateString();
+    const hours = (word.manualTime || 0) / (1000 * 60 * 60);
+    const earnings = hours * (word.payRate || 0);
+    acc[completionDate] = (acc[completionDate] || 0) + earnings;
+    return acc;
+  }, {} as Record<string, number>);
+  const chartDataEarnings = Object.entries(earningsOverTime).map(([date, earnings]) => ({ date, earnings })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  // 7. Data for the activity bar chart based on the filtered date range
+  const activityByDay = filteredCompletedWords.reduce((acc, word) => {
+    if (word.completedDuration) {
+      const completionDate = new Date(word.createdAt + word.completedDuration).toLocaleDateString();
+      acc[completionDate] = (acc[completionDate] || 0) + 1;
+    }
+    return acc;
+  }, {} as Record<string, number>);
+
+  const activityChartData = Object.entries(activityByDay)
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  // Determine the title for the activity chart
+  let activityChartTitle = 'Activity Over Time';
+  if (startDate && endDate) {
+    activityChartTitle = `Activity from ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`;
+  } else if (startDate) {
+    activityChartTitle = `Activity since ${new Date(startDate).toLocaleDateString()}`;
+  } else if (endDate) {
+    activityChartTitle = `Activity until ${new Date(endDate).toLocaleDateString()}`;
+  }
+
+  const handleExportCsv = () => {
+    const header = [
+      "Task ID", "Task Name", "Category", "Company", 
+      "Open Date", "Completion Date", "Time Tracked (HH:MM:SS)", 
+      "Pay Rate ($/hr)", "Earnings ($)"
+    ];
+
+    const rows = filteredCompletedWords.map(word => {
+      const category = categories.find(c => c.id === word.categoryId);
+      const categoryName = category?.name || 'Uncategorized';
+      const completionTime = word.createdAt + (word.completedDuration || 0);
+      const earnings = (((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0)).toFixed(2);
+
+      // Escape commas in text fields to prevent CSV corruption
+      const escapeCsv = (str: string | undefined) => `"${(str || '').replace(/"/g, '""')}"`;
+
+      return [
+        word.id,
+        escapeCsv(word.text),
+        escapeCsv(categoryName),
+        escapeCsv(word.company),
+        formatTimestamp(word.openDate),
+        formatTimestamp(completionTime),
+        formatTime(word.manualTime || 0),
+        word.payRate || 0,
+        earnings
+      ].join(',');
+    });
+    window.electronAPI.saveCsv([header.join(','), ...rows].join('\n'));
+  };
+
+  const requestSort = (key: keyof Word | 'earnings' | 'categoryName' | 'completionDate') => {
+    let direction: 'ascending' | 'descending' = 'ascending';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIndicator = (key: keyof Word | 'earnings' | 'categoryName' | 'completionDate') => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'ascending' ? ' ▲' : ' ▼';
+  };
+  return (
+    <div className="reports-view">
+      <h2>Reports</h2>
+
+      <div className="category-tabs report-main-tabs">
+        <button onClick={() => setActiveTab('summary')} className={activeTab === 'summary' ? 'active' : ''}>Summary</button>
+        <button onClick={() => setActiveTab('earnings')} className={activeTab === 'earnings' ? 'active' : ''}>Earnings</button>
+        <button onClick={() => setActiveTab('activity')} className={activeTab === 'activity' ? 'active' : ''}>Activity</button>
+        <button onClick={() => setActiveTab('raw')} className={activeTab === 'raw' ? 'active' : ''}>Raw Data</button>
+        <button onClick={() => setActiveTab('history')} className={activeTab === 'history' ? 'active' : ''}>History</button>
+      </div>
+
+      <div className="report-section grand-total-summary">
+        <h3>Lifetime Summary</h3>
+        <p><strong>Total Tasks Completed (All Time):</strong> {grandTotalTasks}</p>
+        <p><strong>Total Time Tracked (All Time):</strong> {formatTime(grandTotalTimeTracked)}</p>
+        <p><strong>Grand Total Earnings (All Time):</strong> ${grandTotalEarnings.toFixed(2)}</p>
+      </div>
+
+      <hr />
+
+      <ReportFilters 
+        startDate={startDate} setStartDate={setStartDate} endDate={endDate} setEndDate={setEndDate} 
+        onExportCsv={handleExportCsv} categories={categories} activeCategoryId={activeCategoryId} 
+        setActiveCategoryId={setActiveCategoryId} activeSubCategoryId={activeSubCategoryId} setActiveSubCategoryId={setActiveSubCategoryId} dateFilteredWords={dateFilteredWords} 
+      />
+      {/* The old filter div is now replaced by the ReportFilters component. The content below is now conditionally rendered based on the active tab. */}
+      {/* <div className="report-filters">
+        <label>
+          Start Date:
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+        </label>
+        <label>
+          End Date:
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        </label>
+        <button onClick={() => { setStartDate(''); setEndDate(''); }} className="clear-filter-btn">
+          Clear Filter
+        </button>
+        <button onClick={handleExportCsv} className="export-csv-btn">
+          Export to CSV
+        </button>
+      </div> */}
+      
+      {activeTab === 'summary' && (
+        <>
+          <div className="report-section">
+            <h3>Overall Summary (Filtered)</h3>
+            <p><strong>Total Tasks Completed:</strong> {totalTasksCompleted}</p>
+            <p><strong>Total Time Tracked:</strong> {formatTime(totalTimeTracked)}</p>
+            <p><strong>Total Earnings:</strong> ${totalEarnings.toFixed(2)}</p>
+          </div>
+          <div className="report-section">
+            <h3>{activityChartTitle}</h3>
+            <div style={{ width: '100%', height: 300 }}>
+              <ResponsiveContainer>
+                <BarChart data={activityChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip 
+                    formatter={(value: number) => [`${value} tasks`, 'Completed']}
+                    labelFormatter={(label: string) => new Date(label).toLocaleDateString()}
+                  />
+                  <Legend />
+                  <Bar dataKey="count" fill="#82ca9d" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </>
+      )}
+
+      {activeTab === 'earnings' && (
+        <>
+          <div className="report-section">
+            <h3>Earnings by Category</h3>
+            <div style={{ width: '100%', height: 300 }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={Object.entries(earningsByCategory).map(([name, value]) => ({ name, value }))}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={renderCustomizedLabel}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {Object.entries(earningsByCategory).map(([name], index) => (
+                      <Cell key={`cell-${index}`} fill={`hsl(${index * 60}, 70%, 50%)`} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="report-section">
+            <h3>Earnings Over Time</h3>
+            <div style={{ width: '100%', height: 300 }}>
+              <ResponsiveContainer>
+                <LineChart data={chartDataEarnings} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip 
+                    formatter={(value: number) => [`$${value.toFixed(2)}`, 'Earnings']}
+                    labelFormatter={(label: string) => new Date(label).toLocaleDateString()}
+                  />
+                  <Legend />
+                  <Line type="monotone" dataKey="earnings" stroke="#8884d8" activeDot={{ r: 8 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </>
+      )}
+
+      {activeTab === 'activity' && (
+        <>
+          <div className="report-section">
+            <h3>Completed Tasks by Category</h3>
+            <div style={{ width: '100%', height: 300 }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={Object.entries(completionsByCategory).map(([name, value]) => ({ name, value }))}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={renderCustomizedLabel}
+                    outerRadius={100}
+                    fill="#82ca9d"
+                    dataKey="value"
+                  >
+                    {Object.entries(completionsByCategory).map(([name], index) => (
+                      <Cell key={`cell-${index}`} fill={`hsl(${index * 45 + 120}, 60%, 50%)`} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: number) => `${value} tasks`} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </>
+      )}
+
+      {activeTab === 'history' && (
+        <div className="report-section">
+          <div className="report-section-header">
+            <h3>Recent Task History</h3>
+            <label className="history-count-control">
+              Show:
+              <input type="number" value={historyCount} onChange={(e) => setHistoryCount(Number(e.target.value))} min="1" />
+              most recent
+            </label>
+          </div>
+          <table className="report-table">
+            <thead>
+              <tr>
+                <th>Task Name</th>
+                <th onClick={() => requestSort('categoryName')}>Category{getSortIndicator('categoryName')}</th>
+                <th>Completion Date</th>
+                <th onClick={() => requestSort('manualTime')}>Time Tracked{getSortIndicator('manualTime')}</th>
+                <th onClick={() => requestSort('earnings')}>Earnings{getSortIndicator('earnings')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedFilteredWords.slice(0, 20).map(word => {
+                const category = categories.find(c => c.id === word.categoryId);
+                const categoryName = category?.name || 'Uncategorized';                
+                const completionTime = word.createdAt + (word.completedDuration || 0);
+                const earnings = (((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0));
+                return (
+                  <tr key={word.id}>
+                    <td>
+                      <span className="link-with-copy">
+                        {word.text}
+                        <button className="copy-btn" title="Copy Row Data" onClick={() => {
+                          const rowData = [word.text, categoryName, formatTimestamp(completionTime), formatTime(word.manualTime || 0), `$${earnings.toFixed(2)}`].join('\t');
+                          navigator.clipboard.writeText(rowData).then(() => setCopyStatus('Row data copied!'));
+                        }}>📋</button>
+                      </span>
+                    </td>
+                    <td>{categoryName}</td>
+                    <td>{formatTimestamp(completionTime)}</td>
+                    <td>{formatTime(word.manualTime || 0)}</td>
+                    <td>${earnings.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {activeTab === 'raw' && (
+        <>
+          <div className="report-section">
+            <h3>Completions per Day</h3>
+            <div className="chart-container">
+              {Object.entries(completionsByDay).map(([date, count]) => (
+                <div key={date} className="chart-bar-item">
+                  <span className="chart-label">{date}</span>
+                  <div className="chart-bar-wrapper">
+                    <div className="chart-bar" style={{ width: `${(count / maxCompletionsByDay) * 100}%` }}></div>
+                  </div>
+                  <span className="chart-value">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="report-section">
+            <h3>Completions by Category</h3>
+            <div className="chart-container">
+              {Object.entries(completionsByCategory).sort(([, a], [, b]) => b - a).map(([name, count]) => (
+                <div key={name} className="chart-bar-item">
+                  <span className="chart-label">{name}</span>
+                  <div className="chart-bar-wrapper">
+                    <div className="chart-bar" style={{ width: `${(count / maxCompletionsByCategory) * 100}%` }}></div>
+                  </div>
+                  <span className="chart-value">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="report-section">
+            <h3>Most Completed Tasks</h3>
+            <ul>
+              {Object.entries(completionsByName).sort(([, a], [, b]) => b - a).slice(0, 15).map(([name, count]) => (
+                <li key={name}>{name}: {count} time(s)</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="report-section">
+            <h3>Filtered Task Data</h3>
+            <div className="report-section-actions">
+              <button onClick={() => {
+                const header = ["Task Name", "Category", "Completion Date", "Time Tracked (HH:MM:SS)", "Earnings ($)"].join('\t');
+                const rows = sortedFilteredWords.map(word => {
+                  const category = categories.find(c => c.id === word.categoryId)?.name || 'Uncategorized';
+                  const completionTime = formatTimestamp(word.createdAt + (word.completedDuration || 0));
+                  const timeTracked = formatTime(word.manualTime || 0);
+                  const earnings = (((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0)).toFixed(2);
+                  return [word.text, category, completionTime, timeTracked, earnings].join('\t');
+                });
+                const tableText = [header, ...rows].join('\n');
+                navigator.clipboard.writeText(tableText).then(() => setCopyStatus('Table data copied!'));
+              }}>Copy Table</button>
+            </div>
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th onClick={() => requestSort('text')}>Task Name{getSortIndicator('text')}</th>
+                  <th onClick={() => requestSort('categoryName')}>Category{getSortIndicator('categoryName')}</th>
+                  <th onClick={() => requestSort('completionDate')}>Completion Date{getSortIndicator('completionDate')}</th>
+                  <th onClick={() => requestSort('manualTime')}>Time Tracked{getSortIndicator('manualTime')}</th>
+                  <th onClick={() => requestSort('earnings')}>Earnings{getSortIndicator('earnings')}</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedFilteredWords.map(word => {
+                  const category = categories.find(c => c.id === word.categoryId);
+                  const categoryName = category?.name || 'Uncategorized';
+                  const completionTime = word.createdAt + (word.completedDuration || 0);
+                  const earnings = (((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0));
+
+                  return (
+                    <tr key={word.id}>
+                      <td>{word.text}</td>
+                      <td>{categoryName}</td>
+                      <td>{formatTimestamp(completionTime)}</td>
+                      <td>{formatTime(word.manualTime || 0)}</td>
+                      <td>${earnings.toFixed(2)}</td>
+                      <td>
+                        <button className="copy-btn" title="Copy Row" onClick={() => {
+                          const rowData = [word.text, categoryName, formatTimestamp(completionTime), formatTime(word.manualTime || 0), `$${earnings.toFixed(2)}`].join('\t');
+                          navigator.clipboard.writeText(rowData);
+                          setCopyStatus('Row copied!');
+                        }}>📋</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ReportFilters({ startDate, setStartDate, endDate, setEndDate, onExportCsv, exportDisabled = false, categories, activeCategoryId, setActiveCategoryId, activeSubCategoryId, setActiveSubCategoryId, dateFilteredWords }: {
+  startDate: string;
+  setStartDate: (val: string) => void;
+  endDate: string;
+  setEndDate: (val: string) => void;
+  onExportCsv: () => void;
+  exportDisabled?: boolean;
+  categories: Category[];
+  activeCategoryId: number | 'all';
+  setActiveCategoryId: (id: number | 'all') => void;
+  activeSubCategoryId: number | 'all';
+  setActiveSubCategoryId: (id: number | 'all') => void;
+  dateFilteredWords: Word[];
+}) {
+  const parentCategories = categories.filter(c => !c.parentId);
+  const subCategoriesForActive = activeCategoryId !== 'all' ? categories.filter(c => c.parentId === activeCategoryId) : [];
+
+  return (
+    <>
+      <div className="report-filters">
+        <label>
+          Start Date:
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+        </label>
+        <label>
+          End Date:
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        </label>
+        <button onClick={() => { setStartDate(''); setEndDate(''); }} className="clear-filter-btn">
+          Clear Filter
+        </button>
+        <button onClick={onExportCsv} className="export-csv-btn" disabled={exportDisabled}>
+          Export to CSV
+        </button>
+      </div>
+      <div className="category-tabs">
+        <button onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); }} className={activeCategoryId === 'all' ? 'active' : ''}>
+          All ({dateFilteredWords.length})
+        </button>
+        {parentCategories.map((cat: Category) => {
+          const subCatIds = categories.filter(sc => sc.parentId === cat.id).map(sc => sc.id);
+          const count = dateFilteredWords.filter(w => w.categoryId === cat.id || (w.categoryId && subCatIds.includes(w.categoryId))).length;
+          return (
+            <button key={cat.id} onClick={() => { setActiveCategoryId(cat.id); setActiveSubCategoryId('all'); }} className={activeCategoryId === cat.id ? 'active' : ''}>
+              {cat.name} ({count})
+            </button>
+          );
+        })}
+      </div>
+      {subCategoriesForActive.length > 0 && (
+        <div className="sub-category-tabs">
+          {(() => {
+            const parentCategory = categories.find(c => c.id === activeCategoryId);
+            const subCatIds = categories.filter(sc => sc.parentId === parentCategory?.id).map(sc => sc.id);
+            const totalCount = dateFilteredWords.filter(w => w.categoryId === parentCategory?.id || (w.categoryId && subCatIds.includes(w.categoryId))).length;
+            return (
+              <button onClick={() => setActiveSubCategoryId('all')} className={activeSubCategoryId === 'all' ? 'active' : ''}>All ({totalCount})</button>
+            );
+          })()}
+          {subCategoriesForActive.map(subCat => {
+            const count = dateFilteredWords.filter(w => w.categoryId === subCat.id).length;
+            return <button key={subCat.id} onClick={() => setActiveSubCategoryId(subCat.id)} className={activeSubCategoryId === subCat.id ? 'active' : ''}>
+              {subCat.name} ({count})
+            </button>
+          })}
+        </div>
+      )}
     </>
   );
 }
