@@ -1167,3 +1167,164 @@ button[title="Clear Date"] {
   margin-bottom: 5px;
   align-items: center;
 }
+.timer-notification-container {
+  position: fixed;
+  bottom: 60px; /* Position above the save button/toast */
+  right: 20px;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.timer-notification-toast {
+  background-color: #ffc107; /* A warning yellow */
+  color: #333;
+  padding: 12px 18px;
+  border-radius: 5px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  animation: fadeInOut 8s ease-in-out forwards;
+  opacity: 0;
+  max-width: 300px;
+  font-size: 0.9em;
+  border-left: 5px solid #ffa000;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(20px); }
+  10% { opacity: 1; transform: translateY(0); }
+  90% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-20px); }
+}
+.overdue-notification-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1002; /* Higher than other toasts */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.overdue-notification-toast {
+  background-color: #c94a4a; /* A strong red */
+  color: white;
+  padding: 12px 18px;
+  border-radius: 5px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  max-width: 350px;
+  font-size: 1em;
+  border-left: 5px solid #a93232;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.confirm-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 0.9em;
+  color: #eee;
+}
+
+.confirm-checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(20px); }
+  10% { opacity: 1; transform: translateY(0); }
+  90% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-20px); }
+}
+
+.footer-credit {
+  position: fixed;
+  bottom: 5px;
+  right: 10px;
+  z-index: 1000;
+  font-size: 0.7em;
+  color: #888;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.footer-credit a {
+  color: #aaa;
+  text-decoration: none;
+}
+
+.footer-credit a:hover {
+  color: #61dafb;
+  text-decoration: underline;
+}
+
+.backup-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #444;
+  border-radius: 3px;
+}
+.no-backups-message {
+  padding: 20px;
+  text-align: center;
+  color: #888;
+}
+
+.backup-list li {
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  border-bottom: 1px solid #444;
+}
+.backup-list li .backup-info {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.backup-list li .backup-date {
+  font-weight: bold;
+}
+
+.delete-backup-btn,
+.export-backup-btn {
+  background: none !important;
+  border: none !important;
+  color: #aaa !important;
+  cursor: pointer;
+  font-size: 1.1em;
+  padding: 5px !important;
+  margin: 0 0 0 10px !important;
+  width: auto !important;
+  opacity: 0.5;
+}
+
+.backup-list li .backup-size {
+  font-size: 0.9em;
+  color: #aaa;
+}
+.backup-list li:hover {
+  background-color: #3a3f4b;
+}
+.backup-list li:hover .delete-backup-btn,
+.backup-list li:hover .export-backup-btn {
+  opacity: 1;
+}
+
+.backup-list li.manual-backup .backup-date {
+  color: #61dafb; /* Highlight manual backups */
+}

@@ -17,6 +17,12 @@ declare global {
     showContextMenu: () => void;
     getStoreValue: (key: string) => Promise<any>;
     setStoreValue: (key: string, value: any) => Promise<void>;
+    getBackups: () => Promise<{ name: string, path: string, time: number, size: number }[]>;
+    restoreBackup: (filePath: string) => Promise<string | null>;
+    createManualBackup: (backupName: string) => Promise<{ success: boolean, path: string }>;
+    deleteBackup: (filePath: string) => Promise<{ success: boolean, error?: string }>;
+    exportBackup: (payload: { backupPath: string, backupName: string }) => Promise<void>;
+    openBackupsFolder: () => void;
     send: (channel: string, data?: any) => void;
     on: (channel: string, callback: (...args: any[]) => void) => (() => void) | undefined;
     manageFile: (args: { action: 'select' } | { action: 'open', filePath: string }) => Promise<{ name: string, path: string } | null>;
@@ -65,6 +71,7 @@ interface Word {
   isMonthlyRecurring?: boolean;
   isYearlyRecurring?: boolean;
   isAutocomplete?: boolean;
+  lastNotified?: number; // Timestamp of the last notification sent for this task
   manualTimeRunning?: boolean;
   manualTimeStart?: number; // Timestamp when manual timer was started
 }
@@ -112,7 +119,11 @@ interface Settings {
   activeSubCategoryId?: number | 'all';
   warningTime: number; // in minutes
   isSidebarVisible: boolean;
+  openAccordionIds: number[]; // Persist open accordions
+  activeTaskTabs: { [key: number]: 'ticket' | 'edit' }; // Persist active tab per task
+  timerNotificationLevel: 'silent' | 'low' | 'medium' | 'high';
   prioritySortConfig?: PrioritySortConfig;
+  autoBackupLimit?: number;
   useDefaultBrowserForSearch?: boolean; // New global setting
 }
 
@@ -125,6 +136,9 @@ interface AccordionProps {
 interface TabbedViewProps {
   word: Word;
   onUpdate: (updatedWord: Word) => void;
+  onTabChange: (wordId: number, tab: 'ticket' | 'edit') => void;
+  onOverdue: (wordId: number) => void;
+  onNotify: (word: Word) => void;
   formatTimestamp: (ts: number) => string;
   setCopyStatus: (message: string) => void;  
   onDescriptionChange: (html: string) => void;
@@ -195,8 +209,55 @@ function LinkModal({ isOpen, onClose, onConfirm }: LinkModalProps) {
   );
 }
 
-function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange }: TabbedViewProps) {
-  const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(word.completedDuration ? 'ticket' : 'ticket'); // Default to ticket view
+interface PromptModalProps {
+  isOpen: boolean;
+  title: string;
+  onClose: () => void;
+  onConfirm: (inputValue: string) => void;
+  placeholder?: string;
+}
+
+function PromptModal({ isOpen, title, onClose, onConfirm, placeholder }: PromptModalProps) {
+  const [inputValue, setInputValue] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleConfirm = () => {
+    if (inputValue.trim()) {
+      onConfirm(inputValue.trim());
+      setInputValue(''); // Reset for next time
+    }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <h4>{title}</h4>
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleConfirm()}
+          placeholder={placeholder}
+          autoFocus
+        />
+        <div className="modal-actions">
+          <button onClick={handleConfirm}>Confirm</button>
+          <button onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TabbedView({ word, onUpdate, onTabChange, onOverdue, onNotify, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange }: TabbedViewProps) {
+  const initialTab = settings.activeTaskTabs[word.id] || (word.completedDuration ? 'ticket' : 'ticket');
+  const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(initialTab);
+
+  const handleTabClick = (tab: 'ticket' | 'edit') => {
+    setActiveTab(tab);
+    onTabChange(word.id, tab);
+  };
 
   const handleFieldChange = (field: keyof Word, value: any) => {
     onUpdate({ ...word, [field]: value });
@@ -286,9 +347,9 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, 
 
   const tabHeaders = (
     <div className="tab-headers" style={{ marginTop: '5px' }}>
-      <button onClick={() => setActiveTab('ticket')} className={activeTab === 'ticket' ? 'active' : ''}>Task</button>
+      <button onClick={() => handleTabClick('ticket')} className={activeTab === 'ticket' ? 'active' : ''}>Task</button>
       {!word.completedDuration && ( // Only show Edit tab for non-completed items
-        <button onClick={() => setActiveTab('edit')} className={activeTab === 'edit' ? 'active' : ''}>Edit</button>
+        <button onClick={() => handleTabClick('edit')} className={activeTab === 'edit' ? 'active' : ''}>Edit</button>
       )}
     </div>
   );
@@ -306,7 +367,7 @@ function TabbedView({ word, onUpdate, formatTimestamp, setCopyStatus, settings, 
             <p><strong>Open Date:</strong> {formatTimestamp(word.openDate)}</p>
             <p><strong>Time Open:</strong> <TimeOpen startDate={word.createdAt} /></p>
             {word.completeBy && <p><strong>Complete By:</strong> {formatTimestamp(word.completeBy)}</p>}            
-            {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft completeBy={word.completeBy} settings={settings}/></p>}
+            {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft word={word} onUpdate={onUpdate} onNotify={onNotify} settings={settings} onOverdue={onOverdue} /></p>}
             {word.company && <p><strong>Company:</strong> <span className="link-with-copy">{word.company}<button className="copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); setCopyStatus('Company copied!'); }}>📋</button></span></p>}
             <div><strong>Work Timer:</strong>
               <ManualStopwatch word={word} onUpdate={(updatedWord) => onUpdate(updatedWord)} />
@@ -719,13 +780,21 @@ function TaskAccordion({ title, children, isOpen, onToggle, word }: AccordionPro
   );
 }
 
-function TimeLeft({ completeBy, settings }: { completeBy: number | undefined, settings: Settings }) {
+function TimeLeft({ word, onUpdate, onNotify, settings, onOverdue }: { 
+  word: Word, 
+  onUpdate: (updatedWord: Word) => void, 
+  onNotify: (word: Word) => void, 
+  settings: Settings,
+  onOverdue: (wordId: number) => void 
+}) {
   const [timeLeft, setTimeLeft] = useState('');
   const [className, setClassName] = useState('');
+  const { completeBy, id, lastNotified } = word;
+  const { timerNotificationLevel, warningTime, openAccordionIds } = settings;
 
   useEffect(() => {
     if (!completeBy) {
-      setTimeLeft('No Deadline');
+      setTimeLeft('N/A');
       return;
     }
 
@@ -734,23 +803,64 @@ function TimeLeft({ completeBy, settings }: { completeBy: number | undefined, se
       if (ms < 0) {
         setClassName('priority-high');
         setTimeLeft(`Overdue by ${formatTime(Math.abs(ms))}`);
+        onOverdue(id); // Trigger the overdue state
         return;
       }
 
       // Set class to yellow if less than an hour left
-      if (ms < (settings.warningTime * 60000)) { // Convert minutes to milliseconds
+      if (ms < (warningTime * 60000)) { // Convert minutes to milliseconds
         setClassName('priority-medium');
       } else {
         setClassName('');
       }
 
       setTimeLeft(formatTime(ms));
+
+      // --- Notification Logic ---
+      if (timerNotificationLevel === 'silent' || ms < 0) return;
+
+      const minutesLeft = Math.floor(ms / 60000);
+      const now = Date.now();
+
+      // Check if we should notify
+      let shouldNotify = false;
+      const lastNotifiedMinutes = lastNotified ? Math.floor((completeBy - lastNotified) / 60000) : Infinity;
+
+      if (timerNotificationLevel === 'high') {
+        // Notify on the hour marks
+        if (minutesLeft > 60 && minutesLeft % 60 === 0 && lastNotifiedMinutes > minutesLeft) {
+          shouldNotify = true;
+        }
+        // Notify on 15-min intervals in the last hour
+        if (minutesLeft <= 60 && minutesLeft > 0 && minutesLeft % 15 === 0 && lastNotifiedMinutes > minutesLeft) {
+          shouldNotify = true;
+        }
+      }
+
+      if (timerNotificationLevel === 'medium') {
+        // Notify on 15-min intervals in the last hour
+        if (minutesLeft <= 60 && minutesLeft > 0 && minutesLeft % 15 === 0 && lastNotifiedMinutes > minutesLeft) {
+          shouldNotify = true;
+        }
+      }
+
+      if (timerNotificationLevel === 'low') {
+        // Notify once when it enters the last 15 minutes
+        if (minutesLeft <= 15 && lastNotifiedMinutes > 15) {
+          shouldNotify = true;
+        }
+      }
+
+      if (shouldNotify) {
+        onNotify(word);
+        onUpdate({ ...word, lastNotified: now });
+      }
     };
 
     update();
     const interval = setInterval(update, 1000); // Update every second
     return () => clearInterval(interval);
-  }, [completeBy, settings.warningTime]);
+  }, [id, completeBy, lastNotified, timerNotificationLevel, warningTime, onNotify, onUpdate, onOverdue]);
 
   return <span className={className}>{timeLeft}</span>;
 }
@@ -803,6 +913,213 @@ const formatDate = (ts: number) => {
   if (typeof ts !== 'number') return 'N/A';
   return new Date(ts).toLocaleDateString();
 };
+
+const formatBytes = (bytes: number, decimals = 2) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
+function BackupManager({ onRestore, setCopyStatus, words, completedWords, settings, onSettingsChange }: { 
+  onRestore: (data: any) => void, 
+  setCopyStatus: (message: string) => void,
+  words: Word[],
+  completedWords: Word[],
+  settings: Settings,
+  onSettingsChange: (newSettings: Partial<Settings>) => void
+}) {
+  const [backups, setBackups] = useState<{ name: string, path: string, time: number, size: number }[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPromptOpen, setIsPromptOpen] = useState(false);
+  const [backupSearchQuery, setBackupSearchQuery] = useState('');
+  const [activeBackupTab, setActiveBackupTab] = useState<'automatic' | 'manual'>('automatic');
+  const [selectedBackup, setSelectedBackup] = useState<{ name: string, path: string } | null>(null);
+  const [backupPreview, setBackupPreview] = useState<any>(null);
+
+  const fetchBackups = async () => {
+    const backupFiles = await window.electronAPI.getBackups();
+    setBackups(backupFiles);
+  };
+
+  const handleRestoreClick = () => {
+    fetchBackups();
+    setActiveBackupTab('automatic'); // Default to automatic tab on open
+    setSelectedBackup(null); // Clear any previous selection
+    setBackupSearchQuery(''); // Clear search on open
+    setIsModalOpen(true);
+  };
+
+  const handleManualBackupConfirm = async (backupName: string) => {
+    const result = await window.electronAPI.createManualBackup(backupName);
+    setIsPromptOpen(false); // Close the prompt modal
+    if (result.success) {
+      setCopyStatus(`Manual backup "${backupName}" created!`);
+      fetchBackups(); // Refresh the backup list if the modal is open
+    } else {
+      setCopyStatus('Failed to create manual backup.');
+    }
+  };
+
+  const handleSelectBackupForRestore = async (backup: { name: string, path: string }) => {
+    setSelectedBackup(backup);
+    const jsonString = await window.electronAPI.restoreBackup(backup.path);
+    if (jsonString) {
+      try {
+        const data = JSON.parse(jsonString);
+        setBackupPreview(data);
+      } catch (e) {
+        console.error("Failed to parse backup preview", e);
+        setBackupPreview({ error: "Could not read backup file." });
+      }
+    }
+  };
+
+  const handleRestoreConfirm = () => {
+    if (backupPreview && !backupPreview.error) {
+      onRestore(backupPreview);
+      setIsModalOpen(false);
+    }
+  };
+
+  const handleMergeConfirm = () => {
+    if (backupPreview && !backupPreview.error) {
+      const backupWords = backupPreview.words || [];
+      const backupCompletedWords = backupPreview.completedWords || [];
+
+      // Combine and de-duplicate based on task ID
+      const mergedWords = [...words, ...backupWords];
+      const uniqueWords = Array.from(new Map(mergedWords.map(item => [item.id, item])).values());
+
+      const mergedCompletedWords = [...completedWords, ...backupCompletedWords];
+      const uniqueCompletedWords = Array.from(new Map(mergedCompletedWords.map(item => [item.id, item])).values());
+
+      onRestore({ words: uniqueWords, completedWords: uniqueCompletedWords, settings: settings }); // Keep current settings
+      setIsModalOpen(false);
+    }
+  };
+
+  const handleDeleteBackup = async (backup: { name: string, path: string }) => {
+    if (window.confirm(`Are you sure you want to permanently delete the backup "${backup.name}"?`)) {
+      const result = await window.electronAPI.deleteBackup(backup.path);
+      if (result.success) {
+        setCopyStatus('Backup deleted.');
+        fetchBackups(); // Refresh the list
+      } else {
+        alert(`Failed to delete backup: ${result.error || 'Unknown error'}`);
+      }
+    }
+  };
+
+  const getFilteredBackups = (type: 'automatic' | 'manual') => {
+    return backups.filter(backup => {
+      const isManual = backup.name.startsWith('manual-');
+      if ((type === 'manual' && !isManual) || (type === 'automatic' && isManual)) {
+        return false;
+      }
+
+      const searchQuery = backupSearchQuery.toLowerCase();
+      if (isManual) {
+        const parts = backup.name.replace('.json', '').split('-');
+        const manualName = parts.slice(3).join(' ').toLowerCase();
+        return manualName.includes(searchQuery);
+      } else {
+        return new Date(backup.time).toLocaleString().toLowerCase().includes(searchQuery);
+      }
+    });
+  };
+  const displayedBackups = getFilteredBackups(activeBackupTab);
+
+  return (
+    <SimpleAccordion title="Backups & Recovery">
+      <PromptModal
+        isOpen={isPromptOpen}
+        title="Create Manual Backup"
+        placeholder="Enter a name for this backup..."
+        onClose={() => setIsPromptOpen(false)}
+        onConfirm={handleManualBackupConfirm}
+      />
+      <div className="button-group">
+        <button onClick={() => setIsPromptOpen(true)}>Create Manual Backup</button>
+        <button onClick={handleRestoreClick}>Restore from Backup</button>
+        <button onClick={() => window.electronAPI.openBackupsFolder()} title="Open backups folder in your file explorer">📂</button>
+      </div>
+      <label className="backup-setting-label">
+        Automatic Backups to Keep:
+        <input type="number" min="1" value={settings.autoBackupLimit} onChange={(e) => onSettingsChange({ autoBackupLimit: Number(e.target.value) })} />
+      </label>
+
+      {isModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h4>Select a backup to restore</h4>
+            <div className="tab-headers">
+              <button onClick={() => setActiveBackupTab('automatic')} className={activeBackupTab === 'automatic' ? 'active' : ''}>Automatic</button>
+              <button onClick={() => setActiveBackupTab('manual')} className={activeBackupTab === 'manual' ? 'active' : ''}>Manual</button>
+            </div>
+            <input
+              type="text"
+              placeholder="Search backups..."
+              value={backupSearchQuery}
+              onChange={(e) => setBackupSearchQuery(e.target.value)}
+              style={{ margin: '10px 0' }}
+            />
+            <ul className="backup-list">
+              {displayedBackups.length > 0 ? displayedBackups.map(backup => (
+                <li key={backup.path} className={backup.name.startsWith('manual-') ? 'manual-backup' : ''}>
+                  <div className="backup-info" onClick={() => handleSelectBackupForRestore(backup)} title={`Restore ${backup.name}`}>
+                    <span className="backup-date">
+                      {(() => {
+                        if (backup.name.startsWith('manual-')) {
+                          // Extracts the user-given name from 'manual-YYYY-MM-DD-the-name.json'
+                          const parts = backup.name.replace('.json', '').split('-');
+                          return parts.slice(3).join(' ');
+                        }
+                        // For automatic backups, show the full date/time
+                        return new Date(backup.time).toLocaleString();
+                      })()}
+                    </span>
+                    <span className="backup-size">{formatBytes(backup.size)}</span>
+                  </div>
+                  <button className="delete-backup-btn" title="Delete this backup" onClick={(e) => { e.stopPropagation(); handleDeleteBackup(backup); }}>
+                    🗑️
+                  </button>
+                  <button className="export-backup-btn" title="Export this backup" onClick={(e) => { e.stopPropagation(); window.electronAPI.exportBackup({ backupPath: backup.path, backupName: backup.name }); }}>
+                    📤
+                  </button>
+                </li>
+              )) : (
+                <li className="no-backups-message">No {activeBackupTab} backups found.</li>
+              )}
+            </ul>
+            <button onClick={() => setIsModalOpen(false)}>Cancel</button>
+          </div>
+          {selectedBackup && backupPreview && (
+            <div className="modal-overlay" onClick={() => setSelectedBackup(null)}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                <h4>Restore Confirmation</h4>
+                <p>Are you sure you want to restore this backup? This will overwrite your current session.</p>
+                <div className="backup-preview">
+                  <strong>Backup Details:</strong>
+                  <p>Name: {selectedBackup.name}</p>
+                  <p>Open Tasks: {backupPreview.words?.length || 0}</p>
+                  <p>Completed Tasks: {backupPreview.completedWords?.length || 0}</p>
+                </div>
+                <div className="modal-actions">
+                  <button onClick={handleMergeConfirm}>Merge with Session</button>
+                  <button onClick={handleRestoreConfirm} className="confirm-btn">Restore</button>
+                  <button onClick={() => setSelectedBackup(null)}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </SimpleAccordion>
+  );
+}
 
 function Stopwatch({ word, onTogglePause }: { word: Word, onTogglePause: (id: number) => void }) {
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -926,6 +1243,9 @@ const defaultSettings: Settings = {
   activeSubCategoryId: 'all',
   warningTime: 60, // Default to 60 minutes
   isSidebarVisible: true,
+  openAccordionIds: [], // Default to no accordions open
+  activeTaskTabs: {}, // Default to no specific tabs active
+  timerNotificationLevel: 'medium', // Default to medium alerts
   prioritySortConfig: {}, // Now an object to store sort configs per category
 };
 
@@ -966,13 +1286,17 @@ function App() {
   const activeSubCategoryId = settings.activeSubCategoryId ?? 'all';
 
   const [editingViaContext, setEditingViaContext] = useState<number | null>(null);
-  const [openAccordionIds, setOpenAccordionIds] = useState<Set<number>>(new Set());
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const newTaskTitleInputRef = useRef<HTMLInputElement>(null);
   const sortSelectRef = useRef<HTMLSelectElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // State for timer notifications
+  const [timerNotifications, setTimerNotifications] = useState<Word[]>([]);
+  // State for persistent overdue notifications
+  const [overdueNotifications, setOverdueNotifications] = useState<Set<number>>(new Set());
 
 
   const [newTask, setNewTask] = useState({
@@ -997,6 +1321,7 @@ function App() {
     isAutocomplete: false,
     description: '',
     attachments: [],
+    lastNotified: undefined,
     notes: '',
   });
 
@@ -1008,7 +1333,11 @@ function App() {
         const savedCompletedWords = await window.electronAPI.getStoreValue('overwhelmed-completed-words');
         const savedSettings = await window.electronAPI.getStoreValue('overwhelmed-settings');
 
-        if (savedWords) setWords(savedWords);
+        if (savedWords) {
+            // Ensure lastNotified is initialized if it's missing from saved data
+            const wordsWithDefaults = savedWords.map((w: Word) => ({ ...w, lastNotified: w.lastNotified || undefined }));
+            setWords(wordsWithDefaults);
+        }
         if (savedCompletedWords) setCompletedWords(savedCompletedWords);
         if (savedSettings) {
           setSettings(prevSettings => ({ ...prevSettings, ...savedSettings }));
@@ -1076,6 +1405,21 @@ function App() {
   useEffect(() => {
     if (!isLoading) setIsDirty(true);
   }, [settings]);
+
+  // Effect for periodic auto-saving
+  useEffect(() => {
+    const autoSaveInterval = setInterval(() => {
+      if (isDirty) {
+        // Similar to the save-on-quit logic, we send all data to the main process
+        // to be written to the store in the background.
+        window.electronAPI.send('auto-save-data', { words, completedWords, settings });
+        // We can optionally mark the state as clean after an auto-save
+        setIsDirty(false); 
+      }
+    }, 300000); // Auto-save every 5 minutes (300,000 ms)
+
+    return () => clearInterval(autoSaveInterval);
+  }, [isDirty, words, completedWords, settings]); // Re-bind if state changes
 
   // Effect to handle different shutdown signals from the main process
   useEffect(() => {
@@ -1159,7 +1503,10 @@ function App() {
   useEffect(() => {
     if (editingViaContext !== null) {
       // Reset after a short delay to allow the UI to update
-      setOpenAccordionIds(prev => new Set(prev).add(editingViaContext));
+      setSettings(prev => ({
+        ...prev,
+        openAccordionIds: [...new Set([...prev.openAccordionIds, editingViaContext])]
+      }));
       const timer = setTimeout(() => setEditingViaContext(null), 100);
       return () => clearTimeout(timer);
     }
@@ -1167,15 +1514,15 @@ function App() {
 
   const handleAccordionToggle = (wordId: number) => {
     setOpenAccordionIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(wordId)) {
-        newSet.delete(wordId);
+      const isOpen = prev.includes(wordId);
+      if (isOpen) {
+        return prev.filter(id => id !== wordId);
       } else {
-        newSet.add(wordId);
+        return [...prev, wordId];
       }
-      return newSet;
     });
   };
+  const setOpenAccordionIds = (updater: (prev: number[]) => number[]) => setSettings(prev => ({ ...prev, openAccordionIds: updater(prev.openAccordionIds) }));
 
   // Effect to handle autocomplete tasks
   useEffect(() => {
@@ -1482,6 +1829,7 @@ function App() {
         isAutocomplete: false,
         imageLinks: [],
         attachments: [],
+        lastNotified: undefined,
         notes: '',
         description: '',
       });
@@ -1990,6 +2338,47 @@ function App() {
     }
   };
 
+  const handleTimerNotify = (word: Word) => {
+    setTimerNotifications(prev => [...prev, word]);
+    // Automatically remove the notification after some time
+    setTimeout(() => {
+      setTimerNotifications(prev => prev.filter(n => n.id !== word.id));
+    }, 8000); // Keep on screen for 8 seconds
+  };
+
+  const handleTaskOverdue = (wordId: number) => {
+    setOverdueNotifications(prev => {
+      if (prev.has(wordId)) return prev; // Already showing, do nothing
+      return new Set(prev).add(wordId);
+    });
+  };
+
+  const confirmOverdue = (wordId: number) => {
+    setOverdueNotifications(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(wordId);
+      return newSet;
+    });
+  };
+
+  const Footer = () => {
+    const currentYear = new Date().getFullYear();
+    const version = '1.0.0'; // You can update this manually or pull from package.json
+    const companyUrl = 'https://moondogdevelopment.com';
+    const githubUrl = 'https://github.com/moondogdev/overwhelmed';
+
+    return (
+      <div className='footer-credit'>
+        <div className='version'>
+          <a href="#" onClick={() => window.electronAPI.openExternalLink({ url: githubUrl, browserPath: undefined })}>Version: {version}</a>
+        </div>
+        <div>
+          Copyright © {currentYear} • <a href="#" onClick={() => window.electronAPI.openExternalLink({ url: companyUrl, browserPath: undefined })}>Moondog Development, LLC</a>
+        </div>        
+      </div>
+    );
+  };
+
   return (
     <div className="app-container">
       <div className="clock-save-container"> 
@@ -2005,6 +2394,34 @@ function App() {
         </button>        
       </div>
       {copyStatus && <div className="copy-status-toast">{copyStatus}</div>}
+      {timerNotifications.length > 0 && (
+        <div className="timer-notification-container">
+          {timerNotifications.map(word => (
+            <div key={word.id} className="timer-notification-toast">
+              <strong>Timer Alert:</strong> {word.text}
+              <br />
+              <TimeLeft word={word} onUpdate={() => {}} onNotify={() => {}} settings={settings} onOverdue={() => {}} /> remaining.
+            </div>
+          ))}
+        </div>
+      )}
+      {overdueNotifications.size > 0 && (
+        <div className="overdue-notification-container">
+          {Array.from(overdueNotifications).map(wordId => {
+            const word = words.find(w => w.id === wordId);
+            if (!word) return null;
+            return (
+              <div key={word.id} className="overdue-notification-toast">
+                <span><strong>{word.text}</strong> is Due!</span>
+                <label className="confirm-checkbox-label">Confirm
+                  <input type="checkbox" onChange={() => confirmOverdue(word.id)} />
+                </label>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <Footer />
       <div className="main-content">
         <header className="app-header">
           <div className="external-links">
@@ -2185,10 +2602,10 @@ function App() {
                         </div>
                         <div className="button-group">
                           <button onClick={() => {
-                            const allVisibleIds = new Set(filteredWords.map(w => w.id));
-                            setOpenAccordionIds(allVisibleIds);
+                            const allVisibleIds = filteredWords.map(w => w.id);
+                            setSettings(prev => ({ ...prev, openAccordionIds: allVisibleIds }));
                           }} title="Expand All">📂</button>
-                          <button onClick={() => setOpenAccordionIds(new Set())} title="Collapse All">📁</button>
+                          <button onClick={() => setSettings(prev => ({ ...prev, openAccordionIds: [] }))} title="Collapse All">📁</button>
                         </div>
                       </div>
                       <div className="list-header-sort">
@@ -2230,7 +2647,7 @@ function App() {
                             ) : (
                               <TaskAccordion
                                 word={word}
-                                isOpen={openAccordionIds.has(word.id)}
+                                isOpen={settings.openAccordionIds.includes(word.id)}
                                 onToggle={() => handleAccordionToggle(word.id)}
                                 title={
                                 <>
@@ -2263,7 +2680,7 @@ function App() {
                                     {word.company && <span>{word.company}</span>}
                                     <span>{formatDate(word.openDate)} {new Date(word.openDate).toLocaleTimeString()}</span>
                                     {word.completeBy && <span>Due: {formatDate(word.completeBy)} {new Date(word.completeBy).toLocaleTimeString()}</span>}
-                                    <span><TimeLeft completeBy={word.completeBy} settings={settings} /></span>
+                                    <span><TimeLeft word={word} onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))} onNotify={handleTimerNotify} settings={settings} onOverdue={handleTaskOverdue} /></span>
                                     <span className={`priority-indicator priority-${(word.priority || 'Medium').toLowerCase()}`}>
                                       <span className="priority-dot"></span>
                                       {word.priority || 'Medium'}
@@ -2275,7 +2692,13 @@ function App() {
                                   <TabbedView 
                                     startInEditMode={editingViaContext === word.id}
                                     word={word} 
+                                    onTabChange={(wordId, tab) => setSettings(prev => ({
+                                      ...prev,
+                                      activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: tab }
+                                    }))}
+                                    onOverdue={handleTaskOverdue}
                                     onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))}
+                                    onNotify={handleTimerNotify}
                                     formatTimestamp={formatTimestamp}
                                     setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
                                   onDescriptionChange={(html) => setWords(words.map(w => w.id === word.id ? { ...w, description: html } : w))}
@@ -2461,11 +2884,14 @@ function App() {
                     );
                     return (
                       <div key={word.id} className="priority-list-item completed-item">
-                        <TaskAccordion word={word} title={title} isOpen={openAccordionIds.has(word.id)} onToggle={() => handleAccordionToggle(word.id)}>
+                        <TaskAccordion word={word} title={title} isOpen={settings.openAccordionIds.includes(word.id)} onToggle={() => handleAccordionToggle(word.id)}>
                           {/* This first child is the 'content' for the accordion */}
                           <TabbedView 
                             word={word} 
+                            onTabChange={() => {}} // No tab state persistence for completed items
+                            onOverdue={() => {}} // No overdue notifications for completed items
                             onUpdate={() => {}} // No updates for completed items
+                            onNotify={() => {}} // No notifications for completed items
                             formatTimestamp={formatTimestamp}
                             setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
                             onDescriptionChange={() => {}}
@@ -2744,10 +3170,19 @@ function App() {
             Warning Time (minutes):
             <input type="number" value={settings.warningTime} onChange={(e) => setSettings(prev => ({ ...prev, warningTime: Number(e.target.value) }))} />
           </label>
+          <label>
+            Timer Alert Level:
+            <select value={settings.timerNotificationLevel} onChange={(e) => setSettings(prev => ({ ...prev, timerNotificationLevel: e.target.value as any }))}>
+              <option value="silent">Silent</option>
+              <option value="low">Low (Once at 15m)</option>
+              <option value="medium">Medium (Every 15m in last hour)</option>
+              <option value="high">High (Hourly + every 15m in last hour)</option>
+            </select>
+          </label>
         </SimpleAccordion>
 
         {/* Moved Bulk Add and Project Actions to be globally available */}
-        <div className="bulk-add-container">
+        <SimpleAccordion title="Bulk Add">
           <textarea
             placeholder="Paste comma-separated words here..."
             value={bulkAddText}
@@ -2755,11 +3190,23 @@ function App() {
             rows={3}
           />
           <button onClick={handleBulkAdd}>Add Words</button>
-        </div>
+        </SimpleAccordion>
         <SimpleAccordion title="Project Actions">
           <button onClick={handleExport}>Export Project</button>
           <button onClick={handleImport}>Import Project</button>
         </SimpleAccordion>
+        <BackupManager 
+          setCopyStatus={setCopyStatus} 
+          words={words} 
+          completedWords={completedWords} 
+          settings={settings} 
+          onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))} onRestore={(data) => {
+          // This logic is similar to handleImport
+          setWords(data.words || []);
+          setCompletedWords(data.completedWords || []);
+          setSettings(prev => ({ ...defaultSettings, ...data.settings }));
+            setCopyStatus('Backup restored successfully!'); setTimeout(() => setCopyStatus(''), 2000);
+        }} />
 
         {settings.currentView === 'meme' && (
           <>

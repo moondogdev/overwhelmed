@@ -55,12 +55,28 @@ All notable changes to this project will be documented in this file.
 -   **Local File Attachments**: Implemented a feature to attach local files to tasks. Files are securely copied into the application's data directory and can be opened or removed from the task.
 -   **Smart Hyperlink Pasting**: Pasting a URL over selected text in the rich text editor now automatically creates a hyperlink.
 -   **Selection Context Menu**: Added a global right-click context menu that appears on any selected text, offering "Copy" and "Search Google" options. The search can be configured to use the system's default browser via a new global setting in the "External Link Manager".
+-   **Advanced Timer Notifications**: Implemented a granular notification system for task deadlines. Users can now select an alert level ('silent', 'low', 'medium', or 'high') to control the frequency of deadline reminders.
+-   **Persistent Overdue Alerts**: Added non-dismissible toast notifications for overdue tasks that require user confirmation to be removed.
+-   **Automatic Backup System**: On every application launch, a timestamped backup of the project is automatically created and stored in a dedicated `backups/automatic` folder. The number of backups to retain is now a configurable setting.
+-   **Manual Backup & Restore System**: Implemented a full-featured backup manager in the sidebar, allowing users to:
+    -   Create named, permanent manual backups.
+    -   Restore a session from any backup (automatic or manual).
+    -   Merge a backup with the current session without overwriting data.
+    -   Delete and export individual backups.
+    -   Search and filter backups within a tabbed UI separating `Automatic` and `Manual` restore points.
+-   **UI State Persistence**: The application now remembers which task accordions were left open and which tab ('Task' or 'Edit') was active for each task, restoring the UI state on relaunch.
+-   **Periodic Auto-Save**: The application now automatically saves any unsaved changes in the background every 5 minutes, providing protection against data loss from unexpected application crashes.
+-   **Application Footer**: Added a fixed footer to display copyright information and the application version.
+
 
 
 ### Changed
 -   **UI Terminology**: Standardized the term "Ticket" to "Task" throughout the application, including context menus and UI labels, for better clarity and consistency.
 -   **Duplicate Task**: Renamed the "Copy Task" feature to "Duplicate Task" to more accurately describe its function of creating a new, editable copy of an existing task.
 -   **Overdue Timer**: The "Time Left" countdown now displays how long a task is overdue (e.g., "Overdue by 01:15:30") instead of just a static "Overdue" message.
+-   **Backup Data Structure**: The format of backup files was harmonized to use clean keys (`words`, `settings`) instead of the raw `electron-store` format (`overwhelmed-words`, etc.), ensuring consistency across import, export, and restore features.
+-   **Backup Folder Organization**: Backups are now organized into `automatic` and `manual` sub-folders within the application's data directory for better clarity and safer pruning logic.
+
 
 ### Fixed
 -   **Build System Overhaul**: Resolved a complex and persistent build loop involving conflicting TypeScript module configurations (`Cannot redeclare block-scoped variable` vs. `module is not defined`). The final solution involved renaming configuration files to `.cts` to enforce CommonJS module resolution, correcting `require` paths, and aligning all `@electron-forge` package versions in `package.json`. This stabilized the development environment and resolved the final `ERR_CONNECTION_REFUSED` white screen issue.
@@ -76,3 +92,6 @@ All notable changes to this project will be documented in this file.
 -   **Context Menu Logic**: Resolved event propagation conflicts to ensure the correct context menu (for links vs. tickets) appears reliably.
 -   **List Reordering**: Fixed a critical bug where the up/down arrows for reordering tasks in the list view would fail when filters were active. The logic now correctly reorders items based on their visual position on the screen.
 -   **UI Polish**: Moved the "Save Project" button to be a fixed element on the screen, ensuring it's always visible. The "Add Task" buttons now automatically open the sidebar if it's closed.
+-   **Data Loss on Startup**: Resolved a critical issue where a change in a dependency's default behavior could cause the application to load a blank session and overwrite existing data. The `electron-store` initialization was fixed to explicitly name the data file (`config.json`), ensuring the correct file is always loaded.
+-   **Unsupported `prompt()` Dialog**: Replaced the unsupported `window.prompt()` with a custom, reusable modal component for creating named manual backups, resolving a runtime error in Electron.
+-   **Backup Restore Toast**: Fixed a bug where the "Backup restored successfully!" toast notification would not automatically disappear.

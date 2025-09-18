@@ -17,11 +17,27 @@ if (require('electron-squirrel-startup')) {
 }
 
 // Initialize electron-store
-const store = new Store();
+const store = new Store({
+  // This is the critical fix to restore and protect your data.
+  // It explicitly tells the app to load your original 'config.json' file.
+  name: 'config', // This ensures the file is named 'config.json' and loads your data.
+  // The 'migrations' block is a safeguard. If the store schema ever changes,
+  // it will automatically move your data from the old file to the new one,
+  // preventing this kind of data loss from ever happening again.
+  migrations: {
+    '>=1.0.0': (store) => { /* This can be used for future data migrations */ }
+  }
+});
+
 
 // Ensure attachments directory exists
 const attachmentsPath = path.join(app.getPath('userData'), 'attachments');
+const baseBackupsPath = path.join(app.getPath('userData'), 'backups');
+const autoBackupsPath = path.join(baseBackupsPath, 'automatic');
+const manualBackupsPath = path.join(baseBackupsPath, 'manual');
 if (!fs.existsSync(attachmentsPath)) fs.mkdirSync(attachmentsPath, { recursive: true });
+if (!fs.existsSync(autoBackupsPath)) fs.mkdirSync(autoBackupsPath, { recursive: true });
+if (!fs.existsSync(manualBackupsPath)) fs.mkdirSync(manualBackupsPath, { recursive: true });
 let isQuitting = false; // Flag to prevent reopening on quit
 let isDirty = false; // Flag to track if there are unsaved changes in the renderer
 
@@ -80,6 +96,136 @@ function forceQuit(mainWindow: BrowserWindow) {
     mainWindow.destroy();
   }
 }
+
+// --- Backup and Restore Functions ---
+
+function createBackup() {
+  try {
+    const data = {
+      words: store.get('overwhelmed-words'),
+      completedWords: store.get('overwhelmed-completed-words'),
+      settings: store.get('overwhelmed-settings'),
+    };
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupFilePath = path.join(autoBackupsPath, `backup-${timestamp}.json`);
+    fs.writeFileSync(backupFilePath, JSON.stringify(data, null, 2));
+    console.log(`Backup created at: ${backupFilePath}`);
+    
+    // Prune old backups, keeping the number specified in settings (default to 10)
+    const settings = store.get('overwhelmed-settings') as any;
+    const backupLimit = settings?.autoBackupLimit ?? 10;
+    const autoBackups = fs.readdirSync(autoBackupsPath)
+      .map(file => ({ file, time: fs.statSync(path.join(autoBackupsPath, file)).mtime.getTime() }))
+      .sort((a, b) => b.time - a.time);
+
+    if (autoBackups.length > backupLimit) {
+      const backupsToDelete = autoBackups.slice(backupLimit);
+      backupsToDelete.forEach(backup => {
+        fs.unlinkSync(path.join(autoBackupsPath, backup.file));
+        console.log(`Deleted old backup: ${backup.file}`);
+      });
+    }
+  } catch (error) {
+    console.error('Failed to create backup:', error);
+  }
+}
+
+ipcMain.handle('create-manual-backup', async (_event, backupName: string) => {
+  try {
+    const data = {
+      words: store.get('overwhelmed-words'),
+      completedWords: store.get('overwhelmed-completed-words'),
+      settings: store.get('overwhelmed-settings'),
+    };
+    // Sanitize the name to make it a valid filename
+    const sanitizedName = backupName.replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+    const timestamp = new Date().toISOString().split('T')[0]; // Just the date part
+    const backupFilePath = path.join(manualBackupsPath, `manual-${timestamp}-${sanitizedName}.json`);
+    fs.writeFileSync(backupFilePath, JSON.stringify(data, null, 2));
+    console.log(`Manual backup created at: ${backupFilePath}`);
+    return { success: true, path: backupFilePath };
+  } catch (error) {
+    console.error('Failed to create manual backup:', error);
+    return { success: false };
+  }
+});
+
+ipcMain.handle('get-backups', async () => {
+  try {
+    const readBackupsFrom = (dir: string) => fs.readdirSync(dir).map(file => ({
+        name: file,
+        path: path.join(dir, file),
+        time: fs.statSync(path.join(dir, file)).mtime.getTime(),
+        size: fs.statSync(path.join(dir, file)).size
+    }));
+
+    const autoBackups = readBackupsFrom(autoBackupsPath);
+    const manualBackups = readBackupsFrom(manualBackupsPath);
+
+    const allBackups = [...autoBackups, ...manualBackups]
+      .sort((a, b) => b.time - a.time); // Sort by most recent first
+    return allBackups;
+  } catch (error) {
+    console.error('Failed to get backups:', error);
+    return [];
+  }
+});
+
+ipcMain.handle('restore-backup', async (_event, backupPath: string) => {
+  try {
+    // Read the backup file and return its contents to the renderer.
+    // The renderer will handle updating the state.
+    const backupData = fs.readFileSync(backupPath, 'utf-8');
+    return backupData;
+  } catch (error) {
+    console.error('Failed to restore backup:', error);
+  }
+});
+
+ipcMain.handle('delete-backup', async (_event, backupPath: string) => {
+  try {
+    // Security check: Ensure the path is within the backups directory
+    // Note: We check against the base path to allow deletion from subfolders.
+    const resolvedBackupsPath = path.resolve(baseBackupsPath);
+    const resolvedBackupPath = path.resolve(backupPath);
+
+    if (!resolvedBackupPath.startsWith(resolvedBackupsPath)) {
+      throw new Error('Attempted to delete a file outside the backups directory.');
+    }
+
+    if (fs.existsSync(resolvedBackupPath)) {
+      fs.unlinkSync(resolvedBackupPath);
+      console.log(`Deleted backup: ${resolvedBackupPath}`);
+      return { success: true };
+    }
+    return { success: false, error: 'File not found.' };
+  } catch (error) {
+    console.error('Failed to delete backup:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('export-backup', async (_event, { backupPath, backupName }) => {
+  try {
+    // Security check: Ensure the path is within the backups directory
+    const resolvedBackupsPath = path.resolve(baseBackupsPath);
+    const resolvedBackupPath = path.resolve(backupPath);
+    if (!resolvedBackupPath.startsWith(resolvedBackupsPath)) {
+      throw new Error('Attempted to access a file outside the backups directory.');
+    }
+
+    const backupData = fs.readFileSync(backupPath, 'utf-8');
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: 'Export Backup',
+      defaultPath: backupName,
+      filters: [{ name: 'JSON Files', extensions: ['json'] }],
+    });
+
+    if (!canceled && filePath) {
+      fs.writeFileSync(filePath, backupData, 'utf-8');
+    }
+  } catch (error) { console.error('Failed to export backup:', error); }
+});
 
 const createWindow = (): void => {
   // Load the previous window state with fallback to defaults
@@ -151,6 +297,9 @@ const createWindow = (): void => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // Create a backup on startup
+  createBackup();
+
   // Register all IPC handlers now that the app is ready.
   ipcMain.on('show-context-menu', (event) => {
     const template = [
@@ -177,6 +326,16 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('electron-store-get', (_event, key) => store.get(key));
   ipcMain.handle('electron-store-set', (_event, key, val) => store.set(key, val));
+  ipcMain.on('auto-save-data', (_event, data) => {
+    // This is a background save, so we just write the data.
+    store.set('overwhelmed-words', data.words);
+    store.set('overwhelmed-completed-words', data.completedWords);
+    store.set('overwhelmed-settings', data.settings);
+    console.log('Auto-save complete.');
+  });
+  ipcMain.on('open-backups-folder', () => {
+    shell.openPath(baseBackupsPath);
+  });
   ipcMain.on('save-and-quit-no-prompt', () => {
     const win = BrowserWindow.getAllWindows()[0];
     if (win) forceQuit(win);

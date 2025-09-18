@@ -12,6 +12,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showContextMenu: () => ipcRenderer.send('show-context-menu'),
   getStoreValue: (key: string) => ipcRenderer.invoke('electron-store-get', key),
   setStoreValue: (key: string, value: any) => ipcRenderer.invoke('electron-store-set', key, value),
+  getBackups: () => ipcRenderer.invoke('get-backups'),
+  restoreBackup: (filePath: string) => ipcRenderer.invoke('restore-backup', filePath),
+  createManualBackup: (backupName: string) => ipcRenderer.invoke('create-manual-backup', backupName),
+  deleteBackup: (filePath: string) => ipcRenderer.invoke('delete-backup', filePath),
+  exportBackup: (payload: { backupPath: string, backupName: string }) => ipcRenderer.invoke('export-backup', payload),
+  openBackupsFolder: () => ipcRenderer.send('open-backups-folder'),
   send: (channel: string, data?: any) => ipcRenderer.send(channel, data), // Allow sending data
   showTaskContextMenu: (wordId: number) => ipcRenderer.send('show-task-context-menu', wordId),
   showSelectionContextMenu: (selectionText: string) => ipcRenderer.send('show-selection-context-menu', selectionText),
