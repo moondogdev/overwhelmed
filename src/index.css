@@ -1328,3 +1328,30 @@ button[title="Clear Date"] {
 .backup-list li.manual-backup .backup-date {
   color: #61dafb; /* Highlight manual backups */
 }
+.sidebar h4 {
+    margin: 0 0 10px;
+}
+
+.accordion-external-link-manager .external-link-manager-item {
+  flex-wrap: wrap;  
+}
+.accordion-external-link-manager .link-manager-item {
+  width: 100%;
+}
+.link-manager-section .external-link-manager-item {
+    border: 1px solid;
+    padding: 5px;
+}
+.sidebar .link-manager-section label, .sidebar .link-manager-section label input {
+    margin: 0;
+    width: auto;    
+}
+.sidebar .link-manager-section label:has(input[type="checkbox"]) {
+    flex-direction: row;
+    margin: 0;
+    font-size: 14px;
+    justify-content: flex-start;
+    gap: 5px;
+}
+
+

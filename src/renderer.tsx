@@ -72,8 +72,17 @@ interface Word {
   isYearlyRecurring?: boolean;
   isAutocomplete?: boolean;
   lastNotified?: number; // Timestamp of the last notification sent for this task
+  snoozeCount?: number; // How many times the task has been snoozed
   manualTimeRunning?: boolean;
   manualTimeStart?: number; // Timestamp when manual timer was started
+}
+
+interface InboxMessage {
+  id: number;
+  type: 'overdue' | 'timer-alert';
+  text: string;
+  timestamp: number;
+  wordId?: number; // Optional: link back to the task
 }
 
 interface Browser {
@@ -114,7 +123,7 @@ interface Settings {
   activeBrowserIndex: number;
   categories: Category[];
   externalLinks: ExternalLink[];
-  currentView: 'meme' | 'list' | 'reports';
+  currentView: 'meme' | 'list' | 'reports' | 'inbox';
   activeCategoryId?: number | 'all';
   activeSubCategoryId?: number | 'all';
   warningTime: number; // in minutes
@@ -124,6 +133,8 @@ interface Settings {
   timerNotificationLevel: 'silent' | 'low' | 'medium' | 'high';
   prioritySortConfig?: PrioritySortConfig;
   autoBackupLimit?: number;
+  snoozeTime: 'low' | 'medium' | 'high'; // New setting for snooze duration
+  editorHeights?: { [key: string]: string };
   useDefaultBrowserForSearch?: boolean; // New global setting
 }
 
@@ -137,10 +148,10 @@ interface TabbedViewProps {
   word: Word;
   onUpdate: (updatedWord: Word) => void;
   onTabChange: (wordId: number, tab: 'ticket' | 'edit') => void;
-  onOverdue: (wordId: number) => void;
   onNotify: (word: Word) => void;
   formatTimestamp: (ts: number) => string;
   setCopyStatus: (message: string) => void;  
+  onSettingsChange: (newSettings: Partial<Settings>) => void;
   onDescriptionChange: (html: string) => void;
   settings: Settings; // Pass down settings for browser selection
   startInEditMode?: boolean;
@@ -161,7 +172,9 @@ function SimpleAccordion({ title, children, startOpen = false, onToggle, classNa
         <h4>{title}</h4>
         <span className="accordion-icon">{isOpen ? '−' : '+'}</span>
       </div>
-      {isOpen && <div className="accordion-content">{children}</div>}
+      <div className={`accordion-content ${isOpen ? 'open' : 'closed'}`}>
+        {isOpen && children}
+      </div>
     </div>
   );
 }
@@ -174,6 +187,13 @@ interface LinkModalProps {
 
 function LinkModal({ isOpen, onClose, onConfirm }: LinkModalProps) {
   const [url, setUrl] = useState('');
+
+  useEffect(() => {
+    // When the modal is opened, reset the URL state.
+    if (isOpen) {
+      setUrl('');
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -250,7 +270,7 @@ function PromptModal({ isOpen, title, onClose, onConfirm, placeholder }: PromptM
   );
 }
 
-function TabbedView({ word, onUpdate, onTabChange, onOverdue, onNotify, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange }: TabbedViewProps) {
+function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange, onSettingsChange }: TabbedViewProps) {
   const initialTab = settings.activeTaskTabs[word.id] || (word.completedDuration ? 'ticket' : 'ticket');
   const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(initialTab);
 
@@ -288,9 +308,11 @@ function TabbedView({ word, onUpdate, onTabChange, onOverdue, onNotify, formatTi
         const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
         await navigator.clipboard.write(data);
         setCopyStatus('Description copied!');
+        setTimeout(() => setCopyStatus(''), 2000);
       } catch (err) {
         console.error('Failed to copy description: ', err);
         setCopyStatus('Copy failed!');
+        setTimeout(() => setCopyStatus(''), 2000);
       }
     }
   };
@@ -310,10 +332,12 @@ function TabbedView({ word, onUpdate, onTabChange, onOverdue, onNotify, formatTi
           const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
           await navigator.clipboard.write(data);
           setCopyStatus('Notes copied!');
+          setTimeout(() => setCopyStatus(''), 2000);
         }
       } catch (err) {
         console.error('Failed to copy notes: ', err);
         setCopyStatus('Copy failed!');
+        setTimeout(() => setCopyStatus(''), 2000);
       }
     }
   };
@@ -335,10 +359,12 @@ function TabbedView({ word, onUpdate, onTabChange, onOverdue, onNotify, formatTi
         const textBlob = new Blob([combinedText], { type: 'text/plain' });
         const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
         await navigator.clipboard.write(data);
-        setCopyStatus('Notes copied!');
+        setCopyStatus('All content copied!');
+        setTimeout(() => setCopyStatus(''), 2000);
       } catch (err) {
         console.error('Failed to copy all: ', err);
         setCopyStatus('Copy failed!');
+        setTimeout(() => setCopyStatus(''), 2000);
       }
     }
   };
@@ -360,22 +386,21 @@ function TabbedView({ word, onUpdate, onTabChange, onOverdue, onNotify, formatTi
       <div className="tab-content" ref={tabContentRef}>
         {activeTab === 'ticket' && (
           <div className="ticket-display-view">
-            <h3 onContextMenu={handleTaskContextMenu}>{word.text}</h3>
-            {word.url && <p><strong>URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.url}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); setCopyStatus('URL copied!'); }}>📋</button></span></p>}
+            <h3 onContextMenu={handleTaskContextMenu}>{word.text}</h3>            {word.url && <p><strong>URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.url}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); setCopyStatus('URL copied!'); setTimeout(() => setCopyStatus(''), 2000); }}>📋</button></span></p>}
             <p><strong>Category:</strong> {settings.categories.find(c => c.id === word.categoryId)?.name || 'Uncategorized'}</p>
             <p><strong>Priority:</strong> {word.priority || 'Medium'}</p>
             <p><strong>Open Date:</strong> {formatTimestamp(word.openDate)}</p>
             <p><strong>Time Open:</strong> <TimeOpen startDate={word.createdAt} /></p>
             {word.completeBy && <p><strong>Complete By:</strong> {formatTimestamp(word.completeBy)}</p>}            
-            {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft word={word} onUpdate={onUpdate} onNotify={onNotify} settings={settings} onOverdue={onOverdue} /></p>}
-            {word.company && <p><strong>Company:</strong> <span className="link-with-copy">{word.company}<button className="copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); setCopyStatus('Company copied!'); }}>📋</button></span></p>}
+            {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft word={word} onUpdate={onUpdate} onNotify={onNotify} settings={settings} /></p>}
+            {word.company && <p><strong>Company:</strong> <span className="link-with-copy">{word.company}<button className="copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); setCopyStatus('Company copied!'); setTimeout(() => setCopyStatus(''), 2000); }}>📋</button></span></p>}
             <div><strong>Work Timer:</strong>
               <ManualStopwatch word={word} onUpdate={(updatedWord) => onUpdate(updatedWord)} />
             </div>
             <div><strong>Task Cost:</strong>
               <span> ${(((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0)).toFixed(2)}</span>
             </div>
-            {word.websiteUrl && <p><strong>Website URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.websiteUrl, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.websiteUrl}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.websiteUrl); setCopyStatus('Website URL copied!'); }}>📋</button></span></p>}
+            {word.websiteUrl && <p><strong>Website URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.websiteUrl, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.websiteUrl}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.websiteUrl); setCopyStatus('Website URL copied!'); setTimeout(() => setCopyStatus(''), 2000); }}>📋</button></span></p>}
             <div><strong>Image Links:</strong>
               <div className="image-links-display">
                 {(word.imageLinks || []).map((link, index) => (
@@ -383,7 +408,7 @@ function TabbedView({ word, onUpdate, onTabChange, onOverdue, onNotify, formatTi
                     <img src={link} alt={`Image ${index + 1}`} />
                     <div className="image-link-actions">
                       <button onClick={() => window.electronAPI.downloadImage(link)} title="Download Image">⬇️</button>
-                      <button onClick={() => { navigator.clipboard.writeText(link); setCopyStatus('Image URL copied!'); }} title="Copy URL">📋</button>
+                      <button onClick={() => { navigator.clipboard.writeText(link); setCopyStatus('Image URL copied!'); setTimeout(() => setCopyStatus(''), 2000); }} title="Copy URL">📋</button>
                     </div>
                   </div>
                 ))}
@@ -425,23 +450,33 @@ function TabbedView({ word, onUpdate, onTabChange, onOverdue, onNotify, formatTi
                 <strong>Description:</strong>
                 <button className="copy-btn" title="Copy Description Text" onClick={handleCopyDescription}>📋</button>
                 <button className="copy-btn" title="Copy Description HTML" onClick={() => {
-                  navigator.clipboard.writeText(word.description || '');
-                  setCopyStatus('Description HTML copied!');
+                  navigator.clipboard.writeText(word.description || ''); setCopyStatus('Description HTML copied!');
+                  setTimeout(() => setCopyStatus(''), 2000);
                 }}>HTML</button>
                 <button className="copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}>📋 All</button>
               </div>
-              <div ref={descriptionRef} className="description-display" dangerouslySetInnerHTML={{ __html: word.description || 'N/A' }} />
+              <DescriptionEditor 
+                description={word.description || ''} 
+                onDescriptionChange={(html) => handleFieldChange('description', html)} 
+                settings={settings} 
+                onSettingsChange={onSettingsChange} 
+                editorKey={`task-description-${word.id}`} />
             </div>
             <div className="description-container" ref={notesRef}>
               <div className="description-header">
                 <strong>Notes:</strong>
                 <button className="copy-btn" title="Copy Notes Text" onClick={handleCopyNotes}>📋</button>
                 <button className="copy-btn" title="Copy Notes HTML" onClick={() => {
-                  navigator.clipboard.writeText(word.notes || '');
-                  setCopyStatus('Notes HTML copied!');
+                  navigator.clipboard.writeText(word.notes || ''); setCopyStatus('Notes HTML copied!');
+                  setTimeout(() => setCopyStatus(''), 2000);
                 }}>HTML</button>
               </div>
-              <DescriptionEditor description={word.notes || ''} onDescriptionChange={(html) => handleFieldChange('notes', html)} settings={settings} />
+              <DescriptionEditor 
+                description={word.notes || ''} 
+                onDescriptionChange={(html) => handleFieldChange('notes', html)} 
+                settings={settings} 
+                onSettingsChange={onSettingsChange} 
+                editorKey={`task-notes-${word.id}`} />
             </div>
           </div>
         )}
@@ -558,15 +593,25 @@ function TabbedView({ word, onUpdate, onTabChange, onOverdue, onNotify, formatTi
               <strong>Description:</strong>
               <button className="copy-btn" title="Copy Description Text" onClick={handleCopyDescription}>📋</button>
               <button className="copy-btn" title="Copy Description HTML" onClick={() => {
-                navigator.clipboard.writeText(word.description || '');
-                setCopyStatus('Description HTML copied!');
+                navigator.clipboard.writeText(word.description || ''); setCopyStatus('Description HTML copied!');
+                setTimeout(() => setCopyStatus(''), 2000);
               }}>HTML</button>
               <button className="copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}>📋 All</button>
             </div>
-            <DescriptionEditor description={word.description || ''} onDescriptionChange={(html) => handleFieldChange('description', html)} settings={settings} />
+            <DescriptionEditor 
+              description={word.description || ''} 
+              onDescriptionChange={(html) => handleFieldChange('description', html)} 
+                settings={settings} 
+              onSettingsChange={onSettingsChange}
+              editorKey={`edit-description-${word.id}`} />
             <div className="description-container">
               <strong>Notes:</strong>
-              <DescriptionEditor description={word.notes || ''} onDescriptionChange={(html) => handleFieldChange('notes', html)} settings={settings} />
+              <DescriptionEditor 
+                description={word.notes || ''} 
+                onDescriptionChange={(html) => handleFieldChange('notes', html)} 
+                settings={settings}
+                onSettingsChange={onSettingsChange}
+                editorKey={`edit-notes-${word.id}`} />
             </div>
             <label className="checkbox-label flexed-column">
               <input type="checkbox" checked={word.isRecurring || false} onChange={(e) => handleFieldChange('isRecurring', e.target.checked)} /> 
@@ -599,10 +644,11 @@ function TabbedView({ word, onUpdate, onTabChange, onOverdue, onNotify, formatTi
   );
 }
 
-function DescriptionEditor({ description, onDescriptionChange, settings }: { description: string, onDescriptionChange: (html: string) => void, settings?: Settings }) {
+function DescriptionEditor({ description, onDescriptionChange, settings, onSettingsChange, editorKey }: { description: string, onDescriptionChange: (html: string) => void, settings: Settings, onSettingsChange: (newSettings: Partial<Settings>) => void, editorKey: string }) {
   const [activeView, setActiveView] = useState<'view' | 'html'>('view');
   const [htmlContent, setHtmlContent] = useState(description);
   const editorRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // State for link modal
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -614,6 +660,31 @@ function DescriptionEditor({ description, onDescriptionChange, settings }: { des
     onDescriptionChange(newHtml);
   };
 
+  // Effect to auto-resize the textarea and remember its height
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea && activeView === 'html') {
+      // Restore saved height if it exists
+      const savedHeight = settings.editorHeights?.[editorKey] || textarea.dataset.savedHeight;
+      if (savedHeight) {
+        textarea.style.height = savedHeight;
+      } else {
+        // Auto-resize based on content
+        textarea.style.height = 'auto'; // Reset height
+        textarea.style.height = `${Math.max(100, textarea.scrollHeight)}px`; // Ensure a minimum height
+      }
+
+      const observer = new ResizeObserver(() => {
+        const newHeight = textarea.style.height;
+        textarea.dataset.savedHeight = newHeight; // Store session height
+        const newHeights = { ...(settings.editorHeights || {}), [editorKey]: newHeight };
+        onSettingsChange({ editorHeights: newHeights }); // Persist for next launch
+      });
+      observer.observe(textarea);
+      return () => observer.disconnect();
+    }
+  }, [activeView, editorKey, settings.editorHeights, onSettingsChange]);
+
   const handleConfirmLink = (url: string) => {
     // Ensure the URL has a protocol
     let fullUrl = url;
@@ -623,6 +694,8 @@ function DescriptionEditor({ description, onDescriptionChange, settings }: { des
 
     if (selectionRange) {
       const selection = window.getSelection();
+      // CRITICAL FIX: The selection is lost when the modal is used.
+      // We must re-add our saved range to the selection before executing a command.
       selection.removeAllRanges();
       selection.addRange(selectionRange);
       document.execCommand('createLink', false, fullUrl);
@@ -635,12 +708,40 @@ function DescriptionEditor({ description, onDescriptionChange, settings }: { des
   };
 
   const handleRichTextKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    // Pass a callback to update state after execCommand runs
-    handleGlobalRichTextKeyDown(e, () => {
-      if (editorRef.current) {
-        onDescriptionChange(editorRef.current.innerHTML);
+    let commandExecuted = false;
+  
+    if (e.altKey && !e.shiftKey && !e.ctrlKey && headerShortcutKeys.includes(e.key)) {
+      e.preventDefault();
+      const headerLevel = e.key;
+      document.execCommand('removeFormat', false, null);
+      document.execCommand('formatBlock', false, `H${headerLevel}`);
+      commandExecuted = true;
+    } else if (e.ctrlKey) {
+      switch (e.key.toLowerCase()) {
+        case 'k':
+          e.preventDefault();
+          const selection = window.getSelection();
+          if (selection && selection.rangeCount > 0) {
+            setSelectionRange(selection.getRangeAt(0));
+            setIsLinkModalOpen(true);
+          }
+          break;
+        case 'l': e.preventDefault(); document.execCommand('insertUnorderedList', false, null); commandExecuted = true; break;
+        case '\\': e.preventDefault(); document.execCommand('removeFormat', false, null); commandExecuted = true; break;
+        case 'p': e.preventDefault(); document.execCommand('formatBlock', false, 'P'); commandExecuted = true; break;
+        default:
+          // Allow default browser behavior for Ctrl+C, Ctrl+V, etc.
       }
-    }, setIsLinkModalOpen, setSelectionRange);
+    }
+  
+    if (commandExecuted) {
+      // Use a timeout to ensure the DOM has been updated by the browser before we read it.
+      setTimeout(() => {
+        if (editorRef.current) {
+          onDescriptionChange(editorRef.current.innerHTML);
+        }
+      }, 0);
+    }
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -652,8 +753,13 @@ function DescriptionEditor({ description, onDescriptionChange, settings }: { des
 
     const selection = window.getSelection();
     // Check if it's a URL and if there's currently text selected
-    if (urlRegex.test(pastedText) && selection && !selection.isCollapsed) {
-      // It's a URL and text is highlighted, so create a link
+    if (urlRegex.test(pastedText) && selection && !selection.isCollapsed && selectionRange) {
+      // It's a URL and text is highlighted.
+      // Restore the selection that was active *before* the paste event.
+      selection.removeAllRanges();
+      selection.addRange(selectionRange);
+
+      // Now create the link.
       document.execCommand('createLink', false, pastedText);
     } else {
       // It's not a URL or no text is selected, so just paste the text
@@ -669,6 +775,19 @@ function DescriptionEditor({ description, onDescriptionChange, settings }: { des
         onDescriptionChange(newHtml);
       }
     }, 0);
+  };
+
+  // We need to capture the selection on mouse up, because by the time
+  // the onPaste event fires, the selection might already be collapsed.
+  const handleMouseUp = () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      setSelectionRange(selection.getRangeAt(0));
+    }
+  };
+
+  const handleKeyUp = () => {
+    handleMouseUp(); // Also capture on key up for keyboard selections
   };
 
   return (
@@ -690,6 +809,8 @@ function DescriptionEditor({ description, onDescriptionChange, settings }: { des
           onBlur={handleBlur}
           onKeyDown={handleRichTextKeyDown}
           onPaste={handlePaste}
+          onMouseUp={handleMouseUp}
+          onKeyUp={handleKeyUp}
           ref={editorRef}
         />
       ) : (
@@ -698,6 +819,7 @@ function DescriptionEditor({ description, onDescriptionChange, settings }: { des
           value={htmlContent}
           onChange={(e) => setHtmlContent(e.target.value)}
           onBlur={handleBlur}
+          ref={textareaRef}
         />
       )}
       <div className="shortcut-key">
@@ -780,87 +902,56 @@ function TaskAccordion({ title, children, isOpen, onToggle, word }: AccordionPro
   );
 }
 
-function TimeLeft({ word, onUpdate, onNotify, settings, onOverdue }: { 
+function TimeLeft({ word, onUpdate, onNotify, settings }: { 
   word: Word, 
   onUpdate: (updatedWord: Word) => void, 
   onNotify: (word: Word) => void, 
-  settings: Settings,
-  onOverdue: (wordId: number) => void 
+  settings: Settings
 }) {
   const [timeLeft, setTimeLeft] = useState('');
   const [className, setClassName] = useState('');
-  const { completeBy, id, lastNotified } = word;
-  const { timerNotificationLevel, warningTime, openAccordionIds } = settings;
 
   useEffect(() => {
-    if (!completeBy) {
+    // If the task is completed, calculate its final state and stop the timer.
+    if (word.completedDuration) {
+      if (word.completeBy) {
+        const completionTime = word.createdAt + word.completedDuration;
+        const ms = word.completeBy - completionTime;
+        if (ms < 0) {
+          setClassName('priority-high');
+          setTimeLeft(`Overdue by ${formatTime(Math.abs(ms))}`);
+        } else {
+          setTimeLeft(`Time left: ${formatTime(ms)}`);
+        }
+      }
+      return; // Exit the effect, no interval needed.
+    }
+
+    if (!word.completeBy) {
       setTimeLeft('N/A');
       return;
     }
 
     const update = () => {
-      const ms = completeBy - Date.now();
+      const ms = word.completeBy - Date.now();
+
       if (ms < 0) {
         setClassName('priority-high');
         setTimeLeft(`Overdue by ${formatTime(Math.abs(ms))}`);
-        onOverdue(id); // Trigger the overdue state
-        return;
-      }
-
-      // Set class to yellow if less than an hour left
-      if (ms < (warningTime * 60000)) { // Convert minutes to milliseconds
-        setClassName('priority-medium');
       } else {
-        setClassName('');
-      }
-
-      setTimeLeft(formatTime(ms));
-
-      // --- Notification Logic ---
-      if (timerNotificationLevel === 'silent' || ms < 0) return;
-
-      const minutesLeft = Math.floor(ms / 60000);
-      const now = Date.now();
-
-      // Check if we should notify
-      let shouldNotify = false;
-      const lastNotifiedMinutes = lastNotified ? Math.floor((completeBy - lastNotified) / 60000) : Infinity;
-
-      if (timerNotificationLevel === 'high') {
-        // Notify on the hour marks
-        if (minutesLeft > 60 && minutesLeft % 60 === 0 && lastNotifiedMinutes > minutesLeft) {
-          shouldNotify = true;
+        setTimeLeft(formatTime(ms));
+        if (ms < (settings.warningTime * 60000)) {
+          setClassName('priority-medium');
+        } else {
+          setClassName('');
         }
-        // Notify on 15-min intervals in the last hour
-        if (minutesLeft <= 60 && minutesLeft > 0 && minutesLeft % 15 === 0 && lastNotifiedMinutes > minutesLeft) {
-          shouldNotify = true;
-        }
-      }
-
-      if (timerNotificationLevel === 'medium') {
-        // Notify on 15-min intervals in the last hour
-        if (minutesLeft <= 60 && minutesLeft > 0 && minutesLeft % 15 === 0 && lastNotifiedMinutes > minutesLeft) {
-          shouldNotify = true;
-        }
-      }
-
-      if (timerNotificationLevel === 'low') {
-        // Notify once when it enters the last 15 minutes
-        if (minutesLeft <= 15 && lastNotifiedMinutes > 15) {
-          shouldNotify = true;
-        }
-      }
-
-      if (shouldNotify) {
-        onNotify(word);
-        onUpdate({ ...word, lastNotified: now });
       }
     };
 
-    update();
+    update(); // Run once immediately to set the initial state
     const interval = setInterval(update, 1000); // Update every second
     return () => clearInterval(interval);
-  }, [id, completeBy, lastNotified, timerNotificationLevel, warningTime, onNotify, onUpdate, onOverdue]);
+  }, [word, settings.warningTime]);
 
   return <span className={className}>{timeLeft}</span>;
 }
@@ -957,9 +1048,11 @@ function BackupManager({ onRestore, setCopyStatus, words, completedWords, settin
     setIsPromptOpen(false); // Close the prompt modal
     if (result.success) {
       setCopyStatus(`Manual backup "${backupName}" created!`);
+      setTimeout(() => setCopyStatus(''), 2000);
       fetchBackups(); // Refresh the backup list if the modal is open
     } else {
       setCopyStatus('Failed to create manual backup.');
+      setTimeout(() => setCopyStatus(''), 2000);
     }
   };
 
@@ -1040,15 +1133,19 @@ function BackupManager({ onRestore, setCopyStatus, words, completedWords, settin
         placeholder="Enter a name for this backup..."
         onClose={() => setIsPromptOpen(false)}
         onConfirm={handleManualBackupConfirm}
-      />
-      <div className="button-group">
-        <button onClick={() => setIsPromptOpen(true)}>Create Manual Backup</button>
-        <button onClick={handleRestoreClick}>Restore from Backup</button>
-        <button onClick={() => window.electronAPI.openBackupsFolder()} title="Open backups folder in your file explorer">📂</button>
+      />            
+      <div className="button-group" style={{ margin: '10px 0' }}>
+        <button style={{ fontSize: '10px' }} onClick={() => setIsPromptOpen(true)}>Create Manual Backup</button>
+        <button style={{ fontSize: '10px' }} onClick={handleRestoreClick}>Restore from Backup</button>                
       </div>
+      
       <label className="backup-setting-label">
-        Automatic Backups to Keep:
-        <input type="number" min="1" value={settings.autoBackupLimit} onChange={(e) => onSettingsChange({ autoBackupLimit: Number(e.target.value) })} />
+        Automatic Backups to Keep:        
+        <div className="button-group" style={{ margin: '10px 0 0' }}>
+          <input type="number" min="1" value={settings.autoBackupLimit} onChange={(e) => onSettingsChange({ autoBackupLimit: Number(e.target.value) })} />
+          <button style={{ fontSize: '10px', margin: '0 0 10px' }} onClick={() => window.electronAPI.openBackupsFolder()} title="Open backups folder in your file explorer">📂</button>
+        </div>
+        <p style={{ fontSize: '12px', margin: '0' }}>Automatic backups are taken every session start.</p>
       </label>
 
       {isModalOpen && (
@@ -1246,6 +1343,7 @@ const defaultSettings: Settings = {
   openAccordionIds: [], // Default to no accordions open
   activeTaskTabs: {}, // Default to no specific tabs active
   timerNotificationLevel: 'medium', // Default to medium alerts
+  snoozeTime: 'medium', // Default to 5 minutes
   prioritySortConfig: {}, // Now an object to store sort configs per category
 };
 
@@ -1265,6 +1363,8 @@ function App() {
   const [completedWords, setCompletedWords] = useState<Word[]>([]);
   // Consolidated settings state
   const [settings, setSettings] = useState<Settings>(defaultSettings);
+  // State for the new inbox
+  const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
   // State for inline editing
   const [editingWordId, setEditingWordId] = useState<number | null>(null);
   const [editingText, setEditingText] = useState("");
@@ -1291,12 +1391,34 @@ function App() {
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const newTaskTitleInputRef = useRef<HTMLInputElement>(null);
   const sortSelectRef = useRef<HTMLSelectElement>(null);
+  const snoozeTimeSelectRef = useRef<HTMLSelectElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // State for timer notifications
   const [timerNotifications, setTimerNotifications] = useState<Word[]>([]);
   // State for persistent overdue notifications
   const [overdueNotifications, setOverdueNotifications] = useState<Set<number>>(new Set());
+
+  const handleTaskOverdue = (wordId: number) => {
+    // This function is now the single gatekeeper for creating overdue alerts.
+    // It ensures we only create a toast AND an inbox message ONCE per overdue event.
+    setOverdueNotifications(prev => {
+      // If a toast for this task is already on screen, do absolutely nothing.
+      if (prev.has(wordId)) {
+        return prev;
+      }
+      // If no toast is active, create one AND add a message to the inbox.
+      const word = words.find(w => w.id === wordId);
+      setInboxMessages(currentInbox => [{
+        id: Date.now(),
+        type: 'overdue',
+        text: `Task is overdue: ${word?.text || 'Unknown Task'}`,
+        timestamp: Date.now(),
+        wordId: wordId,
+      }, ...currentInbox]);
+      return new Set(prev).add(wordId);
+    });
+  };
 
 
   const [newTask, setNewTask] = useState({
@@ -1332,6 +1454,7 @@ function App() {
         const savedWords = await window.electronAPI.getStoreValue('overwhelmed-words');
         const savedCompletedWords = await window.electronAPI.getStoreValue('overwhelmed-completed-words');
         const savedSettings = await window.electronAPI.getStoreValue('overwhelmed-settings');
+        const savedInboxMessages = await window.electronAPI.getStoreValue('overwhelmed-inbox-messages');
 
         if (savedWords) {
             // Ensure lastNotified is initialized if it's missing from saved data
@@ -1342,7 +1465,11 @@ function App() {
         if (savedSettings) {
           setSettings(prevSettings => ({ ...prevSettings, ...savedSettings }));
         }
+        if (savedInboxMessages) { setInboxMessages(savedInboxMessages);
+        }
         setIsLoading(false); // Mark loading as complete
+        // Now that all data is loaded, signal the main process that it can create a startup backup.
+        window.electronAPI.send('renderer-ready-for-startup-backup', { words: savedWords, completedWords: savedCompletedWords, settings: savedSettings, inboxMessages: savedInboxMessages });
       } catch (error) {
         console.error("Failed to load data from electron-store", error);
         setIsLoading(false); // Also mark as complete on error to avoid getting stuck
@@ -1401,6 +1528,11 @@ function App() {
     if (!isLoading) setIsDirty(true);
   }, [completedWords]);
 
+  // Save inbox messages whenever they change
+  useEffect(() => {
+    if (!isLoading) setIsDirty(true);
+  }, [inboxMessages]);
+
   // Save settings to localStorage whenever they change
   useEffect(() => {
     if (!isLoading) setIsDirty(true);
@@ -1412,14 +1544,64 @@ function App() {
       if (isDirty) {
         // Similar to the save-on-quit logic, we send all data to the main process
         // to be written to the store in the background.
-        window.electronAPI.send('auto-save-data', { words, completedWords, settings });
+        window.electronAPI.send('auto-save-data', { words, completedWords, settings, inboxMessages });
         // We can optionally mark the state as clean after an auto-save
         setIsDirty(false); 
       }
     }, 300000); // Auto-save every 5 minutes (300,000 ms)
 
     return () => clearInterval(autoSaveInterval);
-  }, [isDirty, words, completedWords, settings]); // Re-bind if state changes
+  }, [isDirty, words, completedWords, settings, inboxMessages]); // Re-bind if state changes
+
+  // Centralized effect for all time-based notifications (overdue & approaching)
+  useEffect(() => {
+    const notificationInterval = setInterval(() => {
+      const now = Date.now();
+      const newlyOverdueIds = new Set<number>();
+      const approachingWords: Word[] = [];
+
+      // First, collect all events for this tick
+      for (const word of words) {
+        if (!word.completeBy) continue;
+
+        const ms = word.completeBy - now;
+        if (ms < 0) { // Task is overdue
+          const snoozedUntil = word.lastNotified || 0;
+          if (now > snoozedUntil) {
+            newlyOverdueIds.add(word.id);
+          }
+        } else { // Task is not yet due, check for approaching deadline
+          if (settings.timerNotificationLevel === 'silent') continue;
+
+          const minutesLeft = Math.floor(ms / 60000);
+          const lastNotifiedMinutes = word.lastNotified ? Math.floor((word.completeBy - word.lastNotified) / 60000) : Infinity;
+
+          let shouldNotify = false;
+          if (settings.timerNotificationLevel === 'high' && minutesLeft > 0 && (minutesLeft % 60 === 0 || (minutesLeft <= 60 && minutesLeft % 15 === 0)) && lastNotifiedMinutes > minutesLeft) {
+            shouldNotify = true;
+          } else if (settings.timerNotificationLevel === 'medium' && minutesLeft > 0 && minutesLeft <= 60 && minutesLeft % 15 === 0 && lastNotifiedMinutes > minutesLeft) {
+            shouldNotify = true;
+          } else if (settings.timerNotificationLevel === 'low' && minutesLeft > 0 && minutesLeft <= 15 && lastNotifiedMinutes > 15) {
+            shouldNotify = true;
+          }
+
+          if (shouldNotify) {
+            approachingWords.push(word);
+          }
+        }
+      }
+
+      // Now, process the collected events in single state updates
+      if (newlyOverdueIds.size > 0) {
+        newlyOverdueIds.forEach(id => handleTaskOverdue(id));
+      }
+      if (approachingWords.length > 0) {
+        approachingWords.forEach(word => handleTimerNotify(word));
+        setWords(prev => prev.map(w => approachingWords.find(aw => aw.id === w.id) ? { ...w, lastNotified: now } : w));
+      }
+    }, 1000); // Check every second
+    return () => clearInterval(notificationInterval);
+  }, [words, settings.timerNotificationLevel, settings.snoozeTime, handleTaskOverdue]); // Rerun if words or settings change
 
   // Effect to handle different shutdown signals from the main process
   useEffect(() => {
@@ -1454,7 +1636,7 @@ function App() {
         });
       }
 
-      window.electronAPI.send('data-for-quit', { words: wordsToSave, completedWords, settings });
+      window.electronAPI.send('data-for-quit', { words: wordsToSave, completedWords, settings, inboxMessages });
     };
 
     const cleanup = window.electronAPI.on('get-data-for-quit', handleGetDataForQuit);
@@ -1523,20 +1705,6 @@ function App() {
     });
   };
   const setOpenAccordionIds = (updater: (prev: number[]) => number[]) => setSettings(prev => ({ ...prev, openAccordionIds: updater(prev.openAccordionIds) }));
-
-  // Effect to handle autocomplete tasks
-  useEffect(() => {
-    const autocompleteInterval = setInterval(() => {
-      const now = Date.now();
-      words.forEach(word => {
-        if (word.isAutocomplete && word.completeBy && now >= word.completeBy) {
-          handleCompleteWord(word);
-        }
-      });
-    }, 1000); // Check every second
-
-    return () => clearInterval(autocompleteInterval);
-  }, [words]); // Rerun when words change
 
   const focusAddTaskInput = () => {
     setIsAddTaskOpen(true);
@@ -1811,12 +1979,16 @@ function App() {
       setNewTask({
         text: '',
         url: '',
-        priority: 'Medium',
+        priority: 'Medium' as 'High' | 'Medium' | 'Low',
         categoryId: newTask.categoryId, // Keep the selected category
         openDate: new Date().getTime(),
         completeBy: undefined,
         company: '',
         websiteUrl: '',
+        imageLinks: [],
+        attachments: [],
+        notes: '',
+        description: '',
         manualTime: 0,
         manualTimeRunning: false,
         manualTimeStart: 0,
@@ -1825,14 +1997,10 @@ function App() {
         isDailyRecurring: false,
         isWeeklyRecurring: false,
         isMonthlyRecurring: false,
-    isYearlyRecurring: false,
+        isYearlyRecurring: false,
         isAutocomplete: false,
-        imageLinks: [],
-        attachments: [],
         lastNotified: undefined,
-        notes: '',
-        description: '',
-      });
+      }); // The syntax error was a misplaced comma in the original source before this line.
     }
   };
 
@@ -2224,6 +2392,7 @@ function App() {
     await window.electronAPI.setStoreValue('overwhelmed-words', wordsToSave);
     await window.electronAPI.setStoreValue('overwhelmed-completed-words', completedWords);
     await window.electronAPI.setStoreValue('overwhelmed-settings', settings);
+    await window.electronAPI.setStoreValue('overwhelmed-inbox-messages', inboxMessages);
     
     setIsDirty(false); // Mark the state as clean/saved
 
@@ -2340,23 +2509,38 @@ function App() {
 
   const handleTimerNotify = (word: Word) => {
     setTimerNotifications(prev => [...prev, word]);
+    // Add to inbox
+    setInboxMessages(prev => [{
+      id: Date.now(),
+      type: 'timer-alert',
+      text: `Deadline approaching for: ${word.text}`,
+      timestamp: Date.now(),
+      wordId: word.id,
+    }, ...prev]);
     // Automatically remove the notification after some time
     setTimeout(() => {
       setTimerNotifications(prev => prev.filter(n => n.id !== word.id));
     }, 8000); // Keep on screen for 8 seconds
   };
 
-  const handleTaskOverdue = (wordId: number) => {
-    setOverdueNotifications(prev => {
-      if (prev.has(wordId)) return prev; // Already showing, do nothing
-      return new Set(prev).add(wordId);
-    });
-  };
+  const handleSnooze = (wordToSnooze: Word) => {
+    const snoozeDurations = {
+      low: 1 * 60 * 1000,     // 1 minute
+      medium: 5 * 60 * 1000,  // 5 minutes
+      high: 10 * 60 * 1000,   // 10 minutes
+    };
+    const snoozeDurationMs = snoozeDurations[settings.snoozeTime];
+    const snoozedUntil = Date.now() + snoozeDurationMs;
 
-  const confirmOverdue = (wordId: number) => {
+    // Update the word's `lastNotified` property to act as the "snoozed until" timestamp
+    setWords(prevWords => prevWords.map(w => 
+      w.id === wordToSnooze.id ? { ...w, lastNotified: snoozedUntil, snoozeCount: (w.snoozeCount || 0) + 1 } : w
+    ));
+
+    // Remove the notification from the screen
     setOverdueNotifications(prev => {
       const newSet = new Set(prev);
-      newSet.delete(wordId);
+      newSet.delete(wordToSnooze.id);
       return newSet;
     });
   };
@@ -2368,9 +2552,9 @@ function App() {
     const githubUrl = 'https://github.com/moondogdev/overwhelmed';
 
     return (
-      <div className='footer-credit'>
+      <div className='footer-credit'>        
         <div className='version'>
-          <a href="#" onClick={() => window.electronAPI.openExternalLink({ url: githubUrl, browserPath: undefined })}>Version: {version}</a>
+          <a href="#" onClick={() => window.electronAPI.openExternalLink({ url: githubUrl, browserPath: undefined })}><span className='app-name'>Overwhelmed</span> • Version: {version}</a>
         </div>
         <div>
           Copyright © {currentYear} • <a href="#" onClick={() => window.electronAPI.openExternalLink({ url: companyUrl, browserPath: undefined })}>Moondog Development, LLC</a>
@@ -2400,22 +2584,44 @@ function App() {
             <div key={word.id} className="timer-notification-toast">
               <strong>Timer Alert:</strong> {word.text}
               <br />
-              <TimeLeft word={word} onUpdate={() => {}} onNotify={() => {}} settings={settings} onOverdue={() => {}} /> remaining.
+              <TimeLeft word={word} onUpdate={() => {}} onNotify={() => {}} settings={settings} /> remaining.
             </div>
           ))}
         </div>
       )}
       {overdueNotifications.size > 0 && (
         <div className="overdue-notification-container">
+          <div className="overdue-notification-summary">
+            Overdue: {overdueNotifications.size}
+          </div>
           {Array.from(overdueNotifications).map(wordId => {
             const word = words.find(w => w.id === wordId);
             if (!word) return null;
             return (
               <div key={word.id} className="overdue-notification-toast">
-                <span><strong>{word.text}</strong> is Due!</span>
-                <label className="confirm-checkbox-label">Confirm
-                  <input type="checkbox" onChange={() => confirmOverdue(word.id)} />
-                </label>
+                <div className="overdue-notification-content">
+                  <div className="overdue-title-bar">
+                    <span><strong>{word.text}</strong> is Due!</span>
+                    <button className="overdue-settings-btn" title="Edit Notification Settings" onClick={() => {
+                      // Find the ID for the Time Management accordion to open it
+                      const timeManagementAccordionId = -2; // Using a hardcoded negative ID for settings accordions
+                      setSettings(prev => ({ ...prev, openAccordionIds: [...new Set([...prev.openAccordionIds, timeManagementAccordionId])] }));
+                      // Use a timeout to ensure the element is visible before focusing
+                      setTimeout(() => {
+                        snoozeTimeSelectRef.current?.focus();
+                        snoozeTimeSelectRef.current?.classList.add('highlight-setting');
+                        setTimeout(() => snoozeTimeSelectRef.current?.classList.remove('highlight-setting'), 2000);
+                      }, 100);
+                    }}>⚙️</button>
+                  </div>
+                  <div className="overdue-timer">
+                    <TimeLeft word={word} onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))} onNotify={handleTimerNotify} settings={settings} />
+                  </div>
+                  <div className="overdue-notification-actions">
+                    <button onClick={() => handleCompleteWord(word)} title="Complete this task">✓ Complete</button>
+                    <button onClick={() => handleSnooze(word)} title={`Snooze for ${settings.snoozeTime === 'low' ? '1' : settings.snoozeTime === 'medium' ? '5' : '10'} minutes`}>Snooze</button>
+                  </div>
+                </div>
               </div>
             );
           })}
@@ -2442,7 +2648,8 @@ function App() {
             <div className="app-nav-buttons">
               <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'meme' }))} disabled={settings.currentView === 'meme'}>Meme View</button>          
               <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'list' }))} disabled={settings.currentView === 'list'}>List View</button>
-              <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'reports' }))} disabled={settings.currentView === 'reports'}>Reports View</button>          
+              <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'reports' }))} disabled={settings.currentView === 'reports'}>Reports View</button>
+              <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'inbox' }))} disabled={settings.currentView === 'inbox'}>Inbox ({inboxMessages.length})</button>
             </div>
           </div>
           <button onClick={() => setSettings(prev => ({ ...prev, isSidebarVisible: !prev.isSidebarVisible }))} title="Toggle Sidebar (Alt+S)">⚙️</button>
@@ -2463,6 +2670,35 @@ function App() {
           </div>
         )}
         {settings.currentView === 'reports' && <ReportsView completedWords={completedWords} categories={settings.categories} setCopyStatus={setCopyStatus} />}
+        {settings.currentView === 'inbox' && (
+          <div className="inbox-view">
+            <div className="list-header">
+              <h3>Inbox ({inboxMessages.length})</h3>
+              <div className="list-header-actions">
+                <button onClick={() => {
+                  setInboxMessages([]);
+                  setIsDirty(true); // Mark state as changed to ensure it saves
+                }} title="Clear All Messages">🗑️ Clear All</button>
+              </div>
+            </div>
+            {inboxMessages.length > 0 ? (
+              <div className="inbox-list">
+                {inboxMessages.map(message => (
+                  <div key={message.id} className={`inbox-item inbox-item-${message.type}`}>
+                    <span className="inbox-item-text">{message.text}</span>
+                    <span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
+                    <button onClick={() => {
+                      setInboxMessages(prev => prev.filter(m => m.id !== message.id));
+                      setIsDirty(true);
+                    }} className="remove-btn" title="Dismiss Message">×</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>Your inbox is empty.</p>
+            )}
+          </div>
+        )}
         {settings.currentView === 'list' && (
           <div className="list-view-container">
             {(() => {
@@ -2679,8 +2915,10 @@ function App() {
                                   <div className="accordion-subtitle">
                                     {word.company && <span>{word.company}</span>}
                                     <span>{formatDate(word.openDate)} {new Date(word.openDate).toLocaleTimeString()}</span>
+                                    {word.snoozeCount > 0 && <span>Snoozed: {word.snoozeCount} time(s)</span>}
+                                    {word.lastNotified > word.createdAt && <span>Last Snoozed: {formatTimestamp(word.lastNotified)}</span>}
                                     {word.completeBy && <span>Due: {formatDate(word.completeBy)} {new Date(word.completeBy).toLocaleTimeString()}</span>}
-                                    <span><TimeLeft word={word} onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))} onNotify={handleTimerNotify} settings={settings} onOverdue={handleTaskOverdue} /></span>
+                                    <span><TimeLeft word={word} onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))} onNotify={handleTimerNotify} settings={settings} /></span>
                                     <span className={`priority-indicator priority-${(word.priority || 'Medium').toLowerCase()}`}>
                                       <span className="priority-dot"></span>
                                       {word.priority || 'Medium'}
@@ -2696,13 +2934,11 @@ function App() {
                                       ...prev,
                                       activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: tab }
                                     }))}
-                                    onOverdue={handleTaskOverdue}
                                     onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))}
                                     onNotify={handleTimerNotify}
                                     formatTimestamp={formatTimestamp}
-                                    setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
-                                  onDescriptionChange={(html) => setWords(words.map(w => w.id === word.id ? { ...w, description: html } : w))}
-                                    settings={settings}                                    
+                                    setCopyStatus={setCopyStatus}
+                                    settings={settings} onDescriptionChange={() => {}} onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
                                   />
                                   <div className="word-item-display">
                                     <span className="stopwatch date-opened">
@@ -2889,11 +3125,12 @@ function App() {
                           <TabbedView 
                             word={word} 
                             onTabChange={() => {}} // No tab state persistence for completed items
-                            onOverdue={() => {}} // No overdue notifications for completed items
+                            
                             onUpdate={() => {}} // No updates for completed items
                             onNotify={() => {}} // No notifications for completed items
                             formatTimestamp={formatTimestamp}
-                            setCopyStatus={(msg) => { setCopyStatus(msg); setTimeout(() => setCopyStatus(''), 2000); }}
+                            setCopyStatus={setCopyStatus}
+                            onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
                             onDescriptionChange={() => {}}
                             settings={settings}
                           />
@@ -2913,7 +3150,8 @@ function App() {
           </div>
         )}
       </div>
-      <div className={`sidebar ${settings.isSidebarVisible ? '' : 'hidden'}`}>        <SimpleAccordion title="Add New Task" startOpen={isAddTaskOpen} onToggle={setIsAddTaskOpen}>
+      <div className={`sidebar ${settings.isSidebarVisible ? '' : 'hidden'}`}>
+        <SimpleAccordion title="Add New Task" startOpen={isAddTaskOpen} onToggle={setIsAddTaskOpen}>
           <div className="new-task-form">
             <label><h4>Task Title:</h4>
               <input ref={newTaskTitleInputRef} type="text" placeholder="Enter a title and press Enter" value={newTask.text} onChange={(e) => setNewTask({ ...newTask, text: e.target.value })} onKeyDown={handleInputKeyDown} />
@@ -3007,7 +3245,9 @@ function App() {
             <DescriptionEditor 
               description={newTask.description || ''} 
               onDescriptionChange={(html) => setNewTask({ ...newTask, description: html })} 
-              settings={settings}
+              settings={settings} 
+              onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+              editorKey="new-task-description"
             />
             <div className="description-container">
               <strong>Attachments:</strong>
@@ -3026,7 +3266,12 @@ function App() {
             </div>
             <div className="description-container">
               <strong>Notes:</strong>
-              <DescriptionEditor description={newTask.notes || ''} onDescriptionChange={(html) => setNewTask({ ...newTask, notes: html })} settings={settings} />
+              <DescriptionEditor 
+                description={newTask.notes || ''} 
+                onDescriptionChange={(html) => setNewTask({ ...newTask, notes: html })} 
+                settings={settings} 
+                onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                editorKey="new-task-notes" />
             </div>
             <label className="checkbox-label flexed-column">
               <input type="checkbox" checked={newTask.isRecurring || false} onChange={(e) => setNewTask({ ...newTask, isRecurring: e.target.checked })} />
@@ -3116,42 +3361,53 @@ function App() {
             + Add Category
           </button>
         </SimpleAccordion>
-        <SimpleAccordion title="External Link Manager">
+        <SimpleAccordion className="accordion-external-link-manager" title="External Link Manager">
           <div className="link-manager-section">
             <h4>Header Links</h4>
             {settings.externalLinks.map((link, index) => (
-              <div key={index} className="external-link-manager-item">
+              <div key={index} className="external-link-manager-item">                                                
+                <div className="link-manager-item">
+                  <label className='flexed'>                    
+                    <span>Link Name</span>
+                    <input 
+                      type="text" 
+                      placeholder="Link Name" 
+                      value={link.name} 
+                      onChange={(e) => {
+                        const newLinks = [...settings.externalLinks];
+                        newLinks[index].name = e.target.value;
+                        setSettings(prev => ({ ...prev, externalLinks: newLinks }));
+                      }} 
+                    />
+                  </label>
+                </div>
+                <div className="link-manager-item">
+                  <label className='flexed'>
+                    <span>Link URL</span>
+                    <input 
+                      type="text" 
+                      placeholder="https://example.com" 
+                      value={link.url} 
+                      onChange={(e) => {
+                        const newLinks = [...settings.externalLinks];
+                        newLinks[index].url = e.target.value;
+                        setSettings(prev => ({ ...prev, externalLinks: newLinks }));
+                      }} 
+                    />
+                  </label>
+                </div>
+                <button className="remove-link-btn" onClick={() => setSettings(prev => ({ ...prev, externalLinks: prev.externalLinks.filter((_, i) => i !== index) }))}>Remove Link</button>
                 <label title="Open this link in the system's default browser, ignoring the active browser setting.">
                   <input type="checkbox" checked={link.openInDefault || false} onChange={(e) => {
                     const newLinks = [...settings.externalLinks];
                     newLinks[index].openInDefault = e.target.checked;
                     setSettings(prev => ({ ...prev, externalLinks: newLinks }));
-                  }} /> Open Default
+                  }} /> <span className='checkbox-label-text' style={{fontSize: '12px'}}>Open Default</span>
                 </label>
-                <input 
-                  type="text" 
-                  placeholder="Link Name" 
-                  value={link.name} 
-                  onChange={(e) => {
-                    const newLinks = [...settings.externalLinks];
-                    newLinks[index].name = e.target.value;
-                    setSettings(prev => ({ ...prev, externalLinks: newLinks }));
-                  }} 
-                />
-                <input 
-                  type="text" 
-                  placeholder="https://example.com" 
-                  value={link.url} 
-                  onChange={(e) => {
-                    const newLinks = [...settings.externalLinks];
-                    newLinks[index].url = e.target.value;
-                    setSettings(prev => ({ ...prev, externalLinks: newLinks }));
-                  }} 
-                />
-                <button onClick={() => setSettings(prev => ({ ...prev, externalLinks: prev.externalLinks.filter((_, i) => i !== index) }))}>-</button>
+                
               </div>
             ))}
-            <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, externalLinks: [...prev.externalLinks, { name: '', url: '', openInDefault: false }] }))}>
+            <button className="add-link-btn-full" onClick={() => setSettings(prev => ({ ...prev, externalLinks: [...prev.externalLinks, { name: '', url: '', openInDefault: false }] }))}>
               + Add Link
             </button>
           </div>
@@ -3163,9 +3419,8 @@ function App() {
               }} /> Open "Search Google" in default browser
             </label>
           </div>
-        </SimpleAccordion>
-
-        <SimpleAccordion title="Time Management">
+        </SimpleAccordion>        
+        <SimpleAccordion title="Time Management" startOpen={settings.openAccordionIds.includes(-2)} onToggle={(isOpen) => { const id = -2; if (isOpen) { setSettings(prev => ({ ...prev, openAccordionIds: [...prev.openAccordionIds, id] })); } else { setSettings(prev => ({ ...prev, openAccordionIds: prev.openAccordionIds.filter(i => i !== id) })); } }}>
           <label>
             Warning Time (minutes):
             <input type="number" value={settings.warningTime} onChange={(e) => setSettings(prev => ({ ...prev, warningTime: Number(e.target.value) }))} />
@@ -3178,6 +3433,15 @@ function App() {
               <option value="medium">Medium (Every 15m in last hour)</option>
               <option value="high">High (Hourly + every 15m in last hour)</option>
             </select>
+          </label>
+          <label>
+            Snooze Time:
+            <select ref={snoozeTimeSelectRef} value={settings.snoozeTime} onChange={(e) => setSettings(prev => ({ ...prev, snoozeTime: e.target.value as any }))}>
+              <option value="low">Low (1 minute)</option>
+              <option value="medium">Medium (5 minutes)</option>
+              <option value="high">High (10 minutes)</option>
+            </select>
+            <p style={{ fontSize: '12px', margin: '0' }}>How long to hide an overdue alert when you click "Snooze".</p>
           </label>
         </SimpleAccordion>
 
@@ -3192,8 +3456,10 @@ function App() {
           <button onClick={handleBulkAdd}>Add Words</button>
         </SimpleAccordion>
         <SimpleAccordion title="Project Actions">
-          <button onClick={handleExport}>Export Project</button>
-          <button onClick={handleImport}>Import Project</button>
+          <div className='button-group'>
+            <button onClick={handleExport}>Export Project</button>
+            <button onClick={handleImport}>Import Project</button>
+          </div>
         </SimpleAccordion>
         <BackupManager 
           setCopyStatus={setCopyStatus} 
@@ -3205,7 +3471,9 @@ function App() {
           setWords(data.words || []);
           setCompletedWords(data.completedWords || []);
           setSettings(prev => ({ ...defaultSettings, ...data.settings }));
-            setCopyStatus('Backup restored successfully!'); setTimeout(() => setCopyStatus(''), 2000);
+          if (data.inboxMessages) setInboxMessages(data.inboxMessages);
+            setCopyStatus('Backup restored successfully!');
+            setTimeout(() => setCopyStatus(''), 2000);
         }} />
 
         {settings.currentView === 'meme' && (
@@ -3807,7 +4075,10 @@ function ReportsView({ completedWords, categories, setCopyStatus }: { completedW
                   return [word.text, category, completionTime, timeTracked, earnings].join('\t');
                 });
                 const tableText = [header, ...rows].join('\n');
-                navigator.clipboard.writeText(tableText).then(() => setCopyStatus('Table data copied!'));
+                navigator.clipboard.writeText(tableText).then(() => {
+                  setCopyStatus('Table data copied!');
+                  setTimeout(() => setCopyStatus(''), 2000);
+                });
               }}>Copy Table</button>
             </div>
             <table className="report-table">
@@ -3840,6 +4111,9 @@ function ReportsView({ completedWords, categories, setCopyStatus }: { completedW
                           const rowData = [word.text, categoryName, formatTimestamp(completionTime), formatTime(word.manualTime || 0), `$${earnings.toFixed(2)}`].join('\t');
                           navigator.clipboard.writeText(rowData);
                           setCopyStatus('Row copied!');
+                          setTimeout(() => {
+                            setCopyStatus('');
+                          }, 2000);
                         }}>📋</button>
                       </td>
                     </tr>
@@ -3932,54 +4206,3 @@ document.body.appendChild(rootElement);
 
 const root = createRoot(rootElement);
 root.render(<React.StrictMode><App /></React.StrictMode>);
-
-// A global, reusable handler for rich text key events.
-// It accepts a callback to sync state after a DOM command.
-const handleGlobalRichTextKeyDown = (
-  e: React.KeyboardEvent<HTMLDivElement>, 
-  onStateUpdate: () => void,
-  setIsLinkModalOpen?: (isOpen: boolean) => void,
-  setSelectionRange?: (range: Range) => void
-) => {
-  let commandExecuted = false;
-
-  // Handle Alt+1-6 for Header tags. We check for !e.ctrlKey to avoid conflicts.
-  if (e.altKey && !e.shiftKey && !e.ctrlKey && headerShortcutKeys.includes(e.key)) {
-    e.preventDefault();
-    const headerLevel = e.key;
-    document.execCommand('removeFormat', false, null);
-    document.execCommand('formatBlock', false, `H${headerLevel}`);
-    commandExecuted = true;
-  }
-  // Handle Ctrl-based shortcuts
-  else if (e.ctrlKey) {
-    switch (e.key.toLowerCase()) {
-      case 'k': // Link
-        if (setIsLinkModalOpen && setSelectionRange) {
-          e.preventDefault();
-          const selection = window.getSelection();
-          if (selection && selection.rangeCount > 0) {
-            setSelectionRange(selection.getRangeAt(0));
-            setIsLinkModalOpen(true);
-          }
-        }
-        break;
-      // For Bold, Italic, and Underline, we can let the browser do its default action.
-      // No 'case' is needed, so they fall through and don't trigger preventDefault().
-      case 'l': e.preventDefault(); document.execCommand('insertUnorderedList', false, null); commandExecuted = true; break;      
-      case '\\': e.preventDefault(); document.execCommand('removeFormat', false, null); commandExecuted = true; break;
-      case 'p': e.preventDefault(); document.execCommand('formatBlock', false, 'P'); commandExecuted = true; break;
-      // Other Ctrl+key combinations (like C, V, Z, B, I, U) are allowed to perform their default action.
-      default:
-        // No-op, allow default browser behavior
-    }
-  }
-
-  // If a command was executed that changed the DOM, call the state update callback.
-  // We use a timeout to ensure the DOM has been updated by the browser before we read it.
-  if (commandExecuted) {
-    setTimeout(() => {
-      onStateUpdate();
-    }, 0);
-  }
-};

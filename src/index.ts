@@ -99,13 +99,8 @@ function forceQuit(mainWindow: BrowserWindow) {
 
 // --- Backup and Restore Functions ---
 
-function createBackup() {
+function createBackup(data: any) {
   try {
-    const data = {
-      words: store.get('overwhelmed-words'),
-      completedWords: store.get('overwhelmed-completed-words'),
-      settings: store.get('overwhelmed-settings'),
-    };
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupFilePath = path.join(autoBackupsPath, `backup-${timestamp}.json`);
     fs.writeFileSync(backupFilePath, JSON.stringify(data, null, 2));
@@ -136,6 +131,7 @@ ipcMain.handle('create-manual-backup', async (_event, backupName: string) => {
       words: store.get('overwhelmed-words'),
       completedWords: store.get('overwhelmed-completed-words'),
       settings: store.get('overwhelmed-settings'),
+      inboxMessages: store.get('overwhelmed-inbox-messages'),
     };
     // Sanitize the name to make it a valid filename
     const sanitizedName = backupName.replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
@@ -283,6 +279,7 @@ const createWindow = (): void => {
         store.set('overwhelmed-words', data.words);
         store.set('overwhelmed-completed-words', data.completedWords);
         store.set('overwhelmed-settings', data.settings);
+        store.set('overwhelmed-inbox-messages', data.inboxMessages);
         // Now that the main process has saved the data, it's safe to quit.
         forceQuit(mainWindow);
       });
@@ -297,8 +294,11 @@ const createWindow = (): void => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Create a backup on startup
-  createBackup();
+  // Create a backup on startup, but wait for the renderer to be ready.
+  ipcMain.once('renderer-ready-for-startup-backup', (_event, data) => {
+    console.log('Renderer is ready, creating startup backup...');
+    createBackup(data);
+  });
 
   // Register all IPC handlers now that the app is ready.
   ipcMain.on('show-context-menu', (event) => {
@@ -331,6 +331,7 @@ app.whenReady().then(() => {
     store.set('overwhelmed-words', data.words);
     store.set('overwhelmed-completed-words', data.completedWords);
     store.set('overwhelmed-settings', data.settings);
+    store.set('overwhelmed-inbox-messages', data.inboxMessages);
     console.log('Auto-save complete.');
   });
   ipcMain.on('open-backups-folder', () => {

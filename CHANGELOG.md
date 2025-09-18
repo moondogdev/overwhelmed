@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+## [1.0.1] - 2025-09-18
+
+### Added
+-   **Inbox View**: Implemented a new "Inbox" view to provide a persistent log of all past notifications (overdue tasks, deadline warnings). Includes functionality to dismiss individual messages or clear the entire inbox.
+-   **Actionable Overdue Toasts**: Overdue toast notifications now include "Snooze" and "Complete" buttons, allowing direct interaction from the alert.
+-   **Configurable Snooze Timer**: Added a "Snooze Time" setting to the "Time Management" accordion, allowing users to configure how long an overdue alert is hidden.
+-   **Overdue Alert Summary**: Added a summary counter (`Overdue: {count}`) to the on-screen notification area to show how many alerts are active.
+-   **Snooze Tracking**: Tasks now display a "Snooze Count" and "Last Snoozed at" timestamp in their header if they have been snoozed.
+-   **Persistent Editor Height**: The HTML text areas in the rich text editor now remember their manually resized height between application sessions.
+
+### Changed
+-   **Notification System Refactor**: Centralized all time-based notification logic into a single, robust `useEffect` hook in the main `App` component. This resolves numerous race conditions and bugs related to duplicate or missing notifications.
+
+### Fixed
+-   **Notification Spam**: Fixed a critical bug where multiple active overdue toasts would cause a flood of inbox messages. The new centralized logic and atomic state updates prevent this race condition.
+-   **"Ghost" Inbox Messages**: Resolved an issue where some inbox messages were created without proper data, making them undeletable.
+-   **Persistent Toast Notifications**: Fixed numerous bugs where toast notifications (for backups, copy actions, etc.) would remain on screen indefinitely.
+-   **Rich Text Editor Bugs**:
+    -   Fixed an issue where using the `Ctrl+K` link shortcut multiple times would incorrectly reuse the previous selection and URL.
+    -   Fixed a bug where pasting a URL over selected text did not correctly create a hyperlink.
+-   **Completed Task Timers**: Timers for completed tasks now correctly freeze to show their final "Overdue by" or "Time left" status at the moment of completion and no longer trigger erroneous notifications.
+-   **Inbox Data Persistence**: Fixed a bug where clearing the inbox would not save correctly, causing all messages to reappear on restart.
+
 ## [1.0.0] - 2024-09-15
 
 ### Added
