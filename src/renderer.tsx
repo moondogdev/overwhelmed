@@ -27,8 +27,12 @@ declare global {
     on: (channel: string, callback: (...args: any[]) => void) => (() => void) | undefined;
     manageFile: (args: { action: 'select' } | { action: 'open', filePath: string }) => Promise<{ name: string, path: string } | null>;
     downloadImage: (url: string) => Promise<void>;
-    showTaskContextMenu: (wordId: number) => void;
-    showSelectionContextMenu: (selectionText: string) => void;
+    showTaskContextMenu: (payload: { wordId: number, x: number, y: number }) => void;
+    showSelectionContextMenu: (payload: { selectionText: string, x: number, y: number }) => void;
+    showToastContextMenu: (payload: { wordId: number, x: number, y: number }) => void;
+    showInboxItemContextMenu: (payload: { message: InboxMessage, x: number, y: number }) => void;
+    showNavButtonContextMenu: (payload: { x: number, y: number, canGoBack: boolean, canGoForward: boolean }) => void;
+    showSaveButtonContextMenu: (payload: { x: number, y: number }) => void;
     notifyDirtyState: (isDirty: boolean) => void;
   } }
 }
@@ -285,7 +289,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
 
   const handleTaskContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    window.electronAPI.showTaskContextMenu(word.id);
+    window.electronAPI.showTaskContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY });
   };
 
   useEffect(() => {
@@ -883,13 +887,13 @@ function TaskAccordion({ title, children, isOpen, onToggle, word }: AccordionPro
 
   return (
     <div className="accordion">
-      <div className="accordion-header-container 2">
+      <div className="accordion-header-container">
         <div
           className="accordion-header"
           onClick={onToggle}
-          onContextMenu={(e) => {
+          onContextMenu={(e: React.MouseEvent) => {
             e.preventDefault();
-            window.electronAPI.showTaskContextMenu(word.id);
+            window.electronAPI.showTaskContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY });
           }}
         >
           <span className="accordion-icon">{isOpen ? '−' : '+'}</span>
@@ -1014,17 +1018,17 @@ const formatBytes = (bytes: number, decimals = 2) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
-function BackupManager({ onRestore, setCopyStatus, words, completedWords, settings, onSettingsChange }: { 
+function BackupManager({ onRestore, setCopyStatus, words, completedWords, settings, onSettingsChange, isPromptOpen, setIsPromptOpen }: { 
   onRestore: (data: any) => void, 
   setCopyStatus: (message: string) => void,
   words: Word[],
   completedWords: Word[],
   settings: Settings,
-  onSettingsChange: (newSettings: Partial<Settings>) => void
+  onSettingsChange: (newSettings: Partial<Settings>) => void,
+  isPromptOpen: boolean,
+  setIsPromptOpen: (isOpen: boolean) => void
 }) {
   const [backups, setBackups] = useState<{ name: string, path: string, time: number, size: number }[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [backupSearchQuery, setBackupSearchQuery] = useState('');
   const [activeBackupTab, setActiveBackupTab] = useState<'automatic' | 'manual'>('automatic');
   const [selectedBackup, setSelectedBackup] = useState<{ name: string, path: string } | null>(null);
@@ -1038,9 +1042,8 @@ function BackupManager({ onRestore, setCopyStatus, words, completedWords, settin
   const handleRestoreClick = () => {
     fetchBackups();
     setActiveBackupTab('automatic'); // Default to automatic tab on open
-    setSelectedBackup(null); // Clear any previous selection
+    setSelectedBackup(null); // Clear any previous selection    
     setBackupSearchQuery(''); // Clear search on open
-    setIsModalOpen(true);
   };
 
   const handleManualBackupConfirm = async (backupName: string) => {
@@ -1073,7 +1076,6 @@ function BackupManager({ onRestore, setCopyStatus, words, completedWords, settin
   const handleRestoreConfirm = () => {
     if (backupPreview && !backupPreview.error) {
       onRestore(backupPreview);
-      setIsModalOpen(false);
     }
   };
 
@@ -1090,7 +1092,6 @@ function BackupManager({ onRestore, setCopyStatus, words, completedWords, settin
       const uniqueCompletedWords = Array.from(new Map(mergedCompletedWords.map(item => [item.id, item])).values());
 
       onRestore({ words: uniqueWords, completedWords: uniqueCompletedWords, settings: settings }); // Keep current settings
-      setIsModalOpen(false);
     }
   };
 
@@ -1137,8 +1138,7 @@ function BackupManager({ onRestore, setCopyStatus, words, completedWords, settin
       <div className="button-group" style={{ margin: '10px 0' }}>
         <button style={{ fontSize: '10px' }} onClick={() => setIsPromptOpen(true)}>Create Manual Backup</button>
         <button style={{ fontSize: '10px' }} onClick={handleRestoreClick}>Restore from Backup</button>                
-      </div>
-      
+      </div>      
       <label className="backup-setting-label">
         Automatic Backups to Keep:        
         <div className="button-group" style={{ margin: '10px 0 0' }}>
@@ -1148,8 +1148,8 @@ function BackupManager({ onRestore, setCopyStatus, words, completedWords, settin
         <p style={{ fontSize: '12px', margin: '0' }}>Automatic backups are taken every session start.</p>
       </label>
 
-      {isModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+      {isPromptOpen && (
+        <div className="modal-overlay" onClick={() => setIsPromptOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h4>Select a backup to restore</h4>
             <div className="tab-headers">
@@ -1191,7 +1191,7 @@ function BackupManager({ onRestore, setCopyStatus, words, completedWords, settin
                 <li className="no-backups-message">No {activeBackupTab} backups found.</li>
               )}
             </ul>
-            <button onClick={() => setIsModalOpen(false)}>Cancel</button>
+            <button onClick={() => setIsPromptOpen(false)}>Cancel</button>
           </div>
           {selectedBackup && backupPreview && (
             <div className="modal-overlay" onClick={() => setSelectedBackup(null)}>
@@ -1366,10 +1366,15 @@ function App() {
   // State for the new inbox
   const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
   // State for inline editing
+  // State for navigation history
+  const [viewHistory, setViewHistory] = useState(['meme']);
+  const [historyIndex, setHistoryIndex] = useState(0);
   const [editingWordId, setEditingWordId] = useState<number | null>(null);
   const [editingText, setEditingText] = useState("");
   // State for bulk add
   const [bulkAddText, setBulkAddText] = useState("");
+  // State for the manual backup prompt modal
+  const [isPromptOpen, setIsPromptOpen] = useState(false);
   // State for hover effects
   const [hoveredWordId, setHoveredWordId] = useState<number | null>(null);
   // State for copy feedback
@@ -1378,7 +1383,7 @@ function App() {
   const isInitialLoad = useRef(true);
   // State to track if the app is still loading initial data
   const [isLoading, setIsLoading] = useState(true);
-  // State to track if there are unsaved changes
+  // State to track if the app is still loading initial data
   const [isDirty, setIsDirty] = useState(false);
 
   // State for the new detailed task form
@@ -1400,14 +1405,14 @@ function App() {
   const [overdueNotifications, setOverdueNotifications] = useState<Set<number>>(new Set());
 
   const handleTaskOverdue = (wordId: number) => {
-    // This function is now the single gatekeeper for creating overdue alerts.
-    // It ensures we only create a toast AND an inbox message ONCE per overdue event.
+    // This function is now the single gatekeeper for creating overdue alerts. It uses
+    // functional state updates for both state setters to prevent race conditions.
     setOverdueNotifications(prev => {
       // If a toast for this task is already on screen, do absolutely nothing.
       if (prev.has(wordId)) {
         return prev;
       }
-      // If no toast is active, create one AND add a message to the inbox.
+      // If no toast is active, add a message to the inbox first.
       const word = words.find(w => w.id === wordId);
       setInboxMessages(currentInbox => [{
         id: Date.now(),
@@ -1416,6 +1421,7 @@ function App() {
         timestamp: Date.now(),
         wordId: wordId,
       }, ...currentInbox]);
+      // Then, return the new Set to show the toast on screen.
       return new Set(prev).add(wordId);
     });
   };
@@ -1478,6 +1484,35 @@ function App() {
     loadDataFromStore();
     // isInitialLoad will be managed by the isLoading state now
   }, []); // Empty dependency array means this runs only once
+
+  // Effect to handle mouse back/forward navigation
+  useEffect(() => {
+    const handleMouseUp = (e: MouseEvent) => {
+      if (e.button === 3) goBack(); // Back button
+      if (e.button === 4) goForward(); // Forward button
+    };
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, [viewHistory, historyIndex]); // Re-bind when history changes
+
+  // Effect to handle keyboard back/forward navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent hotkey from firing if an input field is focused
+      const activeElement = document.activeElement;
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || (activeElement as HTMLElement).isContentEditable)) {
+        return;
+      }
+
+      if (e.altKey && e.key === 'ArrowLeft') {
+        goBack();
+      } else if (e.altKey && e.key === 'ArrowRight') {
+        goForward();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewHistory, historyIndex]); // Re-bind when history changes
 
   const handleDuplicateTask = (taskToCopy: Word) => {
     // Create a new task with a new ID and open date, but keep the content
@@ -1681,6 +1716,101 @@ function App() {
     return cleanup;
   }, [words, completedWords]); // Dependency on words ensures the handler has the latest list
 
+  // Effect to handle commands from the toast context menu
+  useEffect(() => {
+    const handleMenuCommand = (payload: { command: string, wordId?: number }) => {
+      const { command, wordId } = payload;
+      const targetWord = words.find(w => w.id === wordId);
+      if (!targetWord) return;
+
+      switch (command) {
+        case 'view':
+          handleInboxItemClick(wordId); // Re-use the existing "go to task" logic
+          break;
+        case 'snooze':
+          handleSnooze(targetWord);
+          break;
+        case 'complete':
+          handleCompleteWord(targetWord);
+          break;
+        case 'view-inbox':
+          navigateToView('inbox');
+          break;
+        case 'edit-settings':
+          // This logic is the same as the settings cog button
+          const timeManagementAccordionId = -2;
+          setSettings(prev => ({ ...prev, openAccordionIds: [...new Set([...prev.openAccordionIds, timeManagementAccordionId])] }));
+          setTimeout(() => {
+            snoozeTimeSelectRef.current?.focus();
+            snoozeTimeSelectRef.current?.classList.add('highlight-setting');
+            setTimeout(() => snoozeTimeSelectRef.current?.classList.remove('highlight-setting'), 2000);
+          }, 100);
+          break;
+      }
+    };
+    const cleanup = window.electronAPI.on('toast-context-menu-command', handleMenuCommand);
+    return cleanup;
+  }, [words]); // Dependency on words ensures the handler has the latest list
+
+  // Effect to handle commands from the inbox context menu
+  useEffect(() => {
+    const handleMenuCommand = (payload: { command: string, wordId?: number, messageId?: number }) => {
+      const { command, wordId, messageId } = payload;
+      const targetWord = words.find(w => w.id === wordId);
+
+      switch (command) {
+        case 'view':
+          if (wordId) handleInboxItemClick(wordId);
+          break;
+        case 'snooze':
+          if (targetWord) handleSnooze(targetWord);
+          break;
+        case 'complete':
+          if (targetWord) handleCompleteWord(targetWord);
+          break;
+        case 'dismiss':
+          if (messageId) setInboxMessages(prev => prev.filter(m => m.id !== messageId));
+          break;
+      }
+    };
+    const cleanup = window.electronAPI.on('inbox-context-menu-command', handleMenuCommand);
+    return cleanup;
+  }, [words]); // Dependency on words ensures the handler has the latest list
+
+  // Effect to handle commands from the navigation context menu
+  useEffect(() => {
+    const handleMenuCommand = (payload: { command: string }) => {
+      const { command } = payload;
+      switch (command) {
+        case 'back':
+          goBack();
+          break;
+        case 'forward':
+          goForward();
+          break;
+      }
+    };
+    const cleanup = window.electronAPI.on('nav-context-menu-command', handleMenuCommand);
+    return cleanup;
+  }, [viewHistory, historyIndex]); // Re-bind when history changes
+
+  // Effect to handle commands from the save button context menu
+  useEffect(() => {
+    const handleMenuCommand = (payload: { command: string }) => {
+      const { command } = payload;
+      switch (command) {
+        case 'save':
+          handleSaveProject();
+          break;
+        case 'backup':
+          setIsPromptOpen(true); // This now correctly calls the state setter in App
+          break;
+      }
+    };
+    const cleanup = window.electronAPI.on('save-context-menu-command', handleMenuCommand);
+    return cleanup;
+  }, [words, completedWords, settings, inboxMessages]); // Re-bind if state changes to save the latest version
+
   // Effect to reset the context menu editing state after it has been applied
   useEffect(() => {
     if (editingViaContext !== null) {
@@ -1781,7 +1911,7 @@ function App() {
       if (selectedText) {
         // If text is selected, prevent default and show our menu
         e.preventDefault();
-        window.electronAPI.showSelectionContextMenu(selectedText);
+        window.electronAPI.showSelectionContextMenu({ selectionText: selectedText, x: e.clientX, y: e.clientY });
       }
     };
     document.addEventListener('contextmenu', handleGlobalContextMenu);
@@ -2068,6 +2198,13 @@ function App() {
     setCompletedWords(prev => [completedWord, ...prev]);
     setWords(words.filter(word => word.id !== wordToComplete.id));
     setCopyStatus('Task completed!');
+
+    // Also remove it from any active notifications to hide the toast
+    setOverdueNotifications(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(wordToComplete.id);
+      return newSet;
+    });
     setTimeout(() => setCopyStatus(''), 2000);
 
     // If the task is re-occurring, create a new one
@@ -2509,14 +2646,6 @@ function App() {
 
   const handleTimerNotify = (word: Word) => {
     setTimerNotifications(prev => [...prev, word]);
-    // Add to inbox
-    setInboxMessages(prev => [{
-      id: Date.now(),
-      type: 'timer-alert',
-      text: `Deadline approaching for: ${word.text}`,
-      timestamp: Date.now(),
-      wordId: word.id,
-    }, ...prev]);
     // Automatically remove the notification after some time
     setTimeout(() => {
       setTimerNotifications(prev => prev.filter(n => n.id !== word.id));
@@ -2545,6 +2674,75 @@ function App() {
     });
   };
 
+  const navigateToView = (view: 'meme' | 'list' | 'reports' | 'inbox') => {
+    // If we are navigating to a new view from the current point in history
+    const newHistory = viewHistory.slice(0, historyIndex + 1);
+    newHistory.push(view);
+    setViewHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+    setSettings(prev => ({ ...prev, currentView: view }));
+  };
+
+  const goBack = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setSettings(prev => ({ ...prev, currentView: viewHistory[newIndex] as any }));
+    }
+  };
+
+  const goForward = () => {
+    if (historyIndex < viewHistory.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setSettings(prev => ({ ...prev, currentView: viewHistory[newIndex] as any }));
+    }
+  };
+
+  const handleSnoozeAll = () => {
+    const now = Date.now();
+    const snoozeDurations = {
+      low: 1 * 60 * 1000,
+      medium: 5 * 60 * 1000,
+      high: 10 * 60 * 1000,
+    };
+    const snoozeDurationMs = snoozeDurations[settings.snoozeTime];
+    const snoozedUntil = now + snoozeDurationMs;
+
+    const overdueIds = Array.from(overdueNotifications);
+    setWords(prevWords => prevWords.map(w => 
+      overdueIds.includes(w.id) ? { ...w, lastNotified: snoozedUntil, snoozeCount: (w.snoozeCount || 0) + 1 } : w
+    ));
+    setOverdueNotifications(new Set()); // Clear all toasts
+  };
+
+  const handleCompleteAllOverdue = () => {
+    const overdueIds = Array.from(overdueNotifications);
+    overdueIds.forEach(id => {
+      const wordToComplete = words.find(w => w.id === id);
+      if (wordToComplete) handleCompleteWord(wordToComplete);
+    });
+  };
+
+  const handleInboxItemClick = (wordId: number | undefined) => {
+    if (!wordId) return;
+
+    // Switch to the list view
+    setSettings(prev => ({ 
+      ...prev, 
+      currentView: 'list',
+      openAccordionIds: [...new Set([...prev.openAccordionIds, wordId])] // Add the wordId to open its accordion
+    }));
+
+    // Use a timeout to ensure the list view has rendered before we try to scroll
+    setTimeout(() => {
+      const element = document.querySelector(`[data-word-id='${wordId}']`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  };
+
   const Footer = () => {
     const currentYear = new Date().getFullYear();
     const version = '1.0.0'; // You can update this manually or pull from package.json
@@ -2571,6 +2769,7 @@ function App() {
         </div>       
         <button
           onClick={handleSaveProject}
+          onContextMenu={(e) => { e.preventDefault(); window.electronAPI.showSaveButtonContextMenu({ x: e.clientX, y: e.clientY }); }}
           className={`dynamic-save-button ${isDirty ? 'unsaved' : 'saved'}`}
           disabled={isLoading}
         >
@@ -2582,9 +2781,12 @@ function App() {
         <div className="timer-notification-container">
           {timerNotifications.map(word => (
             <div key={word.id} className="timer-notification-toast">
-              <strong>Timer Alert:</strong> {word.text}
-              <br />
-              <TimeLeft word={word} onUpdate={() => {}} onNotify={() => {}} settings={settings} /> remaining.
+              <span className="toast-icon">⏳</span>
+              <div>
+                <strong>Timer Alert:</strong> {word.text}
+                <br />
+                <TimeLeft word={word} onUpdate={() => {}} onNotify={() => {}} settings={settings} /> remaining.
+              </div>
             </div>
           ))}
         </div>
@@ -2593,15 +2795,31 @@ function App() {
         <div className="overdue-notification-container">
           <div className="overdue-notification-summary">
             Overdue: {overdueNotifications.size}
+            {overdueNotifications.size > 1 && (
+              <div className="overdue-summary-actions">
+                <button onClick={handleSnoozeAll}>Snooze All</button>
+                <button onClick={handleCompleteAllOverdue}>Complete All</button>
+              </div>
+            )}
           </div>
           {Array.from(overdueNotifications).map(wordId => {
             const word = words.find(w => w.id === wordId);
             if (!word) return null;
             return (
-              <div key={word.id} className="overdue-notification-toast">
+              <div 
+                key={word.id} 
+                className="overdue-notification-toast"
+                onContextMenu={(e) => { e.preventDefault(); window.electronAPI.showToastContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY }); }}
+              >
                 <div className="overdue-notification-content">
                   <div className="overdue-title-bar">
-                    <span><strong>{word.text}</strong> is Due!</span>
+                    <span 
+                      className="clickable" 
+                      onClick={() => handleInboxItemClick(word.id)} 
+                      title="Go to task">
+                      <span className="toast-icon">🚨</span>
+                      <strong>{word.text}</strong> is Due!
+                    </span>
                     <button className="overdue-settings-btn" title="Edit Notification Settings" onClick={() => {
                       // Find the ID for the Time Management accordion to open it
                       const timeManagementAccordionId = -2; // Using a hardcoded negative ID for settings accordions
@@ -2614,8 +2832,14 @@ function App() {
                       }, 100);
                     }}>⚙️</button>
                   </div>
-                  <div className="overdue-timer">
+                  <div 
+                    className="overdue-timer clickable" 
+                    onClick={() => handleInboxItemClick(word.id)} 
+                    title="Go to task">
                     <TimeLeft word={word} onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))} onNotify={handleTimerNotify} settings={settings} />
+                  </div>
+                  <div className="overdue-inbox-link">
+                    Notification sent to <a href="#" onClick={(e) => { e.preventDefault(); navigateToView('inbox'); }}>Inbox</a>
                   </div>
                   <div className="overdue-notification-actions">
                     <button onClick={() => handleCompleteWord(word)} title="Complete this task">✓ Complete</button>
@@ -2646,10 +2870,22 @@ function App() {
           <div className='app-header-nav-centered'>
             <div className='clock-header-container'><LiveClock /></div>
             <div className="app-nav-buttons">
-              <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'meme' }))} disabled={settings.currentView === 'meme'}>Meme View</button>          
-              <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'list' }))} disabled={settings.currentView === 'list'}>List View</button>
-              <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'reports' }))} disabled={settings.currentView === 'reports'}>Reports View</button>
-              <button onClick={() => setSettings(prev => ({ ...prev, currentView: 'inbox' }))} disabled={settings.currentView === 'inbox'}>Inbox ({inboxMessages.length})</button>
+              <button onContextMenu={(e) => window.electronAPI.showNavButtonContextMenu({ x: e.clientX, y: e.clientY, canGoBack: historyIndex > 0, canGoForward: historyIndex < viewHistory.length - 1 })} 
+                onClick={() => navigateToView('meme')} 
+                disabled={settings.currentView === 'meme'}>
+                  Meme View
+              </button>          
+              <button onContextMenu={(e) => window.electronAPI.showNavButtonContextMenu({ x: e.clientX, y: e.clientY, canGoBack: historyIndex > 0, canGoForward: historyIndex < viewHistory.length - 1 })} 
+                onClick={() => navigateToView('list')} 
+                disabled={settings.currentView === 'list'}>
+                  List View</button>
+              <button onContextMenu={(e) => window.electronAPI.showNavButtonContextMenu({ x: e.clientX, y: e.clientY, canGoBack: historyIndex > 0, canGoForward: historyIndex < viewHistory.length - 1 })} 
+                onClick={() => navigateToView('reports')} 
+                disabled={settings.currentView === 'reports'}>
+                  Reports View</button>
+              <button onContextMenu={(e) => window.electronAPI.showNavButtonContextMenu({ x: e.clientX, y: e.clientY, canGoBack: historyIndex > 0, canGoForward: historyIndex < viewHistory.length - 1 })} 
+                onClick={() => navigateToView('inbox')} 
+                disabled={settings.currentView === 'inbox'}>Inbox ({inboxMessages.length})</button>
             </div>
           </div>
           <button onClick={() => setSettings(prev => ({ ...prev, isSidebarVisible: !prev.isSidebarVisible }))} title="Toggle Sidebar (Alt+S)">⚙️</button>
@@ -2684,10 +2920,17 @@ function App() {
             {inboxMessages.length > 0 ? (
               <div className="inbox-list">
                 {inboxMessages.map(message => (
-                  <div key={message.id} className={`inbox-item inbox-item-${message.type}`}>
+                  <div 
+                    key={message.id} 
+                    className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`}
+                    onClick={() => handleInboxItemClick(message.wordId)}
+                    onContextMenu={(e) => { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); }}
+                  >
+                    <span className="inbox-item-icon">{message.type === 'overdue' ? '🚨' : '⏳'}</span>
                     <span className="inbox-item-text">{message.text}</span>
                     <span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
-                    <button onClick={() => {
+                    <button onClick={(e) => {
+                      e.stopPropagation(); // Stop the click from bubbling up to the parent div
                       setInboxMessages(prev => prev.filter(m => m.id !== message.id));
                       setIsDirty(true);
                     }} className="remove-btn" title="Dismiss Message">×</button>
@@ -2870,7 +3113,7 @@ function App() {
                       </div>
                       <div className="priority-list-main">
                         {filteredWords.map((word, index) => (
-                          <div key={word.id} className="priority-list-item">
+                          <div key={word.id} className="priority-list-item" data-word-id={word.id}>
                             {editingWordId === word.id ? (
                               <input
                                 type="text"
@@ -3466,7 +3709,9 @@ function App() {
           words={words} 
           completedWords={completedWords} 
           settings={settings} 
-          onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))} onRestore={(data) => {
+          onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))} 
+          isPromptOpen={isPromptOpen}
+          setIsPromptOpen={setIsPromptOpen} onRestore={(data) => {
           // This logic is similar to handleImport
           setWords(data.words || []);
           setCompletedWords(data.completedWords || []);

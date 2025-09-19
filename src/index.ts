@@ -344,7 +344,8 @@ app.whenReady().then(() => {
   ipcMain.on('notify-dirty-state', (_event, dirtyState) => {
     isDirty = dirtyState;
   });
-  ipcMain.on('show-task-context-menu', (event, wordId) => {
+  ipcMain.on('show-task-context-menu', (event, payload) => {
+    const { wordId, x, y } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
       {
@@ -366,11 +367,17 @@ app.whenReady().then(() => {
         click: () => webContents.send('context-menu-command', { command: 'trash', wordId }),
         
       },
+      { type: 'separator' },
+      {
+        label: 'Inspect Element',
+        click: () => webContents.inspectElement(x, y),
+      },
     ];
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
-  ipcMain.on('show-link-context-menu', (event, url) => {
-    const template = [
+  ipcMain.on('show-link-context-menu', (event, payload) => {
+    const { url, x, y } = payload;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
       {
         label: 'Copy Link',
         click: () => {
@@ -378,11 +385,114 @@ app.whenReady().then(() => {
           require('electron').clipboard.writeText(url);
         },
       },
+      { type: 'separator' },
+      {
+        label: 'Inspect Link',
+        click: () => event.sender.inspectElement(x, y),
+      },
     ];
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
-  ipcMain.on('show-selection-context-menu', (event, selectionText) => {
+  ipcMain.on('show-toast-context-menu', (event, payload) => {
+    const { wordId, x, y } = payload;
     const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+      {
+        label: 'View Task',
+        click: () => webContents.send('toast-context-menu-command', { command: 'view', wordId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Snooze',
+        click: () => webContents.send('toast-context-menu-command', { command: 'snooze', wordId }),
+      },
+      {
+        label: 'Complete Task',
+        click: () => webContents.send('toast-context-menu-command', { command: 'complete', wordId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'View Inbox',
+        click: () => webContents.send('toast-context-menu-command', { command: 'view-inbox' }),
+      },
+      {
+        label: 'Edit Notification Settings',
+        click: () => webContents.send('toast-context-menu-command', { command: 'edit-settings' }),
+      },
+    ];
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
+  });
+  ipcMain.on('show-inbox-item-context-menu', (event, payload) => {
+    const { message, x, y } = payload;
+    const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];
+
+    if (message.wordId) {
+      template.push({
+        label: 'View Task',
+        click: () => webContents.send('inbox-context-menu-command', { command: 'view', wordId: message.wordId }),
+      });
+    }
+
+    if (message.type === 'overdue' && message.wordId) {
+      template.push({ type: 'separator' });
+      template.push({
+        label: 'Snooze',
+        click: () => webContents.send('inbox-context-menu-command', { command: 'snooze', wordId: message.wordId }),
+      });
+      template.push({
+        label: 'Complete Task',
+        click: () => webContents.send('inbox-context-menu-command', { command: 'complete', wordId: message.wordId }),
+      });
+    }
+
+    template.push({ type: 'separator' });
+    template.push({
+      label: 'Dismiss Message',
+      click: () => webContents.send('inbox-context-menu-command', { command: 'dismiss', messageId: message.id }),
+    });
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
+  });
+  ipcMain.on('show-nav-button-context-menu', (event, payload) => {
+    const { x, y, canGoBack, canGoForward } = payload;
+    const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+      {
+        label: 'Go Back',
+        enabled: canGoBack,
+        click: () => webContents.send('nav-context-menu-command', { command: 'back' }),
+      },
+      {
+        label: 'Go Forward',
+        enabled: canGoForward,
+        click: () => webContents.send('nav-context-menu-command', { command: 'forward' }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Inspect Element',
+        click: () => webContents.inspectElement(x, y),
+      },
+    ];
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
+  });
+  ipcMain.on('show-save-button-context-menu', (event, payload) => {
+    const { x, y } = payload;
+    const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+      {
+        label: 'Save Project',
+        click: () => webContents.send('save-context-menu-command', { command: 'save' }),
+      },
+      {
+        label: 'Create Manual Backup...',
+        click: () => webContents.send('save-context-menu-command', { command: 'backup' }),
+      },
+    ];
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
+  });
+  ipcMain.on('show-selection-context-menu', (event, payload) => {
+    const webContents = event.sender;
+    const { selectionText, x, y } = payload;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
       {
         label: 'Copy',
@@ -391,6 +501,11 @@ app.whenReady().then(() => {
       {
         label: 'Search Google for selection',
         click: () => webContents.send('search-google-selection', selectionText),
+      },
+      { type: 'separator' },
+      {
+        label: 'Inspect Element',
+        click: () => webContents.inspectElement(x, y),
       },
     ];
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
