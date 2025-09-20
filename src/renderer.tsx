@@ -33,6 +33,8 @@ declare global {
     showInboxItemContextMenu: (payload: { message: InboxMessage, x: number, y: number }) => void;
     showNavButtonContextMenu: (payload: { x: number, y: number, canGoBack: boolean, canGoForward: boolean }) => void;
     showSaveButtonContextMenu: (payload: { x: number, y: number }) => void;
+    showChecklistItemContextMenu: (payload: { sectionId: number, itemId: number, isCompleted: boolean, x: number, y: number }) => void;
+    showChecklistSectionContextMenu: (payload: { wordId: number, sectionId: number, areAllComplete: boolean, x: number, y: number }) => void;
     notifyDirtyState: (isDirty: boolean) => void;
   } }
 }
@@ -42,6 +44,19 @@ interface Attachment {
   name: string;
   path: string;
 }
+
+interface ChecklistItem {
+  id: number;
+  text: string;
+  isCompleted: boolean;
+}
+
+interface ChecklistSection {
+  id: number;
+  title: string;
+  items: ChecklistItem[];
+}
+
 
 interface Word {
   id: number;
@@ -58,6 +73,7 @@ interface Word {
   imageLinks?: string[];
   description?: string;
   attachments?: Attachment[];
+  checklist?: ChecklistSection[] | ChecklistItem[]; // Support both for migration
   notes?: string;
   // Add dimensions for hit detection
   width?: number;
@@ -77,16 +93,18 @@ interface Word {
   isAutocomplete?: boolean;
   lastNotified?: number; // Timestamp of the last notification sent for this task
   snoozeCount?: number; // How many times the task has been snoozed
+  snoozedAt?: number; // Timestamp of when the last snooze was initiated
   manualTimeRunning?: boolean;
   manualTimeStart?: number; // Timestamp when manual timer was started
 }
 
 interface InboxMessage {
   id: number;
-  type: 'overdue' | 'timer-alert';
+  type: 'overdue' | 'timer-alert' | 'created' | 'completed' | 'deleted' | 'updated';
   text: string;
   timestamp: number;
   wordId?: number; // Optional: link back to the task
+  sectionId?: number; // Optional: for checklist items
 }
 
 interface Browser {
@@ -140,6 +158,8 @@ interface Settings {
   snoozeTime: 'low' | 'medium' | 'high'; // New setting for snooze duration
   editorHeights?: { [key: string]: string };
   useDefaultBrowserForSearch?: boolean; // New global setting
+  inboxSort?: 'date-desc' | 'date-asc' | 'type';
+  openInboxGroupTypes?: string[];
 }
 
 
@@ -159,7 +179,12 @@ interface TabbedViewProps {
   onDescriptionChange: (html: string) => void;
   settings: Settings; // Pass down settings for browser selection
   startInEditMode?: boolean;
+  words: Word[]; // Add words to props
+  onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void; // Add this prop
+  setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>; // Add setInboxMessages to props
   className?: string;
+  wordId: number;
+  checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>;
 }
 
 function SimpleAccordion({ title, children, startOpen = false, onToggle, className }: AccordionProps & { startOpen?: boolean, onToggle?: (isOpen: boolean) => void, className?: string }) {
@@ -274,7 +299,7 @@ function PromptModal({ isOpen, title, onClose, onConfirm, placeholder }: PromptM
   );
 }
 
-function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange, onSettingsChange }: TabbedViewProps) {
+function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange, onSettingsChange, words, setInboxMessages, onComplete, wordId, checklistRef }: TabbedViewProps) {
   const initialTab = settings.activeTaskTabs[word.id] || (word.completedDuration ? 'ticket' : 'ticket');
   const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(initialTab);
 
@@ -459,6 +484,15 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
                 }}>HTML</button>
                 <button className="copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}>📋 All</button>
               </div>
+              <Checklist 
+                sections={word.checklist || []} 
+                onUpdate={(newSections) => handleFieldChange('checklist', newSections)} 
+                onComplete={onComplete}
+                words={words}
+                setInboxMessages={setInboxMessages}
+                wordId={wordId}
+                checklistRef={checklistRef}
+                isEditable={false} />
               <DescriptionEditor 
                 description={word.description || ''} 
                 onDescriptionChange={(html) => handleFieldChange('description', html)} 
@@ -602,6 +636,16 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
               }}>HTML</button>
               <button className="copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}>📋 All</button>
             </div>
+            <Checklist 
+              sections={word.checklist || []} 
+              onUpdate={(newSections) => handleFieldChange('checklist', newSections)} 
+              onComplete={onComplete}
+              isEditable={true} 
+              words={words}
+              setInboxMessages={setInboxMessages}
+              checklistRef={checklistRef}
+              wordId={wordId}
+              />
             <DescriptionEditor 
               description={word.description || ''} 
               onDescriptionChange={(html) => handleFieldChange('description', html)} 
@@ -648,6 +692,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
   );
 }
 
+
 function DescriptionEditor({ description, onDescriptionChange, settings, onSettingsChange, editorKey }: { description: string, onDescriptionChange: (html: string) => void, settings: Settings, onSettingsChange: (newSettings: Partial<Settings>) => void, editorKey: string }) {
   const [activeView, setActiveView] = useState<'view' | 'html'>('view');
   const [htmlContent, setHtmlContent] = useState(description);
@@ -663,31 +708,6 @@ function DescriptionEditor({ description, onDescriptionChange, settings, onSetti
     setHtmlContent(newHtml);
     onDescriptionChange(newHtml);
   };
-
-  // Effect to auto-resize the textarea and remember its height
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (textarea && activeView === 'html') {
-      // Restore saved height if it exists
-      const savedHeight = settings.editorHeights?.[editorKey] || textarea.dataset.savedHeight;
-      if (savedHeight) {
-        textarea.style.height = savedHeight;
-      } else {
-        // Auto-resize based on content
-        textarea.style.height = 'auto'; // Reset height
-        textarea.style.height = `${Math.max(100, textarea.scrollHeight)}px`; // Ensure a minimum height
-      }
-
-      const observer = new ResizeObserver(() => {
-        const newHeight = textarea.style.height;
-        textarea.dataset.savedHeight = newHeight; // Store session height
-        const newHeights = { ...(settings.editorHeights || {}), [editorKey]: newHeight };
-        onSettingsChange({ editorHeights: newHeights }); // Persist for next launch
-      });
-      observer.observe(textarea);
-      return () => observer.disconnect();
-    }
-  }, [activeView, editorKey, settings.editorHeights, onSettingsChange]);
 
   const handleConfirmLink = (url: string) => {
     // Ensure the URL has a protocol
@@ -830,6 +850,450 @@ function DescriptionEditor({ description, onDescriptionChange, settings, onSetti
         <span>Shortcuts:</span>
         <span dangerouslySetInnerHTML={{ __html: `${headerShortcutKeyDisplay}, ${otherShortcutKeys}` }} />
       </div>
+    </div>
+  );
+}
+
+function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInboxMessages, wordId, checklistRef }: { sections: ChecklistSection[] | ChecklistItem[], onUpdate: (newSections: ChecklistSection[]) => void, isEditable: boolean, onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void, words: Word[], setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>, wordId: number, checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }> }) {
+  const [newItemTexts, setNewItemTexts] = useState<{ [key: number]: string }>({});
+  const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
+  const [editingSectionTitle, setEditingSectionTitle] = useState('');
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editingItemText, setEditingItemText] = useState('');
+
+  // State for local undo/redo history of checklist changes
+  const [history, setHistory] = useState<ChecklistSection[][]>([[]]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const isUndoingRedoing = useRef(false); // Ref to prevent feedback loops
+
+
+  // Data Migration: Handle old format (ChecklistItem[]) and convert to new format (ChecklistSection[])
+  const normalizedSections: ChecklistSection[] = React.useMemo(() => {
+    if (!sections || sections.length === 0) { 
+      return [];
+    }
+    // Check if the first element is a ChecklistItem (old format)
+    if ('isCompleted' in sections[0]) {
+      return [{ id: 1, title: 'Checklist', items: sections as ChecklistItem[] }];
+    }
+    return sections as ChecklistSection[];
+  }, [sections]);
+
+  // Initialize history when sections are loaded
+  useEffect(() => {
+    setHistory([normalizedSections]);
+    setHistoryIndex(0);
+  }, [wordId]); // Re-initialize history only when the task itself changes
+
+  const updateHistory = (newSections: ChecklistSection[]) => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    setHistory([...newHistory, newSections]);
+    setHistoryIndex(newHistory.length);
+  };
+  // Effect to handle commands from the context menu that require local state changes
+  useEffect(() => {
+    const handleChecklistCommand = (payload: { command: string, sectionId: number, itemId: number }) => {
+      if (payload.command === 'edit') {
+        const section = normalizedSections.find(s => s.id === payload.sectionId);
+        const item = section?.items.find(i => i.id === payload.itemId);
+        if (item) {
+          setEditingItemId(item.id);
+          setEditingItemText(item.text);
+        }
+      }
+    };
+
+    // We listen for the generic command, but only act on 'edit'
+    const cleanup = window.electronAPI.on('checklist-item-command', handleChecklistCommand);
+    return cleanup;
+  }, [normalizedSections]); // Re-bind if the sections change
+
+  const handleUpdateItemText = (sectionId: number, itemId: number, newText: string) => {
+    const newSections = normalizedSections.map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, text: newText } : item) } : sec);
+    if (!isUndoingRedoing.current) {
+      updateHistory(newSections);
+    }
+    onUpdate(newSections);
+  };
+
+  const handleAddSection = () => {
+    const newId = Date.now();
+    const newSection: ChecklistSection = {
+      id: newId,
+      title: 'New Section',
+      items: [],
+    };
+    const newSections = [...normalizedSections, newSection];
+    updateHistory(newSections);
+    onUpdate(newSections);
+    setEditingSectionId(newId); // Set the new section to be in edit mode
+    setEditingSectionTitle('New Section'); // Initialize the input with the default title
+  };
+
+  const handleUpdateSectionTitle = (sectionId: number, newTitle: string) => {
+    const newSections = normalizedSections.map(sec => 
+      sec.id === sectionId ? { ...sec, title: newTitle } : sec
+    );
+    if (!isUndoingRedoing.current) {
+      updateHistory(newSections);
+    }
+    onUpdate(newSections);
+  };
+
+  const handleDeleteAllSections = () => {
+    if (window.confirm('Are you sure you want to delete all checklist sections and their items?')) {
+      updateHistory([]);
+      onUpdate([]);
+    }
+  };
+  
+  const handleAddItem = (sectionId: number) => {
+    const text = newItemTexts[sectionId] || '';
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line !== '');
+    if (lines.length === 0) return;
+
+    const newItems: ChecklistItem[] = lines.map((line, index) => ({
+      id: Date.now() + Math.random(), // Use Math.random() to guarantee a unique ID
+      text: line,
+      isCompleted: false,
+    }));
+
+    const newSections = normalizedSections.map(sec =>
+      sec.id === sectionId ? { ...sec, items: [...sec.items, ...newItems] } : sec
+    );
+
+    if (!isUndoingRedoing.current) {
+      updateHistory(newSections);
+    }
+    onUpdate(newSections);
+    setNewItemTexts(prev => ({ ...prev, [sectionId]: '' })); // Clear only this section's input
+  };
+
+  const handleToggleItem = (sectionId: number, itemId: number) => {
+    let toggledItem: ChecklistItem | null = null;
+    const newSections = normalizedSections.map(sec => {
+      if (sec.id !== sectionId) return sec;
+
+      const newItems = sec.items.map(item => {
+        if (item.id !== itemId) return item;
+
+        const isNowCompleted = !item.isCompleted;
+
+        // If the item is being marked as complete, send a notification.
+        if (isNowCompleted) {
+          toggledItem = item; // Store the item that was toggled
+        }
+        return { ...item, isCompleted: isNowCompleted };
+      });
+      return { ...sec, items: newItems };
+    });
+
+    // Now that newSections is fully initialized, we can safely use it.
+    if (toggledItem) {
+      onComplete(toggledItem, sectionId, newSections);
+    }
+
+    if (!isUndoingRedoing.current) {
+      updateHistory(newSections);
+    }
+    onUpdate(newSections);
+  };
+
+  const moveSection = (sections: ChecklistSection[], sectionId: number, direction: 'up' | 'down'): ChecklistSection[] => {
+    const newSections = [...sections];
+    const index = newSections.findIndex(s => s.id === sectionId);
+    if (direction === 'up' && index > 0) {
+      [newSections[index - 1], newSections[index]] = [newSections[index], newSections[index - 1]];
+    } else if (direction === 'down' && index < newSections.length - 1) {
+      [newSections[index], newSections[index + 1]] = [newSections[index + 1], newSections[index]];
+    }
+    if (!isUndoingRedoing.current) {
+      updateHistory(newSections);
+    }
+    return newSections;
+  };
+
+  const handleCompleteAllInSection = (sectionId: number) => {
+    const sectionToUpdate = normalizedSections.find(sec => sec.id === sectionId);
+    if (!sectionToUpdate) return;
+
+    const areAllCurrentlyCompleted = sectionToUpdate.items.every(item => item.isCompleted);
+
+    // If un-checking all, just update state and return.
+    if (!areAllCurrentlyCompleted) {
+      // Send notifications for each item that is about to be completed.
+      sectionToUpdate.items.forEach(item => {
+        if (!item.isCompleted) {
+          onComplete(item, sectionId, []); // Pass empty array as updatedSections is not needed here.
+        }
+      });
+
+      // Send the single "Section Completed" notification.
+      const parentWord = words.find((w: Word) => w.checklist?.some((s: any) => 'items' in s && s.id === sectionId)); 
+      if (parentWord) {
+        setInboxMessages((prev: InboxMessage[]) => [{ id: Date.now() + Math.random(), type: 'completed', text: `Section completed: "${sectionToUpdate.title}" in task "${parentWord.text}"`, timestamp: Date.now(), wordId: parentWord.id, sectionId: sectionId }, ...prev]);
+      }
+    }
+
+    // Finally, update the state to toggle all items.
+    const newSections = normalizedSections.map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(i => ({ ...i, isCompleted: !areAllCurrentlyCompleted })) } : sec);
+    if (!isUndoingRedoing.current) {
+      updateHistory(newSections);
+    }
+    onUpdate(newSections);
+  };
+
+  const handleClearCompleted = (sectionId: number) => {
+    const newSections = normalizedSections.map(sec => {
+      if (sec.id === sectionId) {
+        const newItems = sec.items.filter(item => !item.isCompleted);
+        return { ...sec, items: newItems };
+      }
+      return sec;
+    });
+    if (!isUndoingRedoing.current) {
+      updateHistory(newSections);
+    }
+    onUpdate(newSections);
+  };
+
+  const handleToggleAllSections = () => {
+    const allItems = normalizedSections.flatMap(sec => sec.items);
+    if (allItems.length === 0) return;
+
+    const areAllItemsComplete = allItems.every(item => item.isCompleted);
+
+    const newSections = normalizedSections.map(sec => ({
+      ...sec,
+      items: sec.items.map(item => {
+        // If we are completing all, and this item isn't complete yet, send a notification
+        if (!areAllItemsComplete && !item.isCompleted) {
+          onComplete(item, sec.id, []);
+        }
+        return { ...item, isCompleted: !areAllItemsComplete };
+      })
+    }));
+    if (!isUndoingRedoing.current) {
+      updateHistory(newSections);
+    }
+    onUpdate(newSections);
+  };
+
+  const handleDeleteItem = (sectionId: number, itemId: number) => {
+    const newSections = normalizedSections.map(sec => {
+      if (sec.id === sectionId) {
+        const newItems = sec.items.filter(item => item.id !== itemId);
+        return { ...sec, items: newItems };
+      }
+      return sec;
+    });
+    if (!isUndoingRedoing.current) {
+      updateHistory(newSections);
+    }
+    onUpdate(newSections);
+  };
+
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      isUndoingRedoing.current = true;
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      // Find the parent word and update it with the historical checklist state
+      onUpdate(history[newIndex]);
+      setTimeout(() => isUndoingRedoing.current = false, 0);
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      isUndoingRedoing.current = true;
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      // Find the parent word and update it with the historical checklist state
+      onUpdate(history[newIndex]);
+      setTimeout(() => isUndoingRedoing.current = false, 0);
+    }
+  };
+
+  // Expose undo/redo functions via the passed-in ref
+  if (checklistRef) {
+    checklistRef.current = {
+      handleUndo,
+      handleRedo,
+    };
+  }
+
+  return (
+    <div className="checklist-container">
+      <div className="checklist-main-header">
+        <h4>Checklist</h4>
+        {(() => {
+          const allItems = normalizedSections.flatMap(sec => sec.items);
+          if (allItems.length === 0) return null;
+          const areAllItemsComplete = allItems.every(item => item.isCompleted);
+          return (
+            <div className="checklist-section-actions">
+              <button 
+                onClick={handleToggleAllSections} 
+                className="checklist-action-btn"
+                title={areAllItemsComplete ? 'Re-Open All Items in All Sections' : 'Complete All Items in All Sections'}
+              >
+                {areAllItemsComplete ? '🔄' : '✅'}
+              </button>
+              {/* Move Undo/Redo buttons here */}
+              <button className="checklist-action-btn" onClick={handleUndo} disabled={historyIndex === 0} title="Undo Last Checklist Action">↩️</button>
+              <button className="checklist-action-btn" onClick={handleRedo} disabled={historyIndex === history.length - 1} title="Redo Checklist Action">↪️</button>
+            </div>
+          );
+        })()}
+      </div>
+      {normalizedSections.map(section => {
+        const completedCount = section.items.filter(item => item.isCompleted).length;
+        const totalCount = section.items.length;
+        const areAllComplete = totalCount > 0 && completedCount === totalCount;
+        const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+        return (
+          <div key={section.id} className="checklist-section" data-section-id={section.id} onContextMenu={(e) => { 
+              e.preventDefault(); 
+              e.stopPropagation(); // Stop the event from bubbling up to the parent TaskAccordion
+              window.electronAPI.showChecklistSectionContextMenu({ wordId, sectionId: section.id, areAllComplete, x: e.clientX, y: e.clientY }); 
+            }}>
+            <div className="checklist-header">
+              {editingSectionId === section.id && isEditable ? (
+                <input
+                  type="text"
+                  value={editingSectionTitle}
+                  onChange={(e) => setEditingSectionTitle(e.target.value)}
+                  onBlur={() => {
+                    handleUpdateSectionTitle(section.id, editingSectionTitle);
+                    setEditingSectionId(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleUpdateSectionTitle(section.id, editingSectionTitle);
+                      setEditingSectionId(null);
+                    }
+                  }}
+                  autoFocus
+                  className="checklist-section-title-input"
+                />
+              ) : (
+                <strong
+                  className={isEditable ? 'editable-title' : ''}
+                  onClick={() => {
+                    if (isEditable) {
+                      setEditingSectionId(section.id);
+                      setEditingSectionTitle(section.title);
+                    }
+                  }}
+                >
+                  {section.title}
+                </strong>
+              )}
+              {totalCount > 0 && (
+                <span className="checklist-progress">
+                  ({completedCount} / {totalCount} completed)
+                </span>
+              )}
+              <div className="checklist-section-actions">
+                {totalCount > 0 && (
+                  <button className="checklist-action-btn" onClick={() => handleCompleteAllInSection(section.id)} title={areAllComplete ? "Reopen All Items" : "Complete All Items"}>
+                    {areAllComplete ? '🔄' : '✅'}
+                  </button>
+                )}
+                {isEditable && completedCount > 0 && (
+                  <button className="checklist-action-btn clear-completed-btn" onClick={() => handleClearCompleted(section.id)} title="Clear Completed Items">
+                    🧹
+                  </button>
+                )}
+                <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(normalizedSections, section.id, 'up'))} title="Move Section Up">↑</button>
+                <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(normalizedSections, section.id, 'down'))} title="Move Section Down">↓</button>
+                {isEditable && (
+                  <>
+                    <button className="checklist-delete-btn" onClick={() => {
+                      if (window.confirm('Are you sure you want to delete this entire section and all its items?')) onUpdate(normalizedSections.filter(sec => sec.id !== section.id));
+                    }} title="Delete Section">
+                      🗑️
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="checklist-progress-bar-container">
+              <div 
+                className={`checklist-progress-bar-fill ${areAllComplete ? 'complete' : ''}`} 
+                style={{ width: `${progressPercentage}%` }}></div>
+            </div>
+            <div className="checklist-items">
+              {section.items.map(item => (
+                <div key={item.id} className={`checklist-item ${item.isCompleted ? 'completed' : ''}`}>
+                  {editingItemId === item.id && isEditable ? (
+                    <input
+                      type="text"
+                      value={editingItemText}
+                      onChange={(e) => setEditingItemText(e.target.value)}
+                      onBlur={() => {
+                        handleUpdateItemText(section.id, item.id, editingItemText);
+                        setEditingItemId(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleUpdateItemText(section.id, item.id, editingItemText);
+                          setEditingItemId(null);
+                        } else if (e.key === 'Escape') {
+                          setEditingItemId(null);
+                        }
+                      }}
+                      autoFocus
+                      className="checklist-item-text-input"
+                    />
+                  ) : (
+                    <label className="checklist-item-label">
+                      <input
+                        type="checkbox"
+                        checked={item.isCompleted}
+                        onChange={() => handleToggleItem(section.id, item.id)}
+                      />
+                      <span className="checklist-item-text" onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation(); // Stop the event from bubbling up to the parent task
+                        window.electronAPI.showChecklistItemContextMenu({ sectionId: section.id, itemId: item.id, isCompleted: item.isCompleted, x: e.clientX, y: e.clientY });
+                      }}>{item.text}</span>
+                    </label>
+                  )}
+                </div>
+              ))}
+            </div>
+            {isEditable && (
+              <div className="checklist-add-item">
+                <textarea
+                  value={newItemTexts[section.id] || ''}
+                  onChange={(e) => setNewItemTexts(prev => ({ ...prev, [section.id]: e.target.value }))}
+                  onKeyDown={(e) => {
+                    // Submit on Enter, but allow new lines with Shift+Enter
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault(); // Prevent default newline behavior
+                      handleAddItem(section.id);
+                    }
+                  }}
+                  placeholder="Add item(s)... (Shift+Enter for new line)"
+                />
+                <button onClick={() => handleAddItem(section.id)}>+</button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {isEditable && (
+        <div className="checklist-actions">
+          <div className="checklist-main-actions">
+            <button onClick={handleAddSection} className="add-section-btn">+ Add Section</button>
+            {normalizedSections.length > 0 && (
+              <button onClick={handleDeleteAllSections} className="add-section-btn delete-btn">Delete All Sections</button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1345,6 +1809,8 @@ const defaultSettings: Settings = {
   timerNotificationLevel: 'medium', // Default to medium alerts
   snoozeTime: 'medium', // Default to 5 minutes
   prioritySortConfig: {}, // Now an object to store sort configs per category
+  inboxSort: 'date-desc', // Default inbox sort  
+  openInboxGroupTypes: [], // Default to no groups open
 };
 
 function App() {
@@ -1386,6 +1852,16 @@ function App() {
   // State to track if the app is still loading initial data
   const [isDirty, setIsDirty] = useState(false);
 
+  // State for debouncing task update notifications
+  const [lastSaveTime, setLastSaveTime] = useState<number | null>(null);
+  const [autoSaveCountdown, setAutoSaveCountdown] = useState(300); // 5 minutes in seconds
+  const AUTO_SAVE_INTERVAL_SECONDS = 300;
+
+  const [updateTimers, setUpdateTimers] = useState<{ [key: number]: NodeJS.Timeout }>({});
+
+  // Ref to hold the latest words state for the debounced function
+  const wordsRefForDebounce = useRef(words);
+  wordsRefForDebounce.current = words;
   // State for the new detailed task form
   const activeCategoryId = settings.activeCategoryId ?? 'all';
   const activeSubCategoryId = settings.activeSubCategoryId ?? 'all';
@@ -1398,11 +1874,20 @@ function App() {
   const sortSelectRef = useRef<HTMLSelectElement>(null);
   const snoozeTimeSelectRef = useRef<HTMLSelectElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-
   // State for timer notifications
   const [timerNotifications, setTimerNotifications] = useState<Word[]>([]);
   // State for persistent overdue notifications
   const [overdueNotifications, setOverdueNotifications] = useState<Set<number>>(new Set());
+
+  // Ref to hold the functions of the currently active checklist for context menu actions
+  const activeChecklistRef = useRef<{ handleUndo: () => void; handleRedo: () => void; } | null>(null);
+
+  // Refs to hold the latest state for saving, preventing stale data in closures.
+  const inboxMessagesRef = useRef(inboxMessages);
+  inboxMessagesRef.current = inboxMessages;
+
+  // Ref to prevent duplicate 'overdue' inbox messages from being created in rapid succession.
+  const overdueMessageSentRef = useRef(new Set<number>());
 
   const handleTaskOverdue = (wordId: number) => {
     // This function is now the single gatekeeper for creating overdue alerts. It uses
@@ -1412,15 +1897,15 @@ function App() {
       if (prev.has(wordId)) {
         return prev;
       }
-      // If no toast is active, add a message to the inbox first.
-      const word = words.find(w => w.id === wordId);
-      setInboxMessages(currentInbox => [{
-        id: Date.now(),
-        type: 'overdue',
-        text: `Task is overdue: ${word?.text || 'Unknown Task'}`,
-        timestamp: Date.now(),
-        wordId: wordId,
-      }, ...currentInbox]);
+      
+      // Use the ref to check if a message has already been sent for this task.
+      if (!overdueMessageSentRef.current.has(wordId)) {
+        const word = words.find(w => w.id === wordId);
+        setInboxMessages(currentInbox => [{ id: Date.now() + Math.random(), type: 'overdue', text: `Task is overdue: ${word?.text || 'Unknown Task'}`, timestamp: Date.now(), wordId: wordId }, ...currentInbox]);
+        // Immediately mark this task as having had its message sent.
+        overdueMessageSentRef.current.add(wordId);
+      }
+
       // Then, return the new Set to show the toast on screen.
       return new Set(prev).add(wordId);
     });
@@ -1449,7 +1934,9 @@ function App() {
     isAutocomplete: false,
     description: '',
     attachments: [],
+    checklist: [],
     lastNotified: undefined,
+    snoozedAt: undefined,
     notes: '',
   });
 
@@ -1518,12 +2005,19 @@ function App() {
     // Create a new task with a new ID and open date, but keep the content
     const newTask: Word = {
       ...taskToCopy,
-      id: Date.now(),
+      id: Date.now() + Math.random(),
       openDate: Date.now(),
       createdAt: Date.now(),
       completedDuration: undefined,
     };
     setWords(prevWords => [newTask, ...prevWords]);
+    setInboxMessages(prev => [{
+      id: Date.now() + Math.random(),
+      type: 'created',
+      text: `Task duplicated: "${newTask.text}"`,
+      timestamp: Date.now(),
+      wordId: newTask.id,
+    }, ...prev]);
     setCopyStatus('Task duplicated!');
     setTimeout(() => setCopyStatus(''), 2000);
   };
@@ -1531,12 +2025,21 @@ function App() {
   const removeWord = (idToRemove: number) => {    
     // Remove from either list, whichever one it's in.
     const wasInActive = words.some(w => w.id === idToRemove);
+    const wordToRemove = words.find(w => w.id === idToRemove) || completedWords.find(w => w.id === idToRemove);
     if (wasInActive) {
       setWords(prev => prev.filter(word => word.id !== idToRemove));
     } else {
       setCompletedWords(prev => prev.filter(word => word.id !== idToRemove));
     }
     setCopyStatus('Task removed.');
+    if (wordToRemove) {
+      setInboxMessages(prev => [{
+        id: Date.now() + Math.random(),
+        type: 'deleted',
+        text: `Task deleted: "${wordToRemove.text}"`,
+        timestamp: Date.now(),
+      }, ...prev]);
+    }
     setTimeout(() => setCopyStatus(''), 2000);
   }; 
 
@@ -1573,23 +2076,33 @@ function App() {
     if (!isLoading) setIsDirty(true);
   }, [settings]);
 
-  // Effect for periodic auto-saving
+  // Effect for auto-save countdown and trigger
   useEffect(() => {
-    const autoSaveInterval = setInterval(() => {
-      if (isDirty) {
-        // Similar to the save-on-quit logic, we send all data to the main process
-        // to be written to the store in the background.
-        window.electronAPI.send('auto-save-data', { words, completedWords, settings, inboxMessages });
-        // We can optionally mark the state as clean after an auto-save
-        setIsDirty(false); 
-      }
-    }, 300000); // Auto-save every 5 minutes (300,000 ms)
+    const countdownInterval = setInterval(() => {
+      setAutoSaveCountdown(prevCountdown => {
+        if (prevCountdown <= 1) {
+          // Countdown reached zero, trigger auto-save if dirty
+          if (isDirty) {
+            window.electronAPI.send('auto-save-data', { words, completedWords, settings, inboxMessages });
+            setIsDirty(false);
+            setLastSaveTime(Date.now());
+          }
+          // Reset the countdown regardless of whether a save happened
+          return AUTO_SAVE_INTERVAL_SECONDS;
+        }
+        // Otherwise, just decrement
+        return prevCountdown - 1;
+      });
+    }, 1000);
 
-    return () => clearInterval(autoSaveInterval);
+    return () => clearInterval(countdownInterval);
   }, [isDirty, words, completedWords, settings, inboxMessages]); // Re-bind if state changes
 
   // Centralized effect for all time-based notifications (overdue & approaching)
   useEffect(() => {
+    // Do not run any timer logic until the initial data load is complete.
+    if (isLoading) return;
+
     const notificationInterval = setInterval(() => {
       const now = Date.now();
       const newlyOverdueIds = new Set<number>();
@@ -1636,7 +2149,7 @@ function App() {
       }
     }, 1000); // Check every second
     return () => clearInterval(notificationInterval);
-  }, [words, settings.timerNotificationLevel, settings.snoozeTime, handleTaskOverdue]); // Rerun if words or settings change
+  }, [isLoading, words, settings.timerNotificationLevel, settings.snoozeTime, handleTaskOverdue]); // Rerun if words or settings change
 
   // Effect to handle different shutdown signals from the main process
   useEffect(() => {
@@ -1725,7 +2238,10 @@ function App() {
 
       switch (command) {
         case 'view':
-          handleInboxItemClick(wordId); // Re-use the existing "go to task" logic
+          handleInboxItemClick({ id: 0, type: 'overdue', text: '', timestamp: 0, wordId }); // Re-use the existing "go to task" logic
+          break;
+        case 'edit':
+          setEditingViaContext(wordId);
           break;
         case 'snooze':
           handleSnooze(targetWord);
@@ -1760,7 +2276,7 @@ function App() {
 
       switch (command) {
         case 'view':
-          if (wordId) handleInboxItemClick(wordId);
+          if (wordId) handleInboxItemClick({ id: 0, type: 'overdue', text: '', timestamp: 0, wordId });
           break;
         case 'snooze':
           if (targetWord) handleSnooze(targetWord);
@@ -1810,6 +2326,181 @@ function App() {
     const cleanup = window.electronAPI.on('save-context-menu-command', handleMenuCommand);
     return cleanup;
   }, [words, completedWords, settings, inboxMessages]); // Re-bind if state changes to save the latest version
+
+  const handleWordUpdate = (updatedWord: Word) => {
+    // Clear any existing timer for this word to debounce
+    if (updateTimers[updatedWord.id]) {
+      clearTimeout(updateTimers[updatedWord.id]);
+    }
+
+    // Set a new timer
+    const newTimer = setTimeout(() => {
+      // Check if the word still exists before adding to inbox
+      if (wordsRefForDebounce.current.some(w => w.id === updatedWord.id)) { 
+        setInboxMessages(prev => [{
+          id: Date.now() + Math.random(),
+          type: 'updated',
+          text: `Task updated: "${updatedWord.text}"`,
+          timestamp: Date.now(),
+          wordId: updatedWord.id,
+        }, ...prev]);
+      }
+      // Clean up the timer from state
+      setUpdateTimers(prev => {
+        const newTimers = { ...prev };
+        delete newTimers[updatedWord.id];
+        return newTimers;
+      });
+    }, 5000); // 5-second debounce window
+
+    setUpdateTimers(prev => ({ ...prev, [updatedWord.id]: newTimer }));
+    setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w));
+  };
+
+  // Effect to handle commands from the new checklist item context menu
+  useEffect(() => {
+    let editingPayload: { sectionId: number, itemId: number } | null = null;
+    const handleMenuCommand = (payload: { command: string, sectionId: number, itemId: number }) => {
+      const { command, sectionId, itemId } = payload;
+
+      // Find the word that contains this checklist
+      const wordContainingChecklist = words.find(w => w.checklist?.some(sec => 'items' in sec && sec.items.some(item => item.id === itemId)));
+      if (!wordContainingChecklist || !wordContainingChecklist.checklist) return;
+
+      if (command === 'edit') {
+        // The actual state change will be handled inside the Checklist component itself
+        // We just need to trigger a re-render of the parent to pass down the editing state.
+        // A simple way is to find the word and re-set it.
+        handleWordUpdate({ ...wordContainingChecklist }); // This triggers the update flow
+        return; // Stop here for edit command
+      }
+      const newSections = (wordContainingChecklist.checklist as ChecklistSection[]).map(sec => {
+        if (sec.id !== sectionId) return sec;
+
+        const itemIndex = sec.items.findIndex(item => item.id === itemId);
+        if (itemIndex === -1) return sec;
+
+        let newItems = [...sec.items];
+        const newItemTemplate = { id: Date.now() + Math.random(), text: 'New Item', isCompleted: false };
+
+        switch (command) {
+          case 'toggle_complete':
+            let toggledItem: ChecklistItem | null = null;
+            newItems = newItems.map(item => {
+              if (item.id !== itemId) return item;
+              const isNowCompleted = !item.isCompleted;
+              if (isNowCompleted) {
+                toggledItem = item;
+              }
+              return { ...item, isCompleted: isNowCompleted };
+            });
+            // Now that newItems is created, we can call the handler
+            if (toggledItem) {
+              handleChecklistCompletion(toggledItem, sectionId, [{...sec, items: newItems}]);
+            }
+            break;
+          case 'delete':
+            newItems.splice(itemIndex, 1);
+            break;
+          case 'copy':
+            navigator.clipboard.writeText(newItems[itemIndex].text);
+            setCopyStatus('Checklist item copied!');
+            setTimeout(() => setCopyStatus(''), 2000);
+            break;
+          case 'add_before':
+            newItems.splice(itemIndex, 0, newItemTemplate);
+            break;
+          case 'add_after':
+            newItems.splice(itemIndex + 1, 0, newItemTemplate);
+            break;
+          case 'move_up':
+            if (itemIndex > 0) {
+              const temp = newItems[itemIndex];
+              newItems[itemIndex] = newItems[itemIndex - 1];
+              newItems[itemIndex - 1] = temp;
+            }
+            break;
+          case 'move_down':
+            if (itemIndex < newItems.length - 1) {
+              const temp = newItems[itemIndex];
+              newItems[itemIndex] = newItems[itemIndex + 1];
+              newItems[itemIndex + 1] = temp;
+            }
+            break;
+        }
+        return { ...sec, items: newItems };
+      });
+
+      handleWordUpdate({ ...wordContainingChecklist, checklist: newSections });
+    };
+
+    const cleanup = window.electronAPI.on('checklist-item-command', handleMenuCommand);
+    return cleanup;
+  }, [words, handleWordUpdate]); // Re-bind if words state changes
+
+  // Effect to handle commands from the new checklist section context menu
+  useEffect(() => {
+    const handleMenuCommand = (payload: { command: string, sectionId: number }) => {
+      const { command, sectionId } = payload;
+      const wordContainingChecklist = words.find(w => w.checklist?.some(sec => 'items' in sec && sec.id === sectionId));
+      if (!wordContainingChecklist || !wordContainingChecklist.checklist) return;
+
+      let newSections = [...(wordContainingChecklist.checklist as ChecklistSection[])];
+      const sectionIndex = newSections.findIndex(s => s.id === sectionId);
+      if (sectionIndex === -1) return;
+
+      switch (command) {
+        case 'duplicate_section':
+          const newSection = { ...newSections[sectionIndex], id: Date.now(), title: `${newSections[sectionIndex].title} (Copy)` };
+          newSections.splice(sectionIndex + 1, 0, newSection);
+          break;
+        case 'toggle_all_in_section':
+          // Find the correct Checklist instance and call its handler
+          // This is complex, for now, we can call the button's handler if we can find it.
+          // Or, we can just call the handler directly.
+        case 'delete_section':
+          if (window.confirm(`Are you sure you want to delete this section?`)) {
+            newSections = newSections.filter(s => s.id !== sectionId);
+          } else {
+            return; // Do not proceed with update if user cancels
+          }
+          break;
+        case 'move_section_up':
+          if (sectionIndex > 0) {
+            [newSections[sectionIndex - 1], newSections[sectionIndex]] = [newSections[sectionIndex], newSections[sectionIndex - 1]];
+          }
+          break;
+        case 'move_section_down':
+          if (sectionIndex < newSections.length - 1) {
+            [newSections[sectionIndex], newSections[sectionIndex + 1]] = [newSections[sectionIndex + 1], newSections[sectionIndex]];
+          } else {
+            return; // Do not proceed with update if user cancels
+          }
+          break;
+        case 'undo_checklist':
+          activeChecklistRef.current?.handleUndo();
+          break;
+        case 'redo_checklist':
+          activeChecklistRef.current?.handleRedo();
+          break;
+      }
+      handleWordUpdate({ ...wordContainingChecklist, checklist: newSections });
+    };
+
+    const cleanup = window.electronAPI.on('checklist-section-command', handleMenuCommand);
+    return cleanup;
+  }, [words, handleWordUpdate]);
+
+  const handleChecklistCompletion = (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => {
+    // This handler is now ONLY for individual item completions.
+    const parentWord = words.find(w => w.checklist?.some(s => 'items' in s && s.id === sectionId));
+    if (parentWord) {
+      setInboxMessages(prev => [{
+        id: Date.now() + Math.random(), type: 'completed', text: `Checklist item completed: "${item.text}" in task "${parentWord.text}"`,
+        timestamp: Date.now(), wordId: parentWord.id, sectionId: sectionId
+      }, ...prev]);
+    }
+  };
 
   // Effect to reset the context menu editing state after it has been applied
   useEffect(() => {
@@ -2087,7 +2778,7 @@ function App() {
 
       const newWord: Word = {
         ...newTask,
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         text: newTask.text.trim(),
         // Use the value from the form, or default to now if it's empty
         openDate: newTask.openDate || Date.now(),
@@ -2102,6 +2793,13 @@ function App() {
         pausedDuration: 0,
       };
 
+    setInboxMessages(prev => [{
+      id: Date.now() + Math.random(),
+      type: 'created',
+      text: `Task created: "${newWord.text}"`,
+      timestamp: Date.now(),
+      wordId: newWord.id,
+    }, ...prev]);
       setCopyStatus('Task added!');
       setTimeout(() => setCopyStatus(''), 2000);
       setWords((prevWords) => [...prevWords, newWord]);
@@ -2117,6 +2815,7 @@ function App() {
         websiteUrl: '',
         imageLinks: [],
         attachments: [],
+        checklist: [],
         notes: '',
         description: '',
         manualTime: 0,
@@ -2130,6 +2829,7 @@ function App() {
         isYearlyRecurring: false,
         isAutocomplete: false,
         lastNotified: undefined,
+        snoozedAt: undefined,
       }); // The syntax error was a misplaced comma in the original source before this line.
     }
   };
@@ -2197,6 +2897,13 @@ function App() {
     // Add to completed list and remove from active list
     setCompletedWords(prev => [completedWord, ...prev]);
     setWords(words.filter(word => word.id !== wordToComplete.id));
+    setInboxMessages(prev => [{ 
+      id: Date.now() + Math.random(),
+      type: 'completed',
+      text: `Task completed: "${completedWord.text}"`,
+      timestamp: Date.now(),
+      wordId: completedWord.id,
+    }, ...prev]);
     setCopyStatus('Task completed!');
 
     // Also remove it from any active notifications to hide the toast
@@ -2416,10 +3123,18 @@ function App() {
         height,
         createdAt: Date.now(),
         pausedDuration: 0,
+        checklist: [],
       };
       currentWords.push(newWord);
       currentPlacementIndex++;
     });
+    setInboxMessages(prev => [{
+      id: Date.now() + Math.random(),
+      type: 'created',
+      text: `Bulk added ${wordsToAdd.length} tasks.`,
+      timestamp: Date.now(),
+    }, ...prev]);
+
     setWords(currentWords);
     setWordPlacementIndex(currentPlacementIndex);
     setBulkAddText(""); // Clear the textarea
@@ -2529,9 +3244,11 @@ function App() {
     await window.electronAPI.setStoreValue('overwhelmed-words', wordsToSave);
     await window.electronAPI.setStoreValue('overwhelmed-completed-words', completedWords);
     await window.electronAPI.setStoreValue('overwhelmed-settings', settings);
-    await window.electronAPI.setStoreValue('overwhelmed-inbox-messages', inboxMessages);
+    await window.electronAPI.setStoreValue('overwhelmed-inbox-messages', inboxMessagesRef.current); // Use the ref to get the latest state
     
     setIsDirty(false); // Mark the state as clean/saved
+    setLastSaveTime(Date.now());
+    setAutoSaveCountdown(AUTO_SAVE_INTERVAL_SECONDS); // Reset countdown on manual save
 
     setCopyStatus('Project saved!');
     setTimeout(() => setCopyStatus(''), 2000); // Clear message after 2 seconds
@@ -2652,18 +3369,18 @@ function App() {
     }, 8000); // Keep on screen for 8 seconds
   };
 
-  const handleSnooze = (wordToSnooze: Word) => {
+  const handleSnooze = (wordToSnooze: Word, duration?: 'low' | 'medium' | 'high') => {
     const snoozeDurations = {
       low: 1 * 60 * 1000,     // 1 minute
       medium: 5 * 60 * 1000,  // 5 minutes
       high: 10 * 60 * 1000,   // 10 minutes
     };
-    const snoozeDurationMs = snoozeDurations[settings.snoozeTime];
+    const snoozeDurationMs = snoozeDurations[duration || settings.snoozeTime];
     const snoozedUntil = Date.now() + snoozeDurationMs;
 
     // Update the word's `lastNotified` property to act as the "snoozed until" timestamp
     setWords(prevWords => prevWords.map(w => 
-      w.id === wordToSnooze.id ? { ...w, lastNotified: snoozedUntil, snoozeCount: (w.snoozeCount || 0) + 1 } : w
+      w.id === wordToSnooze.id ? { ...w, lastNotified: snoozedUntil, snoozeCount: (w.snoozeCount || 0) + 1, snoozedAt: Date.now() } : w
     ));
 
     // Remove the notification from the screen
@@ -2699,19 +3416,22 @@ function App() {
     }
   };
 
-  const handleSnoozeAll = () => {
-    const now = Date.now();
+  const handleSnoozeAll = (duration?: 'low' | 'medium' | 'high') => {
+    const now = Date.now(); 
     const snoozeDurations = {
       low: 1 * 60 * 1000,
       medium: 5 * 60 * 1000,
       high: 10 * 60 * 1000,
     };
-    const snoozeDurationMs = snoozeDurations[settings.snoozeTime];
+    // const snoozeDurationMs = snoozeDurations[settings.snoozeTime]; 
+    const snoozeDurationMs = snoozeDurations[duration || settings.snoozeTime]; 
     const snoozedUntil = now + snoozeDurationMs;
+    
 
     const overdueIds = Array.from(overdueNotifications);
     setWords(prevWords => prevWords.map(w => 
-      overdueIds.includes(w.id) ? { ...w, lastNotified: snoozedUntil, snoozeCount: (w.snoozeCount || 0) + 1 } : w
+      // overdueIds.includes(w.id) ? { ...w, lastNotified: snoozedUntil, snoozeCount: (w.snoozeCount || 0) + 1 } : w
+      overdueIds.includes(w.id) ? { ...w, lastNotified: snoozedUntil, snoozeCount: (w.snoozeCount || 0) + 1, snoozedAt: now } : w
     ));
     setOverdueNotifications(new Set()); // Clear all toasts
   };
@@ -2724,14 +3444,37 @@ function App() {
     });
   };
 
-  const handleInboxItemClick = (wordId: number | undefined) => {
-    if (!wordId) return;
+  const handleDeleteAllOverdue = () => {
+    const overdueIds = Array.from(overdueNotifications);
+    overdueIds.forEach(id => {
+      const wordToDelete = words.find(w => w.id === id);
+      if (wordToDelete) removeWord(wordToDelete.id);
+    });
+  };
 
-    // Switch to the list view
-    setSettings(prev => ({ 
-      ...prev, 
+  const handleInboxItemClick = (message: InboxMessage) => {
+    if (!message || !message.wordId) return;
+
+    const { wordId, sectionId } = message;
+
+    // Find the word to determine its category
+    const word = words.find(w => w.id === wordId);
+    if (!word || !word.categoryId) return;
+
+    const category = settings.categories.find(c => c.id === word.categoryId); 
+    if (!category) return;
+
+    // Determine the parent and sub-category to activate
+    const parentId = category.parentId || category.id;
+    const subId = category.parentId ? category.id : 'all';
+
+    // Switch to the list view and set the correct category/sub-category filters
+    setSettings(prev => ({
+      ...prev,
       currentView: 'list',
-      openAccordionIds: [...new Set([...prev.openAccordionIds, wordId])] // Add the wordId to open its accordion
+      activeCategoryId: parentId,
+      activeSubCategoryId: subId,
+      openAccordionIds: [...new Set([...prev.openAccordionIds, wordId])]
     }));
 
     // Use a timeout to ensure the list view has rendered before we try to scroll
@@ -2739,6 +3482,18 @@ function App() {
       const element = document.querySelector(`[data-word-id='${wordId}']`);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // If a sectionId is provided, scroll to and highlight the checklist section
+        if (message.sectionId) {
+          setTimeout(() => {
+            const sectionElement = element.querySelector(`[data-section-id='${sectionId}']`);
+            if (sectionElement) {
+              sectionElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              sectionElement.classList.add('highlight-section');
+              setTimeout(() => sectionElement.classList.remove('highlight-section'), 2500); // Highlight for 2.5s
+            }
+          }, 300); // Wait for accordion to open
+        }
       }
     }, 100);
   };
@@ -2766,15 +3521,21 @@ function App() {
       <div className="clock-save-container"> 
         <div className="header-center-stack">
           <div className="current-browser-display">Active Browser: <b>{settings.browsers[settings.activeBrowserIndex]?.name || 'Default'}</b></div>        
-        </div>       
-        <button
-          onClick={handleSaveProject}
-          onContextMenu={(e) => { e.preventDefault(); window.electronAPI.showSaveButtonContextMenu({ x: e.clientX, y: e.clientY }); }}
-          className={`dynamic-save-button ${isDirty ? 'unsaved' : 'saved'}`}
-          disabled={isLoading}
-        >
-          {isDirty ? 'Save Project (Unsaved)' : 'Project Saved'}
-        </button>        
+        </div>
+        <div className="save-status-container">
+          <button
+            onClick={handleSaveProject}
+            onContextMenu={(e) => { e.preventDefault(); window.electronAPI.showSaveButtonContextMenu({ x: e.clientX, y: e.clientY }); }}
+            className={`dynamic-save-button ${isDirty ? 'unsaved' : 'saved'}`}
+            disabled={isLoading}
+          >
+            {isDirty ? 'Save Project (Unsaved)' : 'Project Saved'}
+          </button>
+          {lastSaveTime && <div className="save-timestamp">Last saved at {formatTimestamp(lastSaveTime)}</div>}
+          <div className="save-timestamp">
+            Autosaving in {Math.floor(autoSaveCountdown / 60)}:{(autoSaveCountdown % 60).toString().padStart(2, '0')}
+          </div>
+        </div>
       </div>
       {copyStatus && <div className="copy-status-toast">{copyStatus}</div>}
       {timerNotifications.length > 0 && (
@@ -2797,8 +3558,10 @@ function App() {
             Overdue: {overdueNotifications.size}
             {overdueNotifications.size > 1 && (
               <div className="overdue-summary-actions">
-                <button onClick={handleSnoozeAll}>Snooze All</button>
+                <button onClick={() => handleSnoozeAll()}>Snooze All</button>
+                <button onClick={() => handleSnoozeAll('high')}>Snooze All 10m</button>
                 <button onClick={handleCompleteAllOverdue}>Complete All</button>
+                <button onClick={handleDeleteAllOverdue}>Delete All</button>
               </div>
             )}
           </div>
@@ -2809,13 +3572,13 @@ function App() {
               <div 
                 key={word.id} 
                 className="overdue-notification-toast"
-                onContextMenu={(e) => { e.preventDefault(); window.electronAPI.showToastContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY }); }}
+                  onContextMenu={(e) => { e.preventDefault(); window.electronAPI.showToastContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY }); }} 
               >
                 <div className="overdue-notification-content">
                   <div className="overdue-title-bar">
                     <span 
                       className="clickable" 
-                      onClick={() => handleInboxItemClick(word.id)} 
+                      onClick={() => handleInboxItemClick({ wordId: word.id, id: 0, type: 'overdue', text: '', timestamp: 0 })} 
                       title="Go to task">
                       <span className="toast-icon">🚨</span>
                       <strong>{word.text}</strong> is Due!
@@ -2833,17 +3596,19 @@ function App() {
                     }}>⚙️</button>
                   </div>
                   <div 
-                    className="overdue-timer clickable" 
-                    onClick={() => handleInboxItemClick(word.id)} 
+                    className="overdue-timer clickable"
+                    onClick={() => handleInboxItemClick({ wordId: word.id, id: 0, type: 'overdue', text: '', timestamp: 0 })}
                     title="Go to task">
                     <TimeLeft word={word} onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))} onNotify={handleTimerNotify} settings={settings} />
                   </div>
                   <div className="overdue-inbox-link">
-                    Notification sent to <a href="#" onClick={(e) => { e.preventDefault(); navigateToView('inbox'); }}>Inbox</a>
+                    Notification sent to <a href="#" onClick={(e) => { e.preventDefault(); navigateToView('inbox'); }}>Inbox</a> 
                   </div>
                   <div className="overdue-notification-actions">
                     <button onClick={() => handleCompleteWord(word)} title="Complete this task">✓ Complete</button>
+                    <button onClick={() => handleSnooze(word, 'high')} title="Snooze for 10 minutes">Snooze 10m</button>
                     <button onClick={() => handleSnooze(word)} title={`Snooze for ${settings.snoozeTime === 'low' ? '1' : settings.snoozeTime === 'medium' ? '5' : '10'} minutes`}>Snooze</button>
+                    <button onClick={() => removeWord(word.id)} title="Delete this task">Delete</button>
                   </div>
                 </div>
               </div>
@@ -2911,35 +3676,90 @@ function App() {
             <div className="list-header">
               <h3>Inbox ({inboxMessages.length})</h3>
               <div className="list-header-actions">
+                <div className="inbox-sort-control">
+                  <label>Sort by:</label>
+                  <select value={settings.inboxSort || 'date-desc'} onChange={(e) => setSettings(prev => ({ ...prev, inboxSort: e.target.value as any }))}>
+                    <option value="date-desc">Date (Newest First)</option>
+                    <option value="date-asc">Date (Oldest First)</option>
+                    <option value="type">Message Type</option>
+                  </select>
+                </div>
                 <button onClick={() => {
                   setInboxMessages([]);
                   setIsDirty(true); // Mark state as changed to ensure it saves
                 }} title="Clear All Messages">🗑️ Clear All</button>
               </div>
             </div>
-            {inboxMessages.length > 0 ? (
-              <div className="inbox-list">
-                {inboxMessages.map(message => (
-                  <div 
-                    key={message.id} 
-                    className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`}
-                    onClick={() => handleInboxItemClick(message.wordId)}
-                    onContextMenu={(e) => { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); }}
-                  >
-                    <span className="inbox-item-icon">{message.type === 'overdue' ? '🚨' : '⏳'}</span>
-                    <span className="inbox-item-text">{message.text}</span>
-                    <span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
-                    <button onClick={(e) => {
-                      e.stopPropagation(); // Stop the click from bubbling up to the parent div
-                      setInboxMessages(prev => prev.filter(m => m.id !== message.id));
-                      setIsDirty(true);
-                    }} className="remove-btn" title="Dismiss Message">×</button>
+            {(() => {
+              if (inboxMessages.length === 0) {
+                return <p>Your inbox is empty.</p>;
+              }
+
+              if (settings.inboxSort === 'type') {
+                const groupedMessages = inboxMessages.reduce((acc, message) => {
+                  const type = message.type;
+                  if (!acc[type]) {
+                    acc[type] = [];
+                  }
+                  acc[type].push(message);
+                  return acc;
+                }, {} as Record<string, InboxMessage[]>);
+
+                // Sort each group internally by timestamp
+                for (const type in groupedMessages) {
+                  groupedMessages[type].sort((a, b) => b.timestamp - a.timestamp);
+                }
+
+                return (
+                  <div className="inbox-list">
+                    {Object.entries(groupedMessages).map(([type, messages]) => (
+                      <SimpleAccordion 
+                        key={`${type}-${messages[0]?.id || 0}`} 
+                        title={`${type.charAt(0).toUpperCase() + type.slice(1)} (${messages.length})`} 
+                        startOpen={(settings.openInboxGroupTypes || []).includes(type)}
+                        onToggle={(isOpen) => {
+                          const newOpenTypes = isOpen ? [...(settings.openInboxGroupTypes || []), type] : (settings.openInboxGroupTypes || []).filter(t => t !== type);
+                          setSettings(prev => ({ ...prev, openInboxGroupTypes: newOpenTypes }));
+                        }}>
+                        <div className="inbox-group">
+                          {messages.map(message => (
+                            <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)} onContextMenu={(e) => { if (message.type !== 'created' && message.type !== 'deleted' && message.type !== 'updated' && message.type !== 'completed') { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); } else { e.preventDefault(); } }}>
+                              <span className="inbox-item-icon">{message.type === 'overdue' ? '🚨' : message.type === 'timer-alert' ? '⏳' : message.type === 'created' ? '✨' : message.type === 'completed' ? '✅' : message.type === 'deleted' ? '🗑️' : '📝'}</span>
+                              <span className="inbox-item-text">{message.text}</span>
+                              <span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
+                              <button onClick={(e) => { e.stopPropagation(); setInboxMessages(prev => prev.filter(m => m.id !== message.id)); setIsDirty(true); }} className="remove-btn" title="Dismiss Message">×</button>
+                            </div>
+                          ))}
+                        </div>
+                      </SimpleAccordion>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p>Your inbox is empty.</p>
-            )}
+                );
+              }
+
+              const sortedMessages = [...inboxMessages].sort((a, b) => {
+                if (settings.inboxSort === 'date-asc') {
+                  return a.timestamp - b.timestamp;
+                }
+                if (settings.inboxSort === 'type') {
+                  return a.type.localeCompare(b.type) || b.timestamp - a.timestamp;
+                }
+                return b.timestamp - a.timestamp; // Default 'date-desc'
+              });
+
+              return (
+                <div className="inbox-list">
+                  {sortedMessages.map(message => (
+                    <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)} onContextMenu={(e) => { if (message.type !== 'created' && message.type !== 'deleted' && message.type !== 'updated' && message.type !== 'completed') { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); } else { e.preventDefault(); } }}>
+                      <span className="inbox-item-icon">{message.type === 'overdue' ? '🚨' : message.type === 'timer-alert' ? '⏳' : message.type === 'created' ? '✨' : message.type === 'completed' ? '✅' : message.type === 'deleted' ? '🗑️' : '📝'}</span>
+                      <span className="inbox-item-text">{message.text}</span>
+                      <span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
+                      <button onClick={(e) => { e.stopPropagation(); setInboxMessages(prev => prev.filter(m => m.id !== message.id)); setIsDirty(true); }} className="remove-btn" title="Dismiss Message">×</button>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
         {settings.currentView === 'list' && (
@@ -3158,8 +3978,9 @@ function App() {
                                   <div className="accordion-subtitle">
                                     {word.company && <span>{word.company}</span>}
                                     <span>{formatDate(word.openDate)} {new Date(word.openDate).toLocaleTimeString()}</span>
-                                    {word.snoozeCount > 0 && <span>Snoozed: {word.snoozeCount} time(s)</span>}
-                                    {word.lastNotified > word.createdAt && <span>Last Snoozed: {formatTimestamp(word.lastNotified)}</span>}
+                                    {word.snoozeCount > 0 && <span>Snoozed: {word.snoozeCount} time(s)</span>}                                    
+                                    {word.snoozedAt && <span>Last Snoozed at: {formatTimestamp(word.snoozedAt)}</span>}
+                                    {word.lastNotified > word.createdAt && <span>Next Alert at: {formatTimestamp(word.lastNotified)}</span>}
                                     {word.completeBy && <span>Due: {formatDate(word.completeBy)} {new Date(word.completeBy).toLocaleTimeString()}</span>}
                                     <span><TimeLeft word={word} onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))} onNotify={handleTimerNotify} settings={settings} /></span>
                                     <span className={`priority-indicator priority-${(word.priority || 'Medium').toLowerCase()}`}>
@@ -3177,11 +3998,16 @@ function App() {
                                       ...prev,
                                       activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: tab }
                                     }))}
-                                    onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))}
+                                    onUpdate={handleWordUpdate}
                                     onNotify={handleTimerNotify}
                                     formatTimestamp={formatTimestamp}
                                     setCopyStatus={setCopyStatus}
+                                    words={words}
+                                    setInboxMessages={setInboxMessages}
                                     settings={settings} onDescriptionChange={() => {}} onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                                    onComplete={handleChecklistCompletion}
+                                    wordId={word.id}
+                                    checklistRef={activeChecklistRef}
                                   />
                                   <div className="word-item-display">
                                     <span className="stopwatch date-opened">
@@ -3368,14 +4194,18 @@ function App() {
                           <TabbedView 
                             word={word} 
                             onTabChange={() => {}} // No tab state persistence for completed items
-                            
-                            onUpdate={() => {}} // No updates for completed items
+                            onUpdate={() => {}} // No updates for completed items, this is correct
                             onNotify={() => {}} // No notifications for completed items
                             formatTimestamp={formatTimestamp}
                             setCopyStatus={setCopyStatus}
                             onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
                             onDescriptionChange={() => {}}
                             settings={settings}
+                            words={words}
+                            onComplete={handleChecklistCompletion}
+                            checklistRef={activeChecklistRef}
+                            wordId={word.id}
+                            setInboxMessages={setInboxMessages}
                           />
                           {/* This second child is the 'headerActions' for the accordion */}
                           <div className="list-item-controls">
@@ -3473,6 +4303,7 @@ function App() {
             <label><h4>Image Links:</h4>
               {(newTask.imageLinks || []).map((link, index) => (
                 <div key={index} className="image-link-edit">
+                  <input type="text" value={link} onChange={(e) => { const newLinks = [...(newTask.imageLinks || [])]; newLinks[index] = e.target.value; setNewTask({ ...newTask, imageLinks: newLinks }); }} />
                   <input type="text" value={link} onChange={(e) => {
                     const newLinks = [...(newTask.imageLinks || [])];
                     newLinks[index] = e.target.value;
@@ -3485,6 +4316,16 @@ function App() {
                 + Add Image Link
               </button>
             </label>
+            <Checklist 
+              sections={newTask.checklist || []} 
+              onUpdate={(newSections) => setNewTask({ ...newTask, checklist: newSections })} 
+              onComplete={handleChecklistCompletion} 
+              isEditable={true}
+              words={words}
+              setInboxMessages={setInboxMessages}
+              checklistRef={activeChecklistRef}
+              wordId={Date.now()} // Use a temporary ID for the new task context
+              /> 
             <DescriptionEditor 
               description={newTask.description || ''} 
               onDescriptionChange={(html) => setNewTask({ ...newTask, description: html })} 

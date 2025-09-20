@@ -2,18 +2,105 @@
 
 All notable changes to this project will be documented in this file.
 
+## Future Features
+-   **Alternating Tasks**: Link tasks where Completing starts another
+-   **Autocompletion of Checklists**: Add an option for when all items in a checklist is completed that it completes the task
+-   **Task Types**: Templated forms based on categorical dropdown to simplfy the form fields based on the task type
+-   **Templated Tasks**: Save a task to use when creating a new task & predefined Templates to choose from:
+    -   **Template: Finance**:
+    -   **Template: Learning**:
+    -   **Template: Cooking**:
+    -   **Template: Health & Exercise**:
+    -   **Template: Travel**:
+    -   **Template: Work**:
+    -   **Template: Shopping**:
+    -   **Template: Home & Car Maintenance**:
+    -   **Template: Billing**:    
+-   **Copy to Sheets**: Explore how we could copy a task to sheets possibly or what we'd use this for
+-   **Inbox Expansion**
+    -   **Inbox Important**: Flag specific inbox items to not be deleted when the user hits Delete All Messages or attempts to hit X on the message
+    -   **Inbox Archive**: Move inbox items out of the inbox and into an archived state
+    -   **Inbox Trash**: Move inbox items out of the inbox and into a trash state rather than deleting them permanently
+    -   **Inbox Options**: Expand the inbox options to choose which message are received
+    
+-   **Standalone Application**: Package the application into a distributable and installable format for major operating systems (Windows, macOS, Linux).
+-   **Full Task View**: Add support to view a task in a single page format allowing both a View and Edit mode.
+-   **Users**: Add a feature to create users and assign tickets to them, with the ability to filter the list to view tickets assigned to a specific user.
+-   **Themes**: Different style layouts
+-   **Settings**: Missing a few settings options and probably want to build a full settings view soon
+-   **Templated Tasks**: Save a task to use when creating a new task
+-   **Calendar**: Task view in Calendar form. Can start new task on a specific due date by using the calendar
+-   **Achievements**: Fun goal tracking system
+-   **Score**: Add score to tasks
+-   **Response to Ticket**: Like a comment but we want this to be a field where we would draft a response to a task acting as a ticket. Ideally we would be able to grab data from the task to help construct the response.
+-   **Filtered search of Scripted responses**: Similar to above and likely used for the Response to Ticket but also allowing the user to user from a variety of responses and oneliners for Tasks functioning as Tickets. 
+-   **Send Notifications externally**: Attempts to hook the various toast alerts to external sources
+    -   **Send to Desktop Notifications**: See whats possible with Electron
+    -   **Send to Email Notifications**: See whats possible with Electron
+    -   **Send to SMS Notifications**: See whats possible with Electron
+-   **Advanced Checklist System**:  This system is already in place but we're still expanding it out.
+    -   Checklist Template Management
+        -   Implemented a full template system to save, load, and manage reusable checklists:
+            -   Phase 1: Data Structure & Storage
+            -   Phase 2: UI/UX Implementation
+            -   Phase 3: State Management & Logic
+        -   Add a "Manage Templates" button to open a modal for renaming/deleting templates.
+-   **Total Refactoring**:  The codebase's individual files are getting rather large and likely need to start compartmentalizing structure into individual files to reduce strain on both the developer and code assist tools.
+    - **Change "Word" to "Task"**: When the application was first created, its only purpose was to display a "word cloud," so the main data object was fittingly named Word. As we added more and more features, we transformed that simple Word object into a complex Task manager, but the original variable names like Word, words, handleCompleteWord, etc., remained. See "Rule 08.0: Codebase Naming Conventions (Word vs. Task)" for more details.
+      - We need to update this handling to avoid confusion moving forward as the application grows from its original intention. The App started as a simple "word cloud" generator on a meme, which still functions as both a Meme Generator and links the tasks to a google search result when clicked. 
+      - We can likely overhaul the Meme view into a fullblown Meme Generator by including a different subview that allows the user to choose the image, text, and placement.        
+
 ## [1.0.2] - 2024-09-19
 
+Critical errors trying to implement a Gemini prompt again... this time with "Copy Checklist" so I rolled back some changes from this version to salve what we've worked on. The following "Needs to be added" section is what is left from this chat session.        
+
 ### Added
+-   **Task Lifecycle Logging**: The Inbox now logs all major task events, including `Created`, `Completed`, `Deleted`, and `Updated` tasks, providing a complete audit trail.
+-   **Advanced Checklist System**:
+    -   Implemented a robust, multi-section checklist system within each task.
+-   **Actionable Overdue Toasts**:
+    -   Added a "Snooze 10m" button for a longer, one-click snooze option.
+    -   Added an "Edit Task" option to the right-click context menu on overdue notifications, allowing for direct access to the edit form.
+    -   Added a "Snooze All 10m" button to the bulk overdue actions summary.
+    -   Added a right-click context menu to checklist items for actions like "Edit", "Complete", "Copy", "Add Item Before/After", "Move Up/Down", and "Delete".
+    -   Added a right-click context menu to checklist section headers for actions like "Complete All", "Duplicate Section", and "Delete Section".
+    -   Added a visual progress bar to each section header, which turns green upon completion.
+    -   Added a "Clear Completed" button to each section to quickly remove finished items.
+    -   Added a "Complete All" / "Re-Open All" toggle button to each section header for bulk actions.
+    -   Added a global "Complete All" / "Re-Open All" button to the main checklist header.
+    -   Added a "Delete all Sections" button to the checklist actions.
+    -   Added section reordering via "Move Up/Down" buttons and context menu actions.
+    -   Added "Undo" and "Redo" actions to the checklist section context menu for quick history navigation.
+    -   Using 'Add Section' now automatically focuses the title for immediate editing.
+-   **Bulk Checklist Item Creation**: The checklist "add item" input now supports pasting or typing multiple lines, automatically creating a separate to-do item for each line.
+-   **Save Status Timers**: Added "Last saved at" and "Autosaving in..." timers to the UI to provide clear, real-time feedback on the project's save status. 
+-   **Inbox Sorting**: Added a dropdown to the Inbox to sort messages by date (newest/oldest) or by message type. This preference is saved and restored across sessions.
+-   **Grouped Inbox View**: When sorting by "Message Type", the inbox now groups messages into collapsible sections for better organization.
 
 ### Changed
-
+-   **Checklist UI Modernization**: The checklist UI was refined to better match the application's modern aesthetic, with improved spacing, alignment, and input controls.
+-   **Checklist Section Actions**: Grouped all section-level action buttons (Complete, Clear, Move, Delete) into a single, unified block in the section header for a cleaner layout.
+-   **Interactive Checklists**: Checklist items and "Complete All" buttons are now fully interactive in the read-only "Task" view, allowing for quick updates without entering "Edit" mode.
+-   **Consistent Context Menus**: Checklist item and section context menus now work consistently in both "Task" and "Edit" views.
 
 ### Fixed
-
+-   **Inbox Navigation**: Fixed a critical bug where clicking a task in the inbox would not navigate to the correct category/sub-category view, making the task invisible.
+-   **Unsaved State Bug**: Resolved an issue where the rich text editor's auto-resize logic was constantly marking the project as "unsaved" (dirty), even with no user changes.
+-   **Rich Text Editor Data Loss**: Prevented a data-loss bug by disabling interaction with form elements (like checkboxes) pasted into the rich text editor's "View" mode, which was causing state conflicts with React.
+-   **Checklist State Bug**: Fixed an issue where multiple "Add Item" text areas in different checklist sections would incorrectly share the same input text.
+-   **Granular Inbox Notifications**: Fixed a logic bug where using the "Complete All" button would send duplicate "Section completed" notifications to the inbox.
+-   **Save Status Timers**: Fixed a bug where the "Autosaving in..." countdown timer would get stuck at 0:00 instead of resetting after an auto-save.
+-   **Snooze Timer Display**: Fixed a UI bug where the "Last Snoozed at" field was incorrectly showing the future alert time. It has been renamed to "Next Alert at:", and a new, accurate "Last Snoozed at:" field has been added.
+-   **Bulk Snooze Action**: Fixed a bug where the "Snooze All" button was not correctly using the user's default snooze time setting.
+-   **Checklist Context Menu Undo/Redo**: Fixed a complex state management bug where the Undo/Redo actions in the context menu would not correctly update the checklist's visual state.
+-   **Unique Key Generation**: Implemented a more robust ID generation strategy (`Date.now() + Math.random()`) to prevent duplicate key warnings in React, especially when creating multiple items in quick succession.
+-   **Checklist Context Menus**: Fixed a bug where the "Delete Section" action in the context menu was not working correctly.
+-   **Inbox Rendering**: Fixed a bug where the grouped inbox view could generate non-unique keys for its accordion sections, causing React warnings.
+-   **Inbox Data Persistence**: Fixed a critical bug where clearing the inbox would not save correctly if the user was on the Inbox view, causing all messages to reappear on restart.
+-   **Overdue Notification Spam**: Fixed a race condition where the app would create a flood of duplicate "overdue" messages in the inbox upon startup or when a task remained overdue.
 
 ### Updated
-
+-   **Extensive Developer Documentation**: Added comprehensive developer guides to `GEMINI.md`, covering critical architectural patterns, common pitfalls, and solutions for data persistence, state management, UI interactions, and more.
 
 ## [1.0.1] - 2025-09-18
 

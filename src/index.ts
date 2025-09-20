@@ -401,6 +401,10 @@ app.whenReady().then(() => {
         label: 'View Task',
         click: () => webContents.send('toast-context-menu-command', { command: 'view', wordId }),
       },
+      {
+        label: 'Edit Task',
+        click: () => webContents.send('toast-context-menu-command', { command: 'edit', wordId }),
+      },
       { type: 'separator' },
       {
         label: 'Snooze',
@@ -486,6 +490,98 @@ app.whenReady().then(() => {
       {
         label: 'Create Manual Backup...',
         click: () => webContents.send('save-context-menu-command', { command: 'backup' }),
+      },
+    ];
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
+  });
+  ipcMain.on('show-checklist-item-context-menu', (event, payload) => {
+    const { sectionId, itemId, isCompleted, x, y } = payload;
+    const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+      {
+        label: isCompleted ? 'Re-Open Item' : 'Complete Item',
+        click: () => webContents.send('checklist-item-command', { command: 'toggle_complete', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Edit Item',
+        click: () => webContents.send('checklist-item-command', { command: 'edit', sectionId, itemId }),
+      },
+      {
+        label: 'Copy Item Text',
+        click: () => webContents.send('checklist-item-command', { command: 'copy', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Add Item Before',
+        click: () => webContents.send('checklist-item-command', { command: 'add_before', sectionId, itemId }),
+      },
+      {
+        label: 'Add Item After',
+        click: () => webContents.send('checklist-item-command', { command: 'add_after', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Move Up',
+        click: () => webContents.send('checklist-item-command', { command: 'move_up', sectionId, itemId }),
+      },
+      {
+        label: 'Move Down',
+        click: () => webContents.send('checklist-item-command', { command: 'move_down', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Delete Item',
+        click: () => webContents.send('checklist-item-command', { command: 'delete', sectionId, itemId }),
+      },
+    ];
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
+  });
+  ipcMain.on('show-checklist-section-context-menu', (event, payload) => {
+    const { wordId, sectionId, areAllComplete, x, y } = payload;
+    const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+      {
+        label: areAllComplete ? 'Re-Open All in Section' : 'Complete All in Section',
+        click: () => webContents.send('checklist-section-command', { command: 'toggle_all_in_section', sectionId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Duplicate Section',
+        click: () => webContents.send('checklist-section-command', { command: 'duplicate_section', sectionId }),
+      },
+      {
+        label: 'Delete Section',
+        click: () => webContents.send('checklist-section-command', { command: 'delete_section', sectionId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Edit Task',
+        click: () => webContents.send('context-menu-command', { command: 'edit', wordId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Move Section Up',
+        click: () => webContents.send('checklist-section-command', { command: 'move_section_up', sectionId }),
+      },
+      {
+        label: 'Move Section Down',
+        click: () => webContents.send('checklist-section-command', { command: 'move_section_down', sectionId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Undo Last Action',
+        // We don't know if it's enabled from here, but we can send the command. The renderer will handle it.
+        click: () => webContents.send('checklist-section-command', { command: 'undo_checklist', sectionId }),
+      },
+      {
+        label: 'Redo Last Action',
+        click: () => webContents.send('checklist-section-command', { command: 'redo_checklist', sectionId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Inspect Element',
+        click: () => webContents.inspectElement(x, y),
       },
     ];
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
