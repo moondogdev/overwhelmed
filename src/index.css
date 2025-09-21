@@ -1579,6 +1579,21 @@ input[type="datetime-local"] + .button-group button {
   box-shadow: 0 0 8px #61dafb;
 }
 
+.task-type-fields {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* Two columns */
+  gap: 5px;
+  padding: 10px;
+  background-color: #282c34;
+  border-radius: 3px;
+  margin-top: 5px;
+}
+
+.task-type-fields .checkbox-label-text {
+  font-size: 0.8em;
+  color: #ccc;
+}
+
 .checklist-header {
   display: flex;
   align-items: baseline;

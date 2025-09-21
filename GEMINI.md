@@ -5,6 +5,7 @@ A hybrid task management and "word cloud" visualization application designed for
 ### Features
 
 -   **Advanced Task Management**: Create and manage tasks with detailed fields including priority, due dates with live countdowns, pay rates, recurring schedules, and local file attachments.
+-   **Task Types & Templates**: A "Task Type" system allows users to create templated forms that show only the fields relevant to a specific type of task (e.g., "Billing", "Research"), streamlining task creation.
 -   **Hierarchical Categories**: Organize tasks with a full-featured, two-level category and sub-category system.
 -   **Robust Checklist System**: Add multi-section checklists to any task, with progress bars, undo/redo history, and full context menu support for item management.
 -   **Rich Text Editing**: A full WYSIWYG editor for task descriptions and notes, with support for headers, lists, hyperlinks, and more.
@@ -105,7 +106,8 @@ See `CHANGELOG.md` for a list of future features to implement. Strickly follow `
 
 All notable changes to this project will be documented in this file @CHANGELOG.md. Please update the separate changelog as development progresses.
 
-## [1.0.5] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow
+## [1.0.5] - 2025-09-21: Task Types & Templated Forms
+## [1.0.4] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow
 ## [1.0.3] - 2024-09-20: Inbox Protection & Full Task View
 ## [1.0.2] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation
 ## [1.0.1] - 2024-09-18: Notification System & Inbox View

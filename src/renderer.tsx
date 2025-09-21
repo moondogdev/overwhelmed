@@ -95,6 +95,7 @@ interface Word {
   snoozeCount?: number; // How many times the task has been snoozed
   snoozedAt?: number; // Timestamp of when the last snooze was initiated
   manualTimeRunning?: boolean;
+  taskType?: string; // New property for task types
   manualTimeStart?: number; // Timestamp when manual timer was started
 }
 
@@ -118,6 +119,12 @@ interface Category {
   id: number;
   name: string;
   parentId?: number; // If present, this is a sub-category
+}
+
+interface TaskType {
+  id: string; // e.g., 'billing', 'research'
+  name: string; // e.g., 'Billing', 'Research'
+  fields: (keyof Word)[]; // Array of field names to show for this type
 }
 
 interface ExternalLink {
@@ -162,6 +169,7 @@ interface Settings {
   useDefaultBrowserForSearch?: boolean; // New global setting
   inboxSort?: 'date-desc' | 'date-asc' | 'type';
   openInboxGroupTypes?: string[];
+  taskTypes?: TaskType[];
 }
 
 
@@ -1849,6 +1857,11 @@ const defaultSettings: Settings = {
   prioritySortConfig: {}, // Now an object to store sort configs per category
   inboxSort: 'date-desc', // Default inbox sort  
   openInboxGroupTypes: [], // Default to no groups open
+  taskTypes: [ // Default task types
+    { id: 'default', name: 'Default', fields: ['text', 'url', 'priority', 'categoryId', 'openDate', 'completeBy', 'company', 'websiteUrl', 'imageLinks', 'payRate', 'isRecurring', 'isDailyRecurring', 'isWeeklyRecurring', 'isMonthlyRecurring', 'isYearlyRecurring', 'isAutocomplete', 'description', 'attachments', 'checklist', 'notes'] },
+    { id: 'billing', name: 'Billing', fields: ['text', 'payRate', 'manualTime', 'company', 'openDate', 'completeBy'] },
+    { id: 'research', name: 'Research', fields: ['text', 'url', 'notes', 'description', 'attachments'] },
+  ],
 };
 
 function App() {
@@ -2068,6 +2081,7 @@ function App() {
   const [newTask, setNewTask] = useState({
     text: '',
     url: '',
+    taskType: 'default',
     priority: 'Medium' as 'High' | 'Medium' | 'Low',
     categoryId: 1, // Default to first category
     openDate: new Date().getTime(),
@@ -2976,6 +2990,7 @@ function App() {
       setNewTask({
         text: '',
         url: '',
+        taskType: newTask.taskType, // Keep the selected task type
         priority: 'Medium' as 'High' | 'Medium' | 'Low',
         categoryId: newTask.categoryId, // Keep the selected category
         openDate: new Date().getTime(),
@@ -4564,23 +4579,36 @@ function App() {
       <div className={`sidebar ${settings.isSidebarVisible ? '' : 'hidden'}`}>
         <SimpleAccordion title="Add New Task" startOpen={isAddTaskOpen} onToggle={setIsAddTaskOpen}>
           <div className="new-task-form">
-            <label><h4>Task Title:</h4><input ref={newTaskTitleInputRef} type="text" placeholder="Enter a title and press Enter" value={newTask.text} onChange={(e) => setNewTask({ ...newTask, text: e.target.value })} onKeyDown={handleInputKeyDown} />
+            {(() => {
+              const selectedTaskType = (settings.taskTypes || []).find(type => type.id === newTask.taskType);
+              const visibleFields = selectedTaskType ? selectedTaskType.fields : [];
+
+              const shouldShow = (fieldName: keyof Word) => visibleFields.includes(fieldName);
+
+              return (
+                <>
+            <label><h4>Task Type:</h4>
+              <select value={newTask.taskType} onChange={(e) => setNewTask({ ...newTask, taskType: e.target.value })}>
+                {(settings.taskTypes || []).map(type => (
+                  <option key={type.id} value={type.id}>{type.name}</option>
+                ))}
+              </select>
             </label>
-            <label><h4>URL:</h4><input type="text" placeholder="https://example.com" value={newTask.url} onChange={(e) => setNewTask({ ...newTask, url: e.target.value })} />
-            </label>
-            <label><h4>Category:</h4>
+                  {shouldShow('text') && <label><h4>Task Title:</h4><input ref={newTaskTitleInputRef} type="text" placeholder="Enter a title and press Enter" value={newTask.text} onChange={(e) => setNewTask({ ...newTask, text: e.target.value })} onKeyDown={handleInputKeyDown} /></label>}
+                  {shouldShow('url') && <label><h4>URL:</h4><input type="text" placeholder="https://example.com" value={newTask.url} onChange={(e) => setNewTask({ ...newTask, url: e.target.value })} /></label>}
+                  {shouldShow('categoryId') && <label><h4>Category:</h4>
               <select value={newTask.categoryId} onChange={(e) => setNewTask({ ...newTask, categoryId: Number(e.target.value) })}>
                 <CategoryOptions categories={settings.categories} />
               </select>
-            </label>
-            <label><h4>Priority:</h4>
+                  </label>}
+                  {shouldShow('priority') && <label><h4>Priority:</h4>
               <select value={newTask.priority} onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as any })}>
                 <option value="High">High</option>
                 <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
               </select>
-            </label>
-            <label><h4>Open Date:</h4>
+                  </label>}
+                  {shouldShow('openDate') && <label><h4>Open Date:</h4>
               <div className="date-input-group">
                 <input type="datetime-local" value={formatTimestampForInput(newTask.openDate)} onChange={(e) => setNewTask({ ...newTask, openDate: parseInputTimestamp(e.target.value) })} />
                 <div className="button-group">{(() => {
@@ -4601,8 +4629,8 @@ function App() {
                   })()}
                 </div>
               </div>
-            </label>
-            <label><h4>Complete By:</h4>
+                  </label>}
+                  {shouldShow('completeBy') && <label><h4>Complete By:</h4>
             <input type="datetime-local" value={formatTimestampForInput(newTask.completeBy)} onChange={(e) => setNewTask({ ...newTask, completeBy: parseInputTimestamp(e.target.value) })} />
               <div className="button-group">{(() => {
                   const addTime = (amount: number, unit: 'minutes' | 'hours' | 'days') => {
@@ -4624,14 +4652,11 @@ function App() {
                     <button onClick={() => addTime(1, 'days')}>+1d</button> <button onClick={() => addTime(3, 'days')}>+3d</button>
                   </>;
                 })()}</div>
-            </label>
-            <label><h4>Company:</h4><input type="text" value={newTask.company} onChange={(e) => setNewTask({ ...newTask, company: e.target.value })} />
-            </label>
-            <label><h4>Pay Rate ($/hr):</h4><input type="number" value={newTask.payRate || 0} onChange={(e) => setNewTask({ ...newTask, payRate: Number(e.target.value) })} />
-            </label>
-            <label><h4>Website URL:</h4><input type="text" placeholder="https://company.com" value={newTask.websiteUrl} onChange={(e) => setNewTask({ ...newTask, websiteUrl: e.target.value })} />
-            </label>
-            <label><h4>Image Links:</h4>
+                  </label>}
+                  {shouldShow('company') && <label><h4>Company:</h4><input type="text" value={newTask.company} onChange={(e) => setNewTask({ ...newTask, company: e.target.value })} /></label>}
+                  {shouldShow('payRate') && <label><h4>Pay Rate ($/hr):</h4><input type="number" value={newTask.payRate || 0} onChange={(e) => setNewTask({ ...newTask, payRate: Number(e.target.value) })} /></label>}
+                  {shouldShow('websiteUrl') && <label><h4>Website URL:</h4><input type="text" placeholder="https://company.com" value={newTask.websiteUrl} onChange={(e) => setNewTask({ ...newTask, websiteUrl: e.target.value })} /></label>}
+                  {shouldShow('imageLinks') && <label><h4>Image Links:</h4>
               {(newTask.imageLinks || []).map((link, index) => (
                 <div key={index} className="image-link-edit">
                   <input type="text" value={link} onChange={(e) => {
@@ -4643,8 +4668,8 @@ function App() {
               ))}
               <button className="add-link-btn" onClick={() => setNewTask({ ...newTask, imageLinks: [...(newTask.imageLinks || []), ''] })}>                <i className="fas fa-plus"></i> Add Image Link
               </button>
-            </label>
-            <Checklist 
+                  </label>}
+                  {shouldShow('checklist') && <Checklist 
               sections={newTask.checklist || []} 
               onUpdate={(newSections) => setNewTask({ ...newTask, checklist: newSections })} 
               onComplete={handleChecklistCompletion} 
@@ -4653,15 +4678,15 @@ function App() {
               setInboxMessages={setInboxMessages}
               checklistRef={activeChecklistRef}
               wordId={Date.now()} // Use a temporary ID for the new task context
-              /> 
-            <DescriptionEditor 
+                  />}
+                  {shouldShow('description') && <DescriptionEditor 
               description={newTask.description || ''} 
               onDescriptionChange={(html) => setNewTask({ ...newTask, description: html })} 
               settings={settings} 
               onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
               editorKey="new-task-description"
-            />
-            <div className="description-container">
+                  />}
+                  {shouldShow('attachments') && <div className="description-container">
               <strong>Attachments:</strong>
               {(newTask.attachments || []).map((file, index) => (
                 <div key={index} className="attachment-edit">
@@ -4674,8 +4699,8 @@ function App() {
                   setNewTask({ ...newTask, attachments: [...(newTask.attachments || []), newFile] });
                 }
               }}><i className="fas fa-plus"></i> Attach File</button>
-            </div>
-            <div className="description-container">
+                  </div>}
+                  {shouldShow('notes') && <div className="description-container">
               <strong>Notes:</strong>
               <DescriptionEditor 
                 description={newTask.notes || ''} 
@@ -4683,29 +4708,21 @@ function App() {
                 settings={settings} 
                 onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
                 editorKey="new-task-notes" />
-            </div>
-            <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isRecurring || false} onChange={(e) => setNewTask({ ...newTask, isRecurring: e.target.checked })} />
-              <span className='checkbox-label-text'>Re-occurring Task</span>
-            </label>
-            <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isDailyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isDailyRecurring: e.target.checked })} />
-              <span className='checkbox-label-text'>Repeat Daily</span>
-            </label>
-            <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isWeeklyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isWeeklyRecurring: e.target.checked })} />
-              <span className='checkbox-label-text'>Repeat Weekly</span>
-            </label>
-            <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isMonthlyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isMonthlyRecurring: e.target.checked })} />
-              <span className='checkbox-label-text'>Repeat Monthly</span>
-            </label>
-            <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isYearlyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isYearlyRecurring: e.target.checked })} />
-              <span className='checkbox-label-text'>Repeat Yearly</span>
-            </label>
-            <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isAutocomplete || false} onChange={(e) => setNewTask({ ...newTask, isAutocomplete: e.target.checked })} />
-              <span className='checkbox-label-text'>Autocomplete on Deadline</span>
-            </label>
+                  </div>}
+                  {shouldShow('isRecurring') && <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isRecurring || false} onChange={(e) => setNewTask({ ...newTask, isRecurring: e.target.checked })} /><span className='checkbox-label-text'>Re-occurring Task</span></label>}
+                  {shouldShow('isDailyRecurring') && <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isDailyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isDailyRecurring: e.target.checked })} /><span className='checkbox-label-text'>Repeat Daily</span></label>}
+                  {shouldShow('isWeeklyRecurring') && <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isWeeklyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isWeeklyRecurring: e.target.checked })} /><span className='checkbox-label-text'>Repeat Weekly</span></label>}
+                  {shouldShow('isMonthlyRecurring') && <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isMonthlyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isMonthlyRecurring: e.target.checked })} /><span className='checkbox-label-text'>Repeat Monthly</span></label>}
+                  {shouldShow('isYearlyRecurring') && <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isYearlyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isYearlyRecurring: e.target.checked })} /><span className='checkbox-label-text'>Repeat Yearly</span></label>}
+                  {shouldShow('isAutocomplete') && <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isAutocomplete || false} onChange={(e) => setNewTask({ ...newTask, isAutocomplete: e.target.checked })} /><span className='checkbox-label-text'>Autocomplete on Deadline</span></label>}
+                </>
+              );
+            })()}
             <button onClick={() => handleInputKeyDown({ key: 'Enter' } as React.KeyboardEvent<HTMLInputElement>)}><i className="fas fa-plus"></i> Add Task
             </button>
           </div>
         </SimpleAccordion>
+        <TaskTypeManager settings={settings} setSettings={setSettings} />
 
         <SimpleAccordion className="accordion-category-manager" title="Category Manager">
           {settings.categories.filter(c => !c.parentId).map((parentCat: Category) => (
@@ -4974,6 +4991,82 @@ function App() {
         )}
       </div>
     </div>
+  );
+}
+
+function TaskTypeManager({ settings, setSettings }: { settings: Settings, setSettings: React.Dispatch<React.SetStateAction<Settings>> }) {
+  const allPossibleFields: (keyof Word)[] = [
+    'text', 'url', 'priority', 'categoryId', 'openDate', 'completeBy', 'company', 'websiteUrl', 'imageLinks', 'payRate', 'isRecurring', 'isDailyRecurring', 'isWeeklyRecurring', 'isMonthlyRecurring', 'isYearlyRecurring', 'isAutocomplete', 'description', 'attachments', 'checklist', 'notes'
+  ];
+
+  const handleUpdateTaskType = (updatedType: TaskType) => {
+    const newTypes = (settings.taskTypes || []).map(t => t.id === updatedType.id ? updatedType : t);
+    setSettings(prev => ({ ...prev, taskTypes: newTypes }));
+  };
+
+  const handleAddTaskType = () => {
+    const newType: TaskType = {
+      id: `custom-${Date.now()}`,
+      name: 'New Task Type',
+      fields: ['text', 'priority', 'completeBy'], // A sensible default
+    };
+    const newTypes = [...(settings.taskTypes || []), newType];
+    setSettings(prev => ({ ...prev, taskTypes: newTypes }));
+  };
+
+  const handleDeleteTaskType = (typeId: string) => {
+    if (window.confirm('Are you sure you want to delete this task type?')) {
+      const newTypes = (settings.taskTypes || []).filter(t => t.id !== typeId);
+      setSettings(prev => ({ ...prev, taskTypes: newTypes }));
+    }
+  };
+
+  const handleFieldToggle = (typeId: string, fieldName: keyof Word) => {
+    const taskType = (settings.taskTypes || []).find(t => t.id === typeId);
+    if (!taskType) return;
+
+    const newFields = taskType.fields.includes(fieldName)
+      ? taskType.fields.filter(f => f !== fieldName)
+      : [...taskType.fields, fieldName];
+
+    handleUpdateTaskType({ ...taskType, fields: newFields });
+  };
+
+  return (
+    <SimpleAccordion title="Task Type Manager">
+      {(settings.taskTypes || []).map(type => (
+        <div key={type.id} className="category-manager-group">
+          <div className="category-manager-item parent">
+            <input
+              type="text"
+              value={type.name}
+              onChange={(e) => handleUpdateTaskType({ ...type, name: e.target.value })}
+              disabled={type.id === 'default'} // Don't allow renaming the default type
+            />
+            {type.id !== 'default' && (
+              <button className="remove-link-btn" onClick={() => handleDeleteTaskType(type.id)}>
+                <i className="fas fa-minus"></i>
+              </button>
+            )}
+          </div>
+          <div className="task-type-fields">
+            {allPossibleFields.map(field => (
+              <label key={field} className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={type.fields.includes(field)}
+                  onChange={() => handleFieldToggle(type.id, field)}
+                />
+                <span className="checkbox-label-text">{field}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+      <button className="add-link-btn" onClick={handleAddTaskType}>
+        <i className="fas fa-plus"></i> Add Task Type
+      </button>
+    </SimpleAccordion>
   );
 }
 

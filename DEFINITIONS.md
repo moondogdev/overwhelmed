@@ -34,6 +34,9 @@ This document should be updated whenever new declarative logic is implemented.
 ### `isDirty: boolean`
 -   **Description**: A boolean flag that tracks if there are unsaved changes in the application state. It controls the "Save Project" button's appearance and the "Save and Quit" dialog.
 
+### `settings.taskTypes: TaskType[]`
+-   **Description**: An array within the `settings` object that stores the user-defined task types, including their name and the list of fields they display.
+
 ---
 
 ## Handlers (Functions)
@@ -88,6 +91,20 @@ This document should be updated whenever new declarative logic is implemented.
 ### `handleTrashAllArchived()`
 -   **Description**: Moves all messages from the `archivedMessages` array to the `trashedMessages` array after a user confirmation.
 
+#### Task Type Handlers
+
+### `handleUpdateTaskType(updatedType: TaskType)`
+-   **Description**: Updates a specific task type in the `settings.taskTypes` array with new data (e.g., a new name or a different set of fields).
+
+### `handleAddTaskType()`
+-   **Description**: Adds a new, blank task type to the `settings.taskTypes` array.
+
+### `handleDeleteTaskType(typeId: string)`
+-   **Description**: Deletes a task type from the `settings.taskTypes` array after user confirmation.
+
+### `handleFieldToggle(typeId: string, fieldName: keyof Word)`
+-   **Description**: Toggles the visibility of a specific field for a given task type by adding or removing it from the type's `fields` array.
+
 ---
 
 ## IPC Channels (Main <-> Renderer Communication)
@@ -131,3 +148,13 @@ This pattern explains why we use separate state arrays for different views (e.g.
     const [archivedMessages, setArchivedMessages] = useState<InboxMessage[]>([]);
     ```
     Moving an item is a one-time operation (removing from one array, adding to another). This makes rendering each tab view extremely fast, as no filtering is required. This is the standard pattern for features like the Inbox Archive and Trash.
+
+---
+
+## TypeScript Patterns
+
+### `(keyof Interface)[]` (e.g., `(keyof Word)[]`)
+
+-   **`keyof Word`**: This TypeScript operator creates a union type of all the property names (keys) from the `Word` interface. For example: `'id' | 'text' | 'priority' | ...`.
+-   **`(...)[]`**: This denotes an array of the type inside the parentheses.
+-   **Together**: `(keyof Word)[]` defines a type for an array that can *only* contain strings that are valid keys of the `Word` interface. We use this in our `TaskType` interface to ensure that when we define which fields a task type should show, we can only use valid field names, preventing typos and runtime errors.
