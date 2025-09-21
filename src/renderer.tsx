@@ -105,6 +105,7 @@ interface InboxMessage {
   timestamp: number;
   wordId?: number; // Optional: link back to the task
   sectionId?: number; // Optional: for checklist items
+  isImportant?: boolean;
 }
 
 interface Browser {
@@ -187,6 +188,44 @@ interface TabbedViewProps {
   checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>;
 }
 
+interface FullTaskViewProps {
+  task: Word;
+  onClose: () => void;
+  onUpdate: (updatedWord: Word) => void;
+  onNotify: (word: Word) => void;
+  formatTimestamp: (ts: number) => string;
+  setCopyStatus: (message: string) => void;
+  settings: Settings;
+  onSettingsChange: (newSettings: Partial<Settings>) => void;
+  words: Word[];
+  setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>;
+  onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
+  onTabChange: (wordId: number, tab: 'ticket' | 'edit') => void;
+  onDescriptionChange: (html: string) => void; // Add the missing prop
+}
+
+function FullTaskView({ task, onClose, ...props }: FullTaskViewProps) {
+  return (
+    <div className="full-task-view-container">
+      <div className="full-task-view-header">
+        <button onClick={onClose} className="back-to-list-btn">
+          <i className="fas fa-arrow-left"></i> Back to List
+        </button>
+      </div>
+      <div className="full-task-view-content">
+        <TabbedView
+          word={task}
+          wordId={task.id}
+          {...props}
+          // These are already in props, but being explicit for clarity
+          onUpdate={props.onUpdate}
+          onDescriptionChange={props.onDescriptionChange} // Pass it down
+        />
+      </div>
+    </div>
+  );
+}
+
 function SimpleAccordion({ title, children, startOpen = false, onToggle, className }: AccordionProps & { startOpen?: boolean, onToggle?: (isOpen: boolean) => void, className?: string }) {
   const [isOpen, setIsOpen] = useState(startOpen);
 
@@ -199,7 +238,9 @@ function SimpleAccordion({ title, children, startOpen = false, onToggle, classNa
     <div className={`accordion ${className || ''}`}>
       <div className="accordion-header" onClick={() => { setIsOpen(!isOpen); if(onToggle) onToggle(!isOpen); }}>
         <h4>{title}</h4>
-        <span className="accordion-icon">{isOpen ? '−' : '+'}</span>
+        <span className="accordion-icon">
+          <i className={`fas ${isOpen ? 'fa-minus' : 'fa-plus'}`}></i>
+        </span>
       </div>
       <div className={`accordion-content ${isOpen ? 'open' : 'closed'}`}>
         {isOpen && children}
@@ -414,30 +455,31 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
       {tabHeaders}
       <div className="tab-content" ref={tabContentRef}>
         {activeTab === 'ticket' && (
-          <div className="ticket-display-view">
-            <h3 onContextMenu={handleTaskContextMenu}>{word.text}</h3>            {word.url && <p><strong>URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.url}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); setCopyStatus('URL copied!'); setTimeout(() => setCopyStatus(''), 2000); }}>📋</button></span></p>}
+          <div className="ticket-display-view">            
+            <h3 onContextMenu={handleTaskContextMenu}>{word.text}</h3>            
+            {word.url && <p><strong>URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.url}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); setCopyStatus('URL copied!'); setTimeout(() => setCopyStatus(''), 2000); }}><i className="fas fa-copy"></i></button></span></p>}
             <p><strong>Category:</strong> {settings.categories.find(c => c.id === word.categoryId)?.name || 'Uncategorized'}</p>
             <p><strong>Priority:</strong> {word.priority || 'Medium'}</p>
             <p><strong>Open Date:</strong> {formatTimestamp(word.openDate)}</p>
             <p><strong>Time Open:</strong> <TimeOpen startDate={word.createdAt} /></p>
             {word.completeBy && <p><strong>Complete By:</strong> {formatTimestamp(word.completeBy)}</p>}            
-            {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft word={word} onUpdate={onUpdate} onNotify={onNotify} settings={settings} /></p>}
-            {word.company && <p><strong>Company:</strong> <span className="link-with-copy">{word.company}<button className="copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); setCopyStatus('Company copied!'); setTimeout(() => setCopyStatus(''), 2000); }}>📋</button></span></p>}
-            <div><strong>Work Timer:</strong>
+            {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft word={word} onUpdate={onUpdate} onNotify={onNotify} settings={settings} /></p>}            
+            {word.company && <p><strong>Company:</strong> <span className="link-with-copy">{word.company}<button className="icon-button copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); setCopyStatus('Company copied!'); setTimeout(() => setCopyStatus(''), 2000); }}><i className="fas fa-copy"></i></button></span></p>}
+            <div className="work-timer-container"><strong>Work Timer:</strong>
               <ManualStopwatch word={word} onUpdate={(updatedWord) => onUpdate(updatedWord)} />
             </div>
             <div><strong>Task Cost:</strong>
               <span> ${(((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0)).toFixed(2)}</span>
             </div>
-            {word.websiteUrl && <p><strong>Website URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.websiteUrl, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.websiteUrl}</a><button className="copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.websiteUrl); setCopyStatus('Website URL copied!'); setTimeout(() => setCopyStatus(''), 2000); }}>📋</button></span></p>}
+            {word.websiteUrl && <p><strong>Website URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.websiteUrl, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.websiteUrl}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.websiteUrl); setCopyStatus('Website URL copied!'); setTimeout(() => setCopyStatus(''), 2000); }}><i className="fas fa-copy"></i></button></span></p>}
             <div><strong>Image Links:</strong>
               <div className="image-links-display">
                 {(word.imageLinks || []).map((link, index) => (
                   <div key={index} className="image-link-item">
                     <img src={link} alt={`Image ${index + 1}`} />
                     <div className="image-link-actions">
-                      <button onClick={() => window.electronAPI.downloadImage(link)} title="Download Image">⬇️</button>
-                      <button onClick={() => { navigator.clipboard.writeText(link); setCopyStatus('Image URL copied!'); setTimeout(() => setCopyStatus(''), 2000); }} title="Copy URL">📋</button>
+                      <button className="icon-button" onClick={() => window.electronAPI.downloadImage(link)} title="Download Image"><i className="fas fa-download"></i></button>
+                      <button className="icon-button" onClick={() => { navigator.clipboard.writeText(link); setCopyStatus('Image URL copied!'); setTimeout(() => setCopyStatus(''), 2000); }} title="Copy URL"><i className="fas fa-copy"></i></button>
                     </div>
                   </div>
                 ))}
@@ -477,12 +519,12 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
             }}>
               <div className="description-header" onContextMenu={handleTaskContextMenu}>
                 <strong>Description:</strong>
-                <button className="copy-btn" title="Copy Description Text" onClick={handleCopyDescription}>📋</button>
-                <button className="copy-btn" title="Copy Description HTML" onClick={() => {
+                <button className="icon-button copy-btn" title="Copy Description Text" onClick={handleCopyDescription}><i className="fas fa-copy"></i></button>
+                <button className="icon-button copy-btn" title="Copy Description HTML" onClick={() => {
                   navigator.clipboard.writeText(word.description || ''); setCopyStatus('Description HTML copied!');
                   setTimeout(() => setCopyStatus(''), 2000);
-                }}>HTML</button>
-                <button className="copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}>📋 All</button>
+                }}><i className="fas fa-code"></i></button>
+                <button className="icon-button copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}><i className="fas fa-copy"></i> All</button>
               </div>
               <Checklist 
                 sections={word.checklist || []} 
@@ -503,11 +545,11 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
             <div className="description-container" ref={notesRef}>
               <div className="description-header">
                 <strong>Notes:</strong>
-                <button className="copy-btn" title="Copy Notes Text" onClick={handleCopyNotes}>📋</button>
-                <button className="copy-btn" title="Copy Notes HTML" onClick={() => {
+                <button className="icon-button copy-btn" title="Copy Notes Text" onClick={handleCopyNotes}><i className="fas fa-copy"></i></button>
+                <button className="icon-button copy-btn" title="Copy Notes HTML" onClick={() => {
                   navigator.clipboard.writeText(word.notes || ''); setCopyStatus('Notes HTML copied!');
                   setTimeout(() => setCopyStatus(''), 2000);
-                }}>HTML</button>
+                }}><i className="fas fa-code"></i></button>
               </div>
               <DescriptionEditor 
                 description={word.notes || ''} 
@@ -548,8 +590,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
                       if (unit === 'days') baseTime.setDate(baseTime.getDate() - amount);
                       handleFieldChange('openDate', baseTime.getTime());
                     };
-                    return <>
-                      <button onClick={() => handleFieldChange('openDate', undefined)} title="Clear Date">❌</button>
+                    return <><button className="icon-button" onClick={() => handleFieldChange('openDate', undefined)} title="Clear Date"><i className="fas fa-times"></i></button>
                       <button onClick={() => handleFieldChange('openDate', new Date().getTime())} title="Set to Now">NOW</button>
                       <button onClick={() => { const d = new Date(word.openDate || Date.now()); d.setMinutes(0,0,0); handleFieldChange('openDate', d.getTime()); }} title="Round to Hour">:00</button>
                       <button onClick={() => subtractTime(15, 'minutes')}>-15m</button> <button onClick={() => subtractTime(30, 'minutes')}>-30m</button>
@@ -571,8 +612,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
                       if (unit === 'days') baseTime.setDate(baseTime.getDate() + amount);
                       handleFieldChange('completeBy', baseTime.getTime());
                     };
-                    return <>
-                      <button onClick={() => handleFieldChange('completeBy', undefined)} title="Clear Date">❌</button>
+                    return <><button className="icon-button" onClick={() => handleFieldChange('completeBy', undefined)} title="Clear Date"><i className="fas fa-times"></i></button>
                       <button onClick={() => handleFieldChange('completeBy', new Date().getTime())} title="Set to Now">NOW</button>
                       <button onClick={() => {
                         const baseTime = word.completeBy ? new Date(word.completeBy) : new Date();
@@ -602,13 +642,11 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
                     const newLinks = [...(word.imageLinks || [])];
                     newLinks[index] = e.target.value;
                     handleFieldChange('imageLinks', newLinks);
-                  }} />
-                  <button onClick={() => handleFieldChange('imageLinks', (word.imageLinks || []).filter((_, i) => i !== index))}>-</button>
+                  }} /><button className="icon-button" onClick={() => handleFieldChange('imageLinks', (word.imageLinks || []).filter((_, i) => i !== index))}><i className="fas fa-minus"></i></button>
                 </div>
               ))}
-            </label>
-            <button className="add-link-btn" onClick={() => handleFieldChange('imageLinks', [...(word.imageLinks || []), ''])}>
-              + Add Image Link
+            </label><button className="add-link-btn" onClick={() => handleFieldChange('imageLinks', [...(word.imageLinks || []), ''])}>
+              <i className="fas fa-plus"></i> Add Image Link
             </button>
             <label><h4>Attachments:</h4>
               {(word.attachments || []).map((file, index) => (
@@ -616,25 +654,24 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
                   <span className="attachment-name" onClick={() => window.electronAPI.manageFile({ action: 'open', filePath: file.path })} title={`Open ${file.name}`}>
                     📄 {file.name}
                   </span>
-                  <button onClick={() => handleFieldChange('attachments', (word.attachments || []).filter((_, i) => i !== index))}>-</button>
+                  <button className="icon-button" onClick={() => handleFieldChange('attachments', (word.attachments || []).filter((_, i) => i !== index))}><i className="fas fa-minus"></i></button>
                 </div>
               ))}
-            </label>
-            <button className="add-link-btn" onClick={async () => {
+            </label><button className="add-link-btn" onClick={async () => {
               const newFile = await window.electronAPI.manageFile({ action: 'select' });
               if (newFile) {
                 handleFieldChange('attachments', [...(word.attachments || []), newFile]);
               }
-            }}>+ Attach File</button>
+            }}><i className="fas fa-plus"></i> Attach File</button>
             {tabHeaders}
             <div className="description-header" style={{ marginBottom: '10px' }}>
               <strong>Description:</strong>
-              <button className="copy-btn" title="Copy Description Text" onClick={handleCopyDescription}>📋</button>
-              <button className="copy-btn" title="Copy Description HTML" onClick={() => {
+              <button className="icon-button copy-btn" title="Copy Description Text" onClick={handleCopyDescription}><i className="fas fa-copy"></i></button>
+              <button className="icon-button copy-btn" title="Copy Description HTML" onClick={() => {
                 navigator.clipboard.writeText(word.description || ''); setCopyStatus('Description HTML copied!');
                 setTimeout(() => setCopyStatus(''), 2000);
-              }}>HTML</button>
-              <button className="copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}>📋 All</button>
+              }}><i className="fas fa-code"></i></button>
+              <button className="icon-button copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}><i className="fas fa-copy"></i> All</button>
             </div>
             <Checklist 
               sections={word.checklist || []} 
@@ -1138,11 +1175,15 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                 className="checklist-action-btn"
                 title={areAllItemsComplete ? 'Re-Open All Items in All Sections' : 'Complete All Items in All Sections'}
               >
-                {areAllItemsComplete ? '🔄' : '✅'}
+                <i className={`fas ${areAllItemsComplete ? 'fa-undo' : 'fa-check-square'}`}></i>
               </button>
               {/* Move Undo/Redo buttons here */}
-              <button className="checklist-action-btn" onClick={handleUndo} disabled={historyIndex === 0} title="Undo Last Checklist Action">↩️</button>
-              <button className="checklist-action-btn" onClick={handleRedo} disabled={historyIndex === history.length - 1} title="Redo Checklist Action">↪️</button>
+              <button className="checklist-action-btn" onClick={handleUndo} disabled={historyIndex === 0} title="Undo Last Checklist Action">
+                <i className="fas fa-undo-alt"></i>
+              </button>
+              <button className="checklist-action-btn" onClick={handleRedo} disabled={historyIndex === history.length - 1} title="Redo Checklist Action">
+                <i className="fas fa-redo-alt"></i>
+              </button>
             </div>
           );
         })()}
@@ -1198,22 +1239,22 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
               <div className="checklist-section-actions">
                 {totalCount > 0 && (
                   <button className="checklist-action-btn" onClick={() => handleCompleteAllInSection(section.id)} title={areAllComplete ? "Reopen All Items" : "Complete All Items"}>
-                    {areAllComplete ? '🔄' : '✅'}
+                    <i className={`fas ${areAllComplete ? 'fa-undo' : 'fa-check-square'}`}></i>
                   </button>
                 )}
                 {isEditable && completedCount > 0 && (
                   <button className="checklist-action-btn clear-completed-btn" onClick={() => handleClearCompleted(section.id)} title="Clear Completed Items">
-                    🧹
+                    <i className="fas fa-broom"></i>
                   </button>
                 )}
-                <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(normalizedSections, section.id, 'up'))} title="Move Section Up">↑</button>
-                <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(normalizedSections, section.id, 'down'))} title="Move Section Down">↓</button>
+                <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(normalizedSections, section.id, 'up'))} title="Move Section Up"><i className="fas fa-arrow-up"></i></button>
+                <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(normalizedSections, section.id, 'down'))} title="Move Section Down"><i className="fas fa-arrow-down"></i></button>
                 {isEditable && (
                   <>
                     <button className="checklist-delete-btn" onClick={() => {
                       if (window.confirm('Are you sure you want to delete this entire section and all its items?')) onUpdate(normalizedSections.filter(sec => sec.id !== section.id));
                     }} title="Delete Section">
-                      🗑️
+                      <i className="fas fa-trash-alt"></i>
                     </button>
                   </>
                 )}
@@ -1287,7 +1328,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
       {isEditable && (
         <div className="checklist-actions">
           <div className="checklist-main-actions">
-            <button onClick={handleAddSection} className="add-section-btn">+ Add Section</button>
+            <button onClick={handleAddSection} className="add-section-btn"><i className='fas fa-plus'></i> Add Section</button>
             {normalizedSections.length > 0 && (
               <button onClick={handleDeleteAllSections} className="add-section-btn delete-btn">Delete All Sections</button>
             )}
@@ -1360,7 +1401,7 @@ function TaskAccordion({ title, children, isOpen, onToggle, word }: AccordionPro
             window.electronAPI.showTaskContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY });
           }}
         >
-          <span className="accordion-icon">{isOpen ? '−' : '+'}</span>
+          <span className="accordion-icon"><i className={`fas ${isOpen ? 'fa-minus' : 'fa-plus'}`}></i></span>
           <h4 className="accordion-title">{title}</h4>          
         </div>
         {headerActions}
@@ -1606,13 +1647,12 @@ function BackupManager({ onRestore, setCopyStatus, words, completedWords, settin
       <label className="backup-setting-label">
         Automatic Backups to Keep:        
         <div className="button-group" style={{ margin: '10px 0 0' }}>
-          <input type="number" min="1" value={settings.autoBackupLimit} onChange={(e) => onSettingsChange({ autoBackupLimit: Number(e.target.value) })} />
-          <button style={{ fontSize: '10px', margin: '0 0 10px' }} onClick={() => window.electronAPI.openBackupsFolder()} title="Open backups folder in your file explorer">📂</button>
+          <input type="number" min="1" value={settings.autoBackupLimit} onChange={(e) => onSettingsChange({ autoBackupLimit: Number(e.target.value) })} /><button className="icon-button" style={{ fontSize: '10px', margin: '0 0 10px' }} onClick={() => window.electronAPI.openBackupsFolder()} title="Open backups folder in your file explorer"><i className="fas fa-folder-open"></i></button>
         </div>
         <p style={{ fontSize: '12px', margin: '0' }}>Automatic backups are taken every session start.</p>
       </label>
 
-      {isPromptOpen && (
+      {false && (
         <div className="modal-overlay" onClick={() => setIsPromptOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h4>Select a backup to restore</h4>
@@ -1644,11 +1684,9 @@ function BackupManager({ onRestore, setCopyStatus, words, completedWords, settin
                     </span>
                     <span className="backup-size">{formatBytes(backup.size)}</span>
                   </div>
-                  <button className="delete-backup-btn" title="Delete this backup" onClick={(e) => { e.stopPropagation(); handleDeleteBackup(backup); }}>
-                    🗑️
+                  <button className="icon-button delete-backup-btn" title="Delete this backup" onClick={(e) => { e.stopPropagation(); handleDeleteBackup(backup); }}><i className="fas fa-trash"></i>
                   </button>
-                  <button className="export-backup-btn" title="Export this backup" onClick={(e) => { e.stopPropagation(); window.electronAPI.exportBackup({ backupPath: backup.path, backupName: backup.name }); }}>
-                    📤
+                  <button className="icon-button export-backup-btn" title="Export this backup" onClick={(e) => { e.stopPropagation(); window.electronAPI.exportBackup({ backupPath: backup.path, backupName: backup.name }); }}><i className="fas fa-file-export"></i>
                   </button>
                 </li>
               )) : (
@@ -1765,9 +1803,8 @@ function ManualStopwatch({ word, onUpdate }: { word: Word, onUpdate: (updatedWor
 
   return (
     <div className="manual-stopwatch">
-      <span className="time-display">{formatTime(displayTime)}</span>
-      <button onClick={handleToggle} title={word.manualTimeRunning ? 'Stop Timer' : 'Start Timer'}>{word.manualTimeRunning ? '⏹️' : '▶️'}</button>
-      <button onClick={handleReset} title="Reset Timer">⟳</button>
+      <span className="time-display">{formatTime(displayTime)}</span><button className="icon-button" onClick={handleToggle} title={word.manualTimeRunning ? 'Stop Timer' : 'Start Timer'}><i className={`fas ${word.manualTimeRunning ? 'fa-stop' : 'fa-play'}`}></i></button>
+      <button className="icon-button" onClick={handleReset} title="Reset Timer"><i className="fas fa-undo"></i></button>
     </div>
   );
 }
@@ -1815,6 +1852,7 @@ const defaultSettings: Settings = {
 
 function App() {
   // Create a ref to hold the canvas DOM element
+  const [fullTaskViewId, setFullTaskViewId] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // A ref to hold the latest word data for the click handler
   const wordsRef = useRef<Word[]>([]);
@@ -1843,7 +1881,7 @@ function App() {
   const [isPromptOpen, setIsPromptOpen] = useState(false);
   // State for hover effects
   const [hoveredWordId, setHoveredWordId] = useState<number | null>(null);
-  // State for copy feedback
+  // State for copy feedback.
   const [copyStatus, setCopyStatus] = useState('');
   // Ref to track if the initial load is complete to prevent overwriting saved data
   const isInitialLoad = useRef(true);
@@ -1888,6 +1926,22 @@ function App() {
 
   // Ref to prevent duplicate 'overdue' inbox messages from being created in rapid succession.
   const overdueMessageSentRef = useRef(new Set<number>());
+
+  const handleToggleImportant = (messageId: number) => {
+    let isNowImportant: boolean;
+    setInboxMessages(prevMessages => {
+      return prevMessages.map(msg => {
+        if (msg.id === messageId) {
+          isNowImportant = !msg.isImportant;
+          return { ...msg, isImportant: isNowImportant };
+        }
+        return msg;
+      });
+    });
+    setCopyStatus(isNowImportant ? "Message marked as important." : "Message unmarked as important.");
+    setTimeout(() => setCopyStatus(''), 2000);
+    setIsDirty(true); // Mark that we have unsaved changes
+  };
 
   const handleTaskOverdue = (wordId: number) => {
     // This function is now the single gatekeeper for creating overdue alerts. It uses
@@ -3498,6 +3552,26 @@ function App() {
     }, 100);
   };
 
+  const handleDismissInboxMessage = (messageId: number) => {
+    const message = inboxMessages.find(m => m.id === messageId);
+    if (message && message.isImportant) {
+      setCopyStatus("Cannot dismiss an important message.");
+      setTimeout(() => setCopyStatus(''), 2000);
+      return;
+    }
+    setCopyStatus("Message dismissed.");
+    setTimeout(() => setCopyStatus(''), 2000);
+    setInboxMessages(prev => prev.filter(m => m.id !== messageId));
+    setIsDirty(true);
+  };
+
+  const handleDismissAllInboxMessages = () => {
+    const nonImportantCount = inboxMessages.filter(m => !m.isImportant).length;
+    setCopyStatus(`Cleared ${nonImportantCount} non-important message(s).`);
+    setTimeout(() => setCopyStatus(''), 2000);
+    setInboxMessages(prev => prev.filter(m => m.isImportant));
+    setIsDirty(true);
+  };
   const Footer = () => {
     const currentYear = new Date().getFullYear();
     const version = '1.0.0'; // You can update this manually or pull from package.json
@@ -3505,6 +3579,7 @@ function App() {
     const githubUrl = 'https://github.com/moondogdev/overwhelmed';
 
     return (
+    
       <div className='footer-credit'>        
         <div className='version'>
           <a href="#" onClick={() => window.electronAPI.openExternalLink({ url: githubUrl, browserPath: undefined })}><span className='app-name'>Overwhelmed</span> • Version: {version}</a>
@@ -3515,6 +3590,31 @@ function App() {
       </div>
     );
   };
+
+  // --- Full Task View Logic ---
+  if (fullTaskViewId) {
+    const taskToShow = words.find(w => w.id === fullTaskViewId) || completedWords.find(w => w.id === fullTaskViewId);
+    if (taskToShow) {
+      return (
+        <FullTaskView
+          task={taskToShow}
+          onClose={() => setFullTaskViewId(null)}
+          onUpdate={handleWordUpdate}
+          onNotify={handleTimerNotify}
+          formatTimestamp={formatTimestamp}
+          setCopyStatus={setCopyStatus}
+          settings={settings}
+          onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+          words={words}
+          setInboxMessages={setInboxMessages}
+          onComplete={handleChecklistCompletion}
+          onTabChange={(wordId, tab) => setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: tab } }))}
+          onDescriptionChange={(html) => handleWordUpdate({ ...taskToShow, description: html })}
+        />
+      );
+    }
+  }
+  // --- End Full Task View Logic ---
 
   return (
     <div className="app-container">
@@ -3565,55 +3665,56 @@ function App() {
               </div>
             )}
           </div>
-          {Array.from(overdueNotifications).map(wordId => {
-            const word = words.find(w => w.id === wordId);
-            if (!word) return null;
-            return (
-              <div 
-                key={word.id} 
-                className="overdue-notification-toast"
-                  onContextMenu={(e) => { e.preventDefault(); window.electronAPI.showToastContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY }); }} 
-              >
-                <div className="overdue-notification-content">
-                  <div className="overdue-title-bar">
-                    <span 
-                      className="clickable" 
-                      onClick={() => handleInboxItemClick({ wordId: word.id, id: 0, type: 'overdue', text: '', timestamp: 0 })} 
+          <div className="overdue-notification-list">
+            {Array.from(overdueNotifications).map(wordId => {
+              const word = words.find(w => w.id === wordId);
+              if (!word) return null;
+              return (
+                <div 
+                  key={word.id} 
+                  className="overdue-notification-toast"
+                    onContextMenu={(e) => { e.preventDefault(); window.electronAPI.showToastContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY }); }} 
+                >
+                  <div className="overdue-notification-content">
+                    <div className="overdue-title-bar">
+                      <span 
+                        className="clickable" 
+                        onClick={() => handleInboxItemClick({ wordId: word.id, id: 0, type: 'overdue', text: '', timestamp: 0 })} 
+                        title="Go to task">
+                        <span className="toast-icon">🚨</span>
+                        <strong>{word.text}</strong> is Due!
+                      </span><button className="icon-button overdue-settings-btn" title="Edit Notification Settings" onClick={() => {
+                        // Find the ID for the Time Management accordion to open it
+                        const timeManagementAccordionId = -2; // Using a hardcoded negative ID for settings accordions
+                        setSettings(prev => ({ ...prev, openAccordionIds: [...new Set([...prev.openAccordionIds, timeManagementAccordionId])] }));
+                        // Use a timeout to ensure the element is visible before focusing
+                        setTimeout(() => {
+                          snoozeTimeSelectRef.current?.focus();
+                          snoozeTimeSelectRef.current?.classList.add('highlight-setting');
+                          setTimeout(() => snoozeTimeSelectRef.current?.classList.remove('highlight-setting'), 2000);
+                        }, 100);;
+                      }}><i className="fas fa-cog"></i></button>
+                    </div>
+                    <div 
+                      className="overdue-timer clickable"
+                      onClick={() => handleInboxItemClick({ wordId: word.id, id: 0, type: 'overdue', text: '', timestamp: 0 })}
                       title="Go to task">
-                      <span className="toast-icon">🚨</span>
-                      <strong>{word.text}</strong> is Due!
-                    </span>
-                    <button className="overdue-settings-btn" title="Edit Notification Settings" onClick={() => {
-                      // Find the ID for the Time Management accordion to open it
-                      const timeManagementAccordionId = -2; // Using a hardcoded negative ID for settings accordions
-                      setSettings(prev => ({ ...prev, openAccordionIds: [...new Set([...prev.openAccordionIds, timeManagementAccordionId])] }));
-                      // Use a timeout to ensure the element is visible before focusing
-                      setTimeout(() => {
-                        snoozeTimeSelectRef.current?.focus();
-                        snoozeTimeSelectRef.current?.classList.add('highlight-setting');
-                        setTimeout(() => snoozeTimeSelectRef.current?.classList.remove('highlight-setting'), 2000);
-                      }, 100);
-                    }}>⚙️</button>
-                  </div>
-                  <div 
-                    className="overdue-timer clickable"
-                    onClick={() => handleInboxItemClick({ wordId: word.id, id: 0, type: 'overdue', text: '', timestamp: 0 })}
-                    title="Go to task">
-                    <TimeLeft word={word} onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))} onNotify={handleTimerNotify} settings={settings} />
-                  </div>
-                  <div className="overdue-inbox-link">
-                    Notification sent to <a href="#" onClick={(e) => { e.preventDefault(); navigateToView('inbox'); }}>Inbox</a> 
-                  </div>
-                  <div className="overdue-notification-actions">
-                    <button onClick={() => handleCompleteWord(word)} title="Complete this task">✓ Complete</button>
-                    <button onClick={() => handleSnooze(word, 'high')} title="Snooze for 10 minutes">Snooze 10m</button>
-                    <button onClick={() => handleSnooze(word)} title={`Snooze for ${settings.snoozeTime === 'low' ? '1' : settings.snoozeTime === 'medium' ? '5' : '10'} minutes`}>Snooze</button>
-                    <button onClick={() => removeWord(word.id)} title="Delete this task">Delete</button>
+                      <TimeLeft word={word} onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))} onNotify={handleTimerNotify} settings={settings} />
+                    </div>
+                    <div className="overdue-inbox-link">
+                      Notification sent to <a href="#" onClick={(e) => { e.preventDefault(); navigateToView('inbox'); }}>Inbox</a> 
+                    </div>
+                    <div className="overdue-notification-actions">
+                      <button onClick={() => handleSnooze(word)} title={`Snooze for ${settings.snoozeTime === 'low' ? '1' : settings.snoozeTime === 'medium' ? '5' : '10'} minutes`}>Snooze</button>
+                      <button onClick={() => handleSnooze(word, 'high')} title="Snooze for 10 minutes">Snooze 10m</button>
+                      <button onClick={() => handleCompleteWord(word)} title="Complete this task">Complete</button>                                   
+                      <button onClick={() => removeWord(word.id)} title="Delete this task">Delete</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
       <Footer />
@@ -3653,12 +3754,14 @@ function App() {
                 disabled={settings.currentView === 'inbox'}>Inbox ({inboxMessages.length})</button>
             </div>
           </div>
-          <button onClick={() => setSettings(prev => ({ ...prev, isSidebarVisible: !prev.isSidebarVisible }))} title="Toggle Sidebar (Alt+S)">⚙️</button>
+          <button className="icon-button" onClick={() => setSettings(prev => ({ ...prev, isSidebarVisible: !prev.isSidebarVisible }))} title="Toggle Sidebar (Alt+S)"><i className="fas fa-cog"></i></button>
         </header>
         {settings.currentView === 'meme' && (
           <div className="canvas-container">
             <div className="canvas-actions">
-              <button onClick={handleRandomizeLayout} title="Randomize Layout">🔀 Randomize Layout</button>
+              <button onClick={handleRandomizeLayout} title="Randomize Layout">
+                <i className="fas fa-random"></i> Randomize Layout
+              </button>
             </div>
             <canvas
               ref={canvasRef}
@@ -3679,15 +3782,14 @@ function App() {
                 <div className="inbox-sort-control">
                   <label>Sort by:</label>
                   <select value={settings.inboxSort || 'date-desc'} onChange={(e) => setSettings(prev => ({ ...prev, inboxSort: e.target.value as any }))}>
-                    <option value="date-desc">Date (Newest First)</option>
+                    <option value="date-desc">Date (Newest First)</option>;
                     <option value="date-asc">Date (Oldest First)</option>
                     <option value="type">Message Type</option>
                   </select>
                 </div>
                 <button onClick={() => {
-                  setInboxMessages([]);
-                  setIsDirty(true); // Mark state as changed to ensure it saves
-                }} title="Clear All Messages">🗑️ Clear All</button>
+                  handleDismissAllInboxMessages();
+                }} title="Clear All Non-Important Messages"><i className="fas fa-trash"></i> Clear All</button>
               </div>
             </div>
             {(() => {
@@ -3713,7 +3815,7 @@ function App() {
                 return (
                   <div className="inbox-list">
                     {Object.entries(groupedMessages).map(([type, messages]) => (
-                      <SimpleAccordion 
+                      <SimpleAccordion
                         key={`${type}-${messages[0]?.id || 0}`} 
                         title={`${type.charAt(0).toUpperCase() + type.slice(1)} (${messages.length})`} 
                         startOpen={(settings.openInboxGroupTypes || []).includes(type)}
@@ -3724,10 +3826,16 @@ function App() {
                         <div className="inbox-group">
                           {messages.map(message => (
                             <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)} onContextMenu={(e) => { if (message.type !== 'created' && message.type !== 'deleted' && message.type !== 'updated' && message.type !== 'completed') { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); } else { e.preventDefault(); } }}>
-                              <span className="inbox-item-icon">{message.type === 'overdue' ? '🚨' : message.type === 'timer-alert' ? '⏳' : message.type === 'created' ? '✨' : message.type === 'completed' ? '✅' : message.type === 'deleted' ? '🗑️' : '📝'}</span>
-                              <span className="inbox-item-text">{message.text}</span>
-                              <span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
-                              <button onClick={(e) => { e.stopPropagation(); setInboxMessages(prev => prev.filter(m => m.id !== message.id)); setIsDirty(true); }} className="remove-btn" title="Dismiss Message">×</button>
+                              <span className="inbox-item-icon"><i className={`fas ${message.type === 'overdue' ? 'fa-exclamation-triangle' : message.type === 'timer-alert' ? 'fa-bell' : message.type === 'created' ? 'fa-magic' : message.type === 'completed' ? 'fa-check-circle' : message.type === 'deleted' ? 'fa-trash-alt' : 'fa-pencil-alt'}`}></i></span>
+                              <span className="inbox-item-text">{message.text}</span><span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
+                              <div className="inbox-message-actions">
+                                <button className="inbox-message-action-btn important-btn" title={message.isImportant ? "Unmark as important" : "Mark as important"} onClick={(e) => { e.stopPropagation(); handleToggleImportant(message.id); }}>
+                                  <i className={`fas fa-star ${message.isImportant ? 'important' : ''}`}></i>
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); handleDismissInboxMessage(message.id); }} className="inbox-message-action-btn" title="Dismiss Message">
+                                  <i className="fas fa-times"></i>
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -3751,10 +3859,16 @@ function App() {
                 <div className="inbox-list">
                   {sortedMessages.map(message => (
                     <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)} onContextMenu={(e) => { if (message.type !== 'created' && message.type !== 'deleted' && message.type !== 'updated' && message.type !== 'completed') { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); } else { e.preventDefault(); } }}>
-                      <span className="inbox-item-icon">{message.type === 'overdue' ? '🚨' : message.type === 'timer-alert' ? '⏳' : message.type === 'created' ? '✨' : message.type === 'completed' ? '✅' : message.type === 'deleted' ? '🗑️' : '📝'}</span>
-                      <span className="inbox-item-text">{message.text}</span>
-                      <span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
-                      <button onClick={(e) => { e.stopPropagation(); setInboxMessages(prev => prev.filter(m => m.id !== message.id)); setIsDirty(true); }} className="remove-btn" title="Dismiss Message">×</button>
+                      <span className="inbox-item-icon"><i className={`fas ${message.type === 'overdue' ? 'fa-exclamation-triangle' : message.type === 'timer-alert' ? 'fa-bell' : message.type === 'created' ? 'fa-magic' : message.type === 'completed' ? 'fa-check-circle' : message.type === 'deleted' ? 'fa-trash-alt' : 'fa-pencil-alt'}`}></i></span>
+                      <span className="inbox-item-text">{message.text}</span><span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
+                      <div className="inbox-message-actions">
+                        <button className="inbox-message-action-btn important-btn" title={message.isImportant ? "Unmark as important" : "Mark as important"} onClick={(e) => { e.stopPropagation(); handleToggleImportant(message.id); }}>
+                          <i className={`fas fa-star ${message.isImportant ? 'important' : ''}`}></i>
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDismissInboxMessage(message.id); }} className="inbox-message-action-btn" title="Dismiss Message">
+                          <i className="fas fa-times"></i>
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -3876,10 +3990,9 @@ function App() {
                           if (e.key === 'Escape') {
                             setSearchQuery('');
                           }
-                        }} />
-                      {searchQuery && (
-                        <button className="clear-search-btn" onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }} title="Clear Search">×</button>
-                      )}
+                        }} 
+                      />
+                      <button className="clear-search-btn" onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }} title="Clear Search"><i className="fas fa-times"></i></button>                      
                     </div>
                   </div>
                   {filteredWords.length > 0 ? (
@@ -3891,20 +4004,20 @@ function App() {
                             if (activeSubCategoryId !== 'all') {
                               return `${settings.categories.find(c => c.id === activeSubCategoryId)?.name || 'Sub-Category'}: Priority List`;
                             }
-                            const parentCategory = settings.categories.find(c => c.id === activeCategoryId);
+                        const parentCategory = settings.categories.find(c => c.id === activeCategoryId);;
                             return `${parentCategory?.name || 'Category'}: Priority List`;
                           })()} ({filteredWords.length})
                         </h3>
                         <div className="list-header-actions" onContextMenu={(e) => { e.stopPropagation(); }}>
-                          <button onClick={handleClearAll} title="Clear All Tasks">🗑️</button>
-                          <button onClick={handleCopyList} title="Copy Open Tasks">📋</button>
+                          <button className="icon-button" onClick={handleClearAll} title="Clear All Tasks"><i className="fas fa-trash"></i></button>
+                          <button className="icon-button" onClick={handleCopyList} title="Copy Open Tasks"><i className="fas fa-copy"></i></button>
                         </div>
                         <div className="button-group">
-                          <button onClick={() => {
+                          <button className="icon-button" onClick={() => {
                             const allVisibleIds = filteredWords.map(w => w.id);
-                            setSettings(prev => ({ ...prev, openAccordionIds: allVisibleIds }));
-                          }} title="Expand All">📂</button>
-                          <button onClick={() => setSettings(prev => ({ ...prev, openAccordionIds: [] }))} title="Collapse All">📁</button>
+                            setSettings(prev => ({ ...prev, openAccordionIds: allVisibleIds }))
+                          }} title="Expand All"><i className="fas fa-folder-open"></i></button>
+                          <button className="icon-button" onClick={() => setSettings(prev => ({ ...prev, openAccordionIds: [] }))} title="Collapse All"><i className="fas fa-folder"></i></button>
                         </div>
                       </div>
                       <div className="list-header-sort">
@@ -3928,7 +4041,7 @@ function App() {
                           </select>
                         </label>
                         {currentSortConfig && (
-                          <button className="clear-sort-btn" onClick={() => { setSettings(prev => ({ ...prev, prioritySortConfig: { ...prev.prioritySortConfig, [String(activeCategoryId)]: null } })); if (sortSelectRef.current) sortSelectRef.current.value = 'none'; }} title="Clear Sort">×</button>
+                          <button className="clear-sort-btn" onClick={() => { setSettings(prev => ({ ...prev, prioritySortConfig: { ...prev.prioritySortConfig, [String(activeCategoryId)]: null } })); if (sortSelectRef.current) sortSelectRef.current.value = 'none'; }} title="Clear Sort"><i className="fas fa-times"></i></button>
                         )}
                       </div>
                       <div className="priority-list-main">
@@ -4004,7 +4117,9 @@ function App() {
                                     setCopyStatus={setCopyStatus}
                                     words={words}
                                     setInboxMessages={setInboxMessages}
-                                    settings={settings} onDescriptionChange={() => {}} onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                                    settings={settings} 
+                                    onDescriptionChange={() => {}} 
+                                    onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
                                     onComplete={handleChecklistCompletion}
                                     wordId={word.id}
                                     checklistRef={activeChecklistRef}
@@ -4017,68 +4132,78 @@ function App() {
                                   </div>
                                 </>
                                 <div className="list-item-controls">
-                                <button onClick={() => {
-                                  const newAutocompleteState = !word.isAutocomplete;
-                                  setWords(words.map(w => w.id === word.id ? { ...w, isAutocomplete: newAutocompleteState } : w));
-                                  setCopyStatus(`Autocomplete ${newAutocompleteState ? 'enabled' : 'disabled'}.`);
-                                  setTimeout(() => setCopyStatus(''), 2000);
-                                }} title="Toggle Autocomplete" className={`recurring-toggle ${word.isAutocomplete ? 'active' : ''}`}>
-                                  🤖
-                                </button>
-                                <button onClick={() => {
-                                  const newRecurringState = !word.isRecurring;
-                                  setWords(words.map(w => w.id === word.id ? { ...w, isRecurring: newRecurringState } : w));
-                                  setCopyStatus(`Re-occurring task ${newRecurringState ? 'enabled' : 'disabled'}.`);
-                                  setTimeout(() => setCopyStatus(''), 2000);
-                                }} title="Toggle Re-occurring" className={`recurring-toggle ${word.isRecurring ? 'active' : ''}`}>
-                                  <span title="Generic Re-occurring">🔁</span>
-                                </button>
-                                <button onClick={() => {
-                                  const newState = !word.isDailyRecurring;
-                                  setWords(words.map(w => w.id === word.id ? { ...w, isDailyRecurring: newState } : w));
-                                  setCopyStatus(`Daily Repeat ${newState ? 'enabled' : 'disabled'}.`);
-                                  setTimeout(() => setCopyStatus(''), 2000);
-                                }} title="Toggle Daily Repeat" className={`recurring-toggle ${word.isDailyRecurring ? 'active' : ''}`}>
-                                  <span title="Daily Repeat">D</span>
-                                </button>
-                                <button onClick={() => {
-                                  const newState = !word.isWeeklyRecurring;
-                                  setWords(words.map(w => w.id === word.id ? { ...w, isWeeklyRecurring: newState } : w));
-                                  setCopyStatus(`Weekly Repeat ${newState ? 'enabled' : 'disabled'}.`);
-                                  setTimeout(() => setCopyStatus(''), 2000);
-                                }} title="Toggle Weekly Repeat" className={`recurring-toggle ${word.isWeeklyRecurring ? 'active' : ''}`}>
-                                  <span title="Weekly Repeat">W</span>
-                                </button>
-                                <button onClick={() => {
-                                  const newState = !word.isMonthlyRecurring;
-                                  setWords(words.map(w => w.id === word.id ? { ...w, isMonthlyRecurring: newState } : w));
-                                  setCopyStatus(`Monthly Repeat ${newState ? 'enabled' : 'disabled'}.`);
-                                  setTimeout(() => setCopyStatus(''), 2000);
-                                }} title="Toggle Monthly Repeat" className={`recurring-toggle ${word.isMonthlyRecurring ? 'active' : ''}`}>
-                                  <span title="Monthly Repeat">M</span>
-                                </button>
-                                <button onClick={() => {
-                                  const newState = !word.isYearlyRecurring;
-                                  setWords(words.map(w => w.id === word.id ? { ...w, isYearlyRecurring: newState } : w));
-                                  setCopyStatus(`Yearly Repeat ${newState ? 'enabled' : 'disabled'}.`);
-                                  setTimeout(() => setCopyStatus(''), 2000);
-                                }} title="Toggle Yearly Repeat" className={`recurring-toggle ${word.isYearlyRecurring ? 'active' : ''}`}>
-                                  <span title="Yearly Repeat">Y</span>
-                                </button>
-                                  <button onClick={() => handleCompleteWord(word)} className="complete-btn" title="Complete Task">✓</button>
+                                  <button onClick={() => {
+                                    const newAutocompleteState = !word.isAutocomplete;
+                                    setWords(words.map(w => w.id === word.id ? { ...w, isAutocomplete: newAutocompleteState } : w));
+                                    setCopyStatus(`Autocomplete ${newAutocompleteState ? 'enabled' : 'disabled'}.`);
+                                    setTimeout(() => setCopyStatus(''), 2000);
+                                  }} title="Toggle Autocomplete" className={`icon-button recurring-toggle ${word.isAutocomplete ? 'active' : ''}`}>
+                                    <i className="fas fa-robot"></i>
+                                  </button>
+                                  <button onClick={() => {
+                                    const newRecurringState = !word.isRecurring;
+                                    setWords(words.map(w => w.id === word.id ? { ...w, isRecurring: newRecurringState } : w));
+                                    setCopyStatus(`Re-occurring task ${newRecurringState ? 'enabled' : 'disabled'}.`);
+                                    setTimeout(() => setCopyStatus(''), 2000);
+                                  }} title="Toggle Re-occurring" className={`icon-button recurring-toggle ${word.isRecurring ? 'active' : ''}`}>
+                                    <i className="fas fa-sync-alt"></i>
+                                  </button>
+                                  <button onClick={() => {
+                                    const newState = !word.isDailyRecurring;
+                                    setWords(words.map(w => w.id === word.id ? { ...w, isDailyRecurring: newState } : w));
+                                    setCopyStatus(`Daily Repeat ${newState ? 'enabled' : 'disabled'}.`);
+                                    setTimeout(() => setCopyStatus(''), 2000);
+                                  }} title="Toggle Daily Repeat" className={`icon-button recurring-toggle ${word.isDailyRecurring ? 'active' : ''}`}>
+                                    <span title="Daily Repeat">D</span>
+                                  </button>
+                                  <button onClick={() => {
+                                    const newState = !word.isWeeklyRecurring;
+                                    setWords(words.map(w => w.id === word.id ? { ...w, isWeeklyRecurring: newState } : w));
+                                    setCopyStatus(`Weekly Repeat ${newState ? 'enabled' : 'disabled'}.`);
+                                    setTimeout(() => setCopyStatus(''), 2000);
+                                  }} title="Toggle Weekly Repeat" className={`icon-button recurring-toggle ${word.isWeeklyRecurring ? 'active' : ''}`}>
+                                    <span title="Weekly Repeat">W</span>
+                                  </button>
+                                  <button onClick={() => {
+                                    const newState = !word.isMonthlyRecurring;
+                                    setWords(words.map(w => w.id === word.id ? { ...w, isMonthlyRecurring: newState } : w));
+                                    setCopyStatus(`Monthly Repeat ${newState ? 'enabled' : 'disabled'}.`);
+                                    setTimeout(() => setCopyStatus(''), 2000);
+                                  }} title="Toggle Monthly Repeat" className={`icon-button recurring-toggle ${word.isMonthlyRecurring ? 'active' : ''}`}>
+                                    <span title="Monthly Repeat">M</span>
+                                  </button>
+                                  <button onClick={() => {
+                                    const newState = !word.isYearlyRecurring;
+                                    setWords(words.map(w => w.id === word.id ? { ...w, isYearlyRecurring: newState } : w));
+                                    setCopyStatus(`Yearly Repeat ${newState ? 'enabled' : 'disabled'}.`);
+                                    setTimeout(() => setCopyStatus(''), 2000);
+                                  }} title="Toggle Yearly Repeat" className={`icon-button recurring-toggle ${word.isYearlyRecurring ? 'active' : ''}`}>
+                                    <span title="Yearly Repeat">Y</span>
+                                  </button>
+                                  <button
+                                    className="icon-button"
+                                    title="View Full Page"
+                                    onClick={(e) => { e.stopPropagation(); setFullTaskViewId(word.id); }}>
+                                    <i className="fas fa-expand-arrows-alt"></i>
+                                  </button>                                  
+                                  <button onClick={() => handleCompleteWord(word)} className="icon-button complete-btn" title="Complete Task">
+                                    <i className="fas fa-check"></i>
+                                  </button>
                                   {currentSortConfig === null && (
                                     <>
-                                      <button onClick={() => {
+                                      <button className="icon-button" onClick={() => {
                                         const targetWord = filteredWords[index - 1];
                                         if (targetWord) moveWord(word.id, targetWord.id);
-                                      }} disabled={index === 0} title="Move Up">↑</button>
-                                      <button onClick={() => {
+                                      }} disabled={index === 0} title="Move Up"><i className="fas fa-arrow-up"></i></button>
+                                      <button className="icon-button" onClick={() => {
                                         const targetWord = filteredWords[index + 1];
                                         if (targetWord) moveWord(word.id, targetWord.id);
-                                      }} disabled={index === filteredWords.length - 1} title="Move Down">↓</button>
+                                      }} disabled={index === filteredWords.length - 1} title="Move Down"><i className="fas fa-arrow-down"></i></button>
                                     </>
                                   )}
-                                  <button onClick={() => removeWord(word.id)} className="remove-btn" title="Delete Task">×</button>
+                                  <button onClick={() => removeWord(word.id)} className="icon-button remove-btn" title="Delete Task">
+                                    <i className="fas fa-trash"></i>
+                                  </button>
                                 </div>
                               </TaskAccordion>
                             )}
@@ -4090,12 +4215,12 @@ function App() {
                             // Prioritize the active sub-category, otherwise fall back to the parent category
                             const defaultCategoryId = activeSubCategoryId !== 'all' 
                               ? activeSubCategoryId 
-                              : (activeCategoryId !== 'all' ? activeCategoryId : undefined);
+                          : (activeCategoryId !== 'all' ? activeCategoryId : undefined);;
 
                             if (defaultCategoryId) {
                               setNewTask(prev => ({ ...prev, categoryId: defaultCategoryId }));
                             }
-                          }}>+ Open Task</button>
+                          }}><i className="fas fa-plus"></i> Open Task</button>
                         </div>
                       </div>
                     </>
@@ -4116,10 +4241,10 @@ function App() {
                           ? activeSubCategoryId 
                           : (activeCategoryId !== 'all' ? activeCategoryId : undefined);
 
-                        if (defaultCategoryId) {
+                        if (defaultCategoryId) {;
                           setNewTask(prev => ({ ...prev, categoryId: defaultCategoryId }));
                         }
-                      }}>+ Open Task</button>
+                      }}><i className="fas fa-plus"></i> Open Task</button>
                     </div>
                   )}
                 </>
@@ -4172,8 +4297,8 @@ function App() {
                 </>
               )}>
                 <div className="completed-actions">
-                  <button onClick={handleClearCompleted} title="Clear Completed List">🗑️</button>
-                  <button onClick={handleCopyReport} title="Copy Report">📋</button>
+                  <button className="icon-button" onClick={handleClearCompleted} title="Clear Completed List"><i className="fas fa-trash"></i></button>
+                  <button className="icon-button" onClick={handleCopyReport} title="Copy Report"><i className="fas fa-copy"></i></button>
                 </div>
                 <div className="priority-list-main">
                   {filteredCompletedWords.map((word) => {
@@ -4199,7 +4324,7 @@ function App() {
                             formatTimestamp={formatTimestamp}
                             setCopyStatus={setCopyStatus}
                             onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
-                            onDescriptionChange={() => {}}
+                            onDescriptionChange={() => {}}                            
                             settings={settings}
                             words={words}
                             onComplete={handleChecklistCompletion}
@@ -4209,8 +4334,8 @@ function App() {
                           />
                           {/* This second child is the 'headerActions' for the accordion */}
                           <div className="list-item-controls">
-                            <button onClick={() => handleReopenTask(word)} title="Reopen Task">↩️</button>
-                            <button onClick={() => handleDuplicateTask(word)} title="Duplicate Task">📋</button>
+                            <button className="icon-button" onClick={() => handleReopenTask(word)} title="Reopen Task"><i className="fas fa-undo"></i></button>
+                            <button className="icon-button" onClick={() => handleDuplicateTask(word)} title="Duplicate Task"><i className="fas fa-copy"></i></button>
                           </div>
                         </TaskAccordion>
                       </div>
@@ -4226,11 +4351,9 @@ function App() {
       <div className={`sidebar ${settings.isSidebarVisible ? '' : 'hidden'}`}>
         <SimpleAccordion title="Add New Task" startOpen={isAddTaskOpen} onToggle={setIsAddTaskOpen}>
           <div className="new-task-form">
-            <label><h4>Task Title:</h4>
-              <input ref={newTaskTitleInputRef} type="text" placeholder="Enter a title and press Enter" value={newTask.text} onChange={(e) => setNewTask({ ...newTask, text: e.target.value })} onKeyDown={handleInputKeyDown} />
+            <label><h4>Task Title:</h4><input ref={newTaskTitleInputRef} type="text" placeholder="Enter a title and press Enter" value={newTask.text} onChange={(e) => setNewTask({ ...newTask, text: e.target.value })} onKeyDown={handleInputKeyDown} />
             </label>
-            <label><h4>URL:</h4>
-              <input type="text" placeholder="https://example.com" value={newTask.url} onChange={(e) => setNewTask({ ...newTask, url: e.target.value })} />
+            <label><h4>URL:</h4><input type="text" placeholder="https://example.com" value={newTask.url} onChange={(e) => setNewTask({ ...newTask, url: e.target.value })} />
             </label>
             <label><h4>Category:</h4>
               <select value={newTask.categoryId} onChange={(e) => setNewTask({ ...newTask, categoryId: Number(e.target.value) })}>
@@ -4255,8 +4378,7 @@ function App() {
                       if (unit === 'days') baseTime.setDate(baseTime.getDate() - amount);
                       setNewTask({ ...newTask, openDate: baseTime.getTime() });
                     };
-                    return <>
-                      <button onClick={() => setNewTask({ ...newTask, openDate: undefined })} title="Clear Date">❌</button>
+                    return <><button className="icon-button" onClick={() => setNewTask({ ...newTask, openDate: undefined })} title="Clear Date"><i className="fas fa-times"></i></button>
                       <button onClick={() => setNewTask({ ...newTask, openDate: new Date().getTime() })} title="Set to Now">NOW</button>
                       <button onClick={() => { const d = new Date(newTask.openDate || Date.now()); d.setMinutes(0,0,0); setNewTask({ ...newTask, openDate: d.getTime() }); }} title="Round to Hour">:00</button>
                       <button onClick={() => subtractTime(15, 'minutes')}>-15m</button> <button onClick={() => subtractTime(30, 'minutes')}>-30m</button>
@@ -4277,8 +4399,7 @@ function App() {
                     if (unit === 'days') baseTime.setDate(baseTime.getDate() + amount);
                     setNewTask({ ...newTask, completeBy: baseTime.getTime() });
                   };
-                  return <>
-                    <button onClick={() => setNewTask({ ...newTask, completeBy: undefined })} title="Clear Date">❌</button>
+                  return <><button className="icon-button" onClick={() => setNewTask({ ...newTask, completeBy: undefined })} title="Clear Date"><i className="fas fa-times"></i></button>
                     <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().getTime() })} title="Set to Now">NOW</button>
                     <button onClick={() => {
                       const baseTime = newTask.completeBy ? new Date(newTask.completeBy) : new Date();
@@ -4291,29 +4412,23 @@ function App() {
                   </>;
                 })()}</div>
             </label>
-            <label><h4>Company:</h4>
-              <input type="text" value={newTask.company} onChange={(e) => setNewTask({ ...newTask, company: e.target.value })} />
+            <label><h4>Company:</h4><input type="text" value={newTask.company} onChange={(e) => setNewTask({ ...newTask, company: e.target.value })} />
             </label>
-            <label><h4>Pay Rate ($/hr):</h4>
-              <input type="number" value={newTask.payRate || 0} onChange={(e) => setNewTask({ ...newTask, payRate: Number(e.target.value) })} />
+            <label><h4>Pay Rate ($/hr):</h4><input type="number" value={newTask.payRate || 0} onChange={(e) => setNewTask({ ...newTask, payRate: Number(e.target.value) })} />
             </label>
-            <label><h4>Website URL:</h4>
-              <input type="text" placeholder="https://company.com" value={newTask.websiteUrl} onChange={(e) => setNewTask({ ...newTask, websiteUrl: e.target.value })} />
+            <label><h4>Website URL:</h4><input type="text" placeholder="https://company.com" value={newTask.websiteUrl} onChange={(e) => setNewTask({ ...newTask, websiteUrl: e.target.value })} />
             </label>
             <label><h4>Image Links:</h4>
               {(newTask.imageLinks || []).map((link, index) => (
                 <div key={index} className="image-link-edit">
-                  <input type="text" value={link} onChange={(e) => { const newLinks = [...(newTask.imageLinks || [])]; newLinks[index] = e.target.value; setNewTask({ ...newTask, imageLinks: newLinks }); }} />
                   <input type="text" value={link} onChange={(e) => {
                     const newLinks = [...(newTask.imageLinks || [])];
                     newLinks[index] = e.target.value;
                     setNewTask({ ...newTask, imageLinks: newLinks });
-                  }} />
-                  <button onClick={() => setNewTask({ ...newTask, imageLinks: (newTask.imageLinks || []).filter((_, i) => i !== index) })}>-</button>
+                  }} /><button className="icon-button" onClick={() => setNewTask({ ...newTask, imageLinks: (newTask.imageLinks || []).filter((_, i) => i !== index) })}><i className="fas fa-minus"></i></button>
                 </div>
               ))}
-              <button className="add-link-btn" onClick={() => setNewTask({ ...newTask, imageLinks: [...(newTask.imageLinks || []), ''] })}>
-                + Add Image Link
+              <button className="add-link-btn" onClick={() => setNewTask({ ...newTask, imageLinks: [...(newTask.imageLinks || []), ''] })}>                <i className="fas fa-plus"></i> Add Image Link
               </button>
             </label>
             <Checklist 
@@ -4337,8 +4452,7 @@ function App() {
               <strong>Attachments:</strong>
               {(newTask.attachments || []).map((file, index) => (
                 <div key={index} className="attachment-edit">
-                  <span className="attachment-name" title={file.path}>📄 {file.name}</span>
-                  <button onClick={() => setNewTask({ ...newTask, attachments: (newTask.attachments || []).filter((_, i) => i !== index) })}>-</button>
+                  <span className="attachment-name" title={file.path}>📄 {file.name}</span><button className="icon-button" onClick={() => setNewTask({ ...newTask, attachments: (newTask.attachments || []).filter((_, i) => i !== index) })}><i className="fas fa-minus"></i></button>
                 </div>
               ))}
               <button className="add-link-btn" onClick={async () => {
@@ -4346,7 +4460,7 @@ function App() {
                 if (newFile) {
                   setNewTask({ ...newTask, attachments: [...(newTask.attachments || []), newFile] });
                 }
-              }}>+ Attach File</button>
+              }}><i className="fas fa-plus"></i> Attach File</button>
             </div>
             <div className="description-container">
               <strong>Notes:</strong>
@@ -4357,32 +4471,25 @@ function App() {
                 onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
                 editorKey="new-task-notes" />
             </div>
-            <label className="checkbox-label flexed-column">
-              <input type="checkbox" checked={newTask.isRecurring || false} onChange={(e) => setNewTask({ ...newTask, isRecurring: e.target.checked })} />
+            <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isRecurring || false} onChange={(e) => setNewTask({ ...newTask, isRecurring: e.target.checked })} />
               <span className='checkbox-label-text'>Re-occurring Task</span>
             </label>
-            <label className="checkbox-label flexed-column">
-              <input type="checkbox" checked={newTask.isDailyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isDailyRecurring: e.target.checked })} />
+            <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isDailyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isDailyRecurring: e.target.checked })} />
               <span className='checkbox-label-text'>Repeat Daily</span>
             </label>
-            <label className="checkbox-label flexed-column">
-              <input type="checkbox" checked={newTask.isWeeklyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isWeeklyRecurring: e.target.checked })} />
+            <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isWeeklyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isWeeklyRecurring: e.target.checked })} />
               <span className='checkbox-label-text'>Repeat Weekly</span>
             </label>
-            <label className="checkbox-label flexed-column">
-              <input type="checkbox" checked={newTask.isMonthlyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isMonthlyRecurring: e.target.checked })} />
+            <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isMonthlyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isMonthlyRecurring: e.target.checked })} />
               <span className='checkbox-label-text'>Repeat Monthly</span>
             </label>
-            <label className="checkbox-label flexed-column">
-              <input type="checkbox" checked={newTask.isYearlyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isYearlyRecurring: e.target.checked })} />
+            <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isYearlyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isYearlyRecurring: e.target.checked })} />
               <span className='checkbox-label-text'>Repeat Yearly</span>
             </label>
-            <label className="checkbox-label flexed-column">
-              <input type="checkbox" checked={newTask.isAutocomplete || false} onChange={(e) => setNewTask({ ...newTask, isAutocomplete: e.target.checked })} />
+            <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isAutocomplete || false} onChange={(e) => setNewTask({ ...newTask, isAutocomplete: e.target.checked })} />
               <span className='checkbox-label-text'>Autocomplete on Deadline</span>
             </label>
-            <button onClick={() => handleInputKeyDown({ key: 'Enter' } as React.KeyboardEvent<HTMLInputElement>)}>
-              Add Task
+            <button onClick={() => handleInputKeyDown({ key: 'Enter' } as React.KeyboardEvent<HTMLInputElement>)}><i className="fas fa-plus"></i> Add Task
             </button>
           </div>
         </SimpleAccordion>
@@ -4399,8 +4506,8 @@ function App() {
                     setSettings(prev => ({ ...prev, categories: newCategories }));
                   }}
                 />
-                <button onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, parentCat.id, 'up') }))} title="Move Up">↑</button>
-                <button onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, parentCat.id, 'down') }))} title="Move Down">↓</button>
+                <button className="icon-button" onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, parentCat.id, 'up') }))} title="Move Up"><i className="fas fa-arrow-up"></i></button>
+                <button className="icon-button" onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, parentCat.id, 'down') }))} title="Move Down"><i className="fas fa-arrow-down"></i></button>
                 <button className="remove-link-btn" onClick={() => {
                   const subCategoryCount = settings.categories.filter(c => c.parentId === parentCat.id).length;
                   const confirmationMessage = `Are you sure you want to delete the category "${parentCat.name}"? This will also delete its ${subCategoryCount} sub-categories.`;
@@ -4409,11 +4516,11 @@ function App() {
                     setWords(words.map(w => w.categoryId === parentCat.id ? { ...w, categoryId: undefined } : w));
                     setSettings(prev => ({ ...prev, categories: newCategories }));
                   }
-                }}>-</button>
+                }}><i className="fas fa-minus"></i></button>
                 <button className="add-link-btn" onClick={() => {
                   const newSubCategory = { id: Date.now(), name: 'New Sub-Category', parentId: parentCat.id };
                   setSettings(prev => ({ ...prev, categories: [...prev.categories, newSubCategory] }));
-                }} title="Add Sub-Category">+</button>
+                }} title="Add Sub-Category"><i className="fas fa-plus"></i></button>
               </div>
               {settings.categories.filter(c => c.parentId === parentCat.id).map((subCat: Category) => (
                 <div key={subCat.id} className="category-manager-item sub">
@@ -4427,8 +4534,8 @@ function App() {
                       setSettings(prev => ({ ...prev, categories: newCategories }));
                   }}
                   />
-                  <button onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, subCat.id, 'up') }))} title="Move Up">↑</button>
-                  <button onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, subCat.id, 'down') }))} title="Move Down">↓</button>
+                  <button className="icon-button" onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, subCat.id, 'up') }))} title="Move Up"><i className="fas fa-arrow-up"></i></button>
+                  <button className="icon-button" onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, subCat.id, 'down') }))} title="Move Down"><i className="fas fa-arrow-down"></i></button>
                   <button className="remove-link-btn" onClick={() => {
                     if (window.confirm(`Are you sure you want to delete the sub-category "${subCat.name}"?`)) {
                       const newCategories = settings.categories.filter(c => c.id !== subCat.id);
@@ -4436,13 +4543,12 @@ function App() {
                       setWords(words.map(w => w.categoryId === subCat.id ? { ...w, categoryId: parentCat.id } : w));
                       setSettings(prev => ({ ...prev, categories: newCategories }));
                     }
-                  }}>-</button>
+                  }}><i className="fas fa-minus"></i></button>
                 </div>
               ))}
             </div>
           ))}
-          <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, categories: [...prev.categories, { id: Date.now(), name: 'New Category' }] }))}>
-            + Add Category
+          <button className="add-link-btn" onClick={() => setSettings(prev => ({ ...prev, categories: [...prev.categories, { id: Date.now(), name: 'New Category' }] }))}><i className="fas fa-plus"></i> Add Category
           </button>
         </SimpleAccordion>
         <SimpleAccordion className="accordion-external-link-manager" title="External Link Manager">
@@ -4488,11 +4594,11 @@ function App() {
                     setSettings(prev => ({ ...prev, externalLinks: newLinks }));
                   }} /> <span className='checkbox-label-text' style={{fontSize: '12px'}}>Open Default</span>
                 </label>
-                
+
               </div>
             ))}
             <button className="add-link-btn-full" onClick={() => setSettings(prev => ({ ...prev, externalLinks: [...prev.externalLinks, { name: '', url: '', openInDefault: false }] }))}>
-              + Add Link
+              <i className="fas fa-plus"></i> Add Link
             </button>
           </div>
           <div className="link-manager-section">
@@ -5093,7 +5199,7 @@ function ReportsView({ completedWords, categories, setCopyStatus }: { completedW
                         <button className="copy-btn" title="Copy Row Data" onClick={() => {
                           const rowData = [word.text, categoryName, formatTimestamp(completionTime), formatTime(word.manualTime || 0), `$${earnings.toFixed(2)}`].join('\t');
                           navigator.clipboard.writeText(rowData).then(() => setCopyStatus('Row data copied!'));
-                        }}>📋</button>
+                        }}><i className="fas fa-copy"></i></button>;
                       </span>
                     </td>
                     <td>{categoryName}</td>
@@ -5194,8 +5300,8 @@ function ReportsView({ completedWords, categories, setCopyStatus }: { completedW
                       <td>${earnings.toFixed(2)}</td>
                       <td>
                         <button className="copy-btn" title="Copy Row" onClick={() => {
-                          const rowData = [word.text, categoryName, formatTimestamp(completionTime), formatTime(word.manualTime || 0), `$${earnings.toFixed(2)}`].join('\t');
-                          navigator.clipboard.writeText(rowData);
+                          const rowData = [word.text, categoryName, formatTimestamp(completionTime), formatTime(word.manualTime || 0), `$${earnings.toFixed(2)}`].join('\t');;
+                          navigator.clipboard.writeText(rowData);;
                           setCopyStatus('Row copied!');
                           setTimeout(() => {
                             setCopyStatus('');

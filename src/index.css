@@ -1,4 +1,15 @@
-body {
+/* Import Font Awesome */
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css');
+
+.icon-button {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 2px 6px;
+  vertical-align: middle; /* Better alignment with text */
+  transition: color 0.2s ease;
+}body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
     Arial, sans-serif;
   margin: 0;
@@ -49,6 +60,10 @@ button {
     overflow-x: hidden;
     max-height: 100vh;
 }
+.full-task-view-container {    
+    margin: 0 auto 20px;
+}
+.full-task-view-container,
 .list-view-container {
   width: 100%;
   max-width: 800px; /* Give the list a max width */
@@ -520,7 +535,7 @@ input[type="datetime-local"] + .button-group button {
   border: none !important;
   color: #aaa !important;
   padding: 0 !important;
-  margin: 0 !important;
+  margin: 0 0 0 5px !important;
   cursor: pointer;
 }
 
@@ -741,6 +756,21 @@ input[type="datetime-local"] + .button-group button {
     opacity: 1;
     transform: translate(-50%, 0);
   }
+}
+
+.toast-action-btn {
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid white;
+  color: white;
+  padding: 4px 10px;
+  margin-left: 15px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s ease;
+}
+.toast-action-btn:hover {
+  background-color: rgba(255, 255, 255, 0.4);
 }
 
 .copy-status {
@@ -1235,12 +1265,20 @@ input[type="datetime-local"] + .button-group button {
 .overdue-notification-container {
   position: fixed;    
   z-index: 1002; /* Higher than other toasts */
-  bottom: 100px; /* Position it above the save button container */
+  bottom: 140px; /* Position it above the save button container */
   left: 20px;
   z-index: 1001; 
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.overdue-notification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 40vh; /* Set a max height (e.g., 40% of viewport height) */
+  overflow-y: auto; /* Add a scrollbar if content overflows */
 }
 
 .overdue-notification-toast {
@@ -1379,6 +1417,26 @@ input[type="datetime-local"] + .button-group button {
   padding: 5px;
   border-radius: 3px;
 }
+.inbox-message-actions {
+  display: flex;
+  align-items: center;
+  margin-left: auto; /* Pushes the actions to the far right */
+  padding-left: 10px;
+}
+
+.inbox-message-action-btn {
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 1em;
+  transition: color 0.2s ease-in-out;
+}
+.inbox-message-action-btn:hover { color: #fff; }
+.inbox-message-action-btn.important-btn .fa-star { color: #ccc; }
+.inbox-message-action-btn.important-btn:hover .fa-star { color: #f4d03f; }
+.inbox-message-action-btn.important-btn .fa-star.important { color: #f4d03f; }
 .inbox-item {
   display: flex;
   align-items: center;
@@ -1401,9 +1459,6 @@ input[type="datetime-local"] + .button-group button {
 .inbox-item-timestamp {
   font-size: 0.8em;
   color: #888;
-}
-.inbox-item.clickable {
-  cursor: pointer;
 }
 .inbox-item.clickable:hover {
   background-color: #3a3f4b;
@@ -1441,6 +1496,7 @@ input[type="datetime-local"] + .button-group button {
   margin: 0 0 0 10px !important;
   width: auto !important;
   opacity: 0.5;
+  font-size: 1em; /* Standardize size */
 }
 
 .backup-list li .backup-size {
@@ -1453,6 +1509,24 @@ input[type="datetime-local"] + .button-group button {
 .backup-list li:hover .delete-backup-btn,
 .backup-list li:hover .export-backup-btn {
   opacity: 1;
+}
+
+.inbox-item-icon .fa-magic { color: #61dafb; } /* created */
+.inbox-item-icon .fa-check-circle { color: #4caf50; } /* completed */
+.inbox-item-icon .fa-pencil-alt { color: #f4d03f; } /* updated */
+.inbox-item-icon .fa-trash-alt { color: #c94a4a; } /* deleted */
+.inbox-item-icon .fa-bell { color: #ffc107; } /* timer-alert */
+.inbox-item-icon .fa-exclamation-triangle { color: #c94a4a; } /* overdue */
+
+.list-header-search::before {
+  font-family: "Font Awesome 5 Free"; /* Use Font Awesome */
+  font-weight: 900; /* Solid style */
+  content: '\f002'; /* Unicode for fa-search */
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #aaa;
 }
 
 .backup-list li.manual-backup .backup-date {
@@ -1600,6 +1674,10 @@ input[type="datetime-local"] + .button-group button {
   min-height: 60px; /* Start small */
   line-height: 1.4;
 }
+.checklist-add-item button {
+  width: auto !important;
+  padding: 0 15px !important;
+}
 
 .checklist-add-item input {
   flex-grow: 1;
@@ -1641,10 +1719,16 @@ input[type="datetime-local"] + .button-group button {
   padding: 0 5px !important;
 }
 .checklist-action-btn:hover {
+  color: #aaa !important;
+}
+.checklist-action-btn:hover .fa-check-square {
   color: #4caf50 !important;
 }
-.checklist-action-btn:hover:is(:has(span:contains('🔄'))) {
+.checklist-action-btn:hover .fa-undo {
   color: #61dafb !important;
+}
+.checklist-action-btn:hover .fa-broom {
+  color: #f4d03f !important;
 }
 .checklist-delete-btn:hover {
   color: #c94a4a !important;

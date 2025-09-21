@@ -345,7 +345,7 @@ app.whenReady().then(() => {
     isDirty = dirtyState;
   });
   ipcMain.on('show-task-context-menu', (event, payload) => {
-    const { wordId, x, y } = payload;
+    const { wordId, x, y, hasCompletedTasks } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
       {
@@ -360,6 +360,11 @@ app.whenReady().then(() => {
       {
         label: 'Duplicate Task',
         click: () => webContents.send('context-menu-command', { command: 'duplicate', wordId }),
+      },
+      {
+        label: 'Re-Open Last Task',
+        enabled: hasCompletedTasks,
+        click: () => webContents.send('context-menu-command', { command: 'reopen_last' }),
       },
       { type: 'separator' },
       {

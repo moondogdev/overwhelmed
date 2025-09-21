@@ -8,9 +8,11 @@ A hybrid task management and "word cloud" visualization application designed for
 -   **Hierarchical Categories**: Organize tasks with a full-featured, two-level category and sub-category system.
 -   **Robust Checklist System**: Add multi-section checklists to any task, with progress bars, undo/redo history, and full context menu support for item management.
 -   **Rich Text Editing**: A full WYSIWYG editor for task descriptions and notes, with support for headers, lists, hyperlinks, and more.
+-   **Full Task View**: A dedicated, full-screen view for focusing on, viewing, and editing a single task without distractions.
 -   **Data Persistence & Backups**: All data is saved locally using `electron-store`. The system includes automatic startup backups and a full manual backup/restore/merge manager to prevent data loss.
 -   **Intelligent Notification System**: A centralized, non-blocking notification system provides configurable alerts for overdue tasks and approaching deadlines, with actionable toasts for snoozing or completing tasks directly.
 -   **Inbox & Audit Trail**: A persistent inbox logs all major task events (created, completed, updated, overdue), providing a complete history of all activity.
+    -   **Important Flag**: Users can mark inbox messages as "important" to protect them from being dismissed.
 -   **Data Reporting & Visualization**: A dedicated "Reports" view with `recharts` integration provides charts and raw data tables for task completions, earnings, and activity over time, with filtering and CSV export.
 -   **Customizable UI**: Features a collapsible sidebar, multiple views (Meme, List, Reports), and extensive settings for managing external links, browser integrations, and UI behavior.
 -   **"Meme View" Word Cloud**: The original word cloud feature remains, dynamically generating a visual representation of active tasks on a canvas, with clickable words and customizable text styling.
@@ -21,7 +23,7 @@ A hybrid task management and "word cloud" visualization application designed for
 
 1.  **Create a Task**: Use the "Add New Task" form in the sidebar to create a new task. Fill in details like title, priority, due date, and category. Add a multi-section checklist or attach local files as needed.
 2.  **Manage Tasks**: Navigate to the "List View" to see all your open tasks. Use the category tabs and search bar to filter your view. Click on a task to expand its details.
-3.  **Interact with Tasks**: In the expanded view, switch between the "Task" (read-only) and "Edit" tabs. Complete checklist items, start the manual work timer, or right-click for more options like duplicating or deleting the task.
+3.  **Interact with Tasks**: In the expanded view, switch between the "Task" (read-only) and "Edit" tabs. Click the "expand" icon to open the "Full Task View" for a focused experience. Complete checklist items, start the manual work timer, or right-click for more options like duplicating or deleting the task.
 4.  **Stay Informed**: Keep an eye on the toast notifications for overdue tasks and approaching deadlines. Use the "Inbox" view to see a complete history of all application events.
 5.  **Review Progress**: Use the "Reports" view to see charts and data on your completed tasks, earnings, and overall activity.
 
@@ -89,7 +91,7 @@ The application has been significantly enhanced, evolving from a simple word lis
 ## Bug Fixes & Refinements
 -   **Context Menu Logic**: A persistent bug where the ticket action context menu would not appear was resolved. The issue was caused by an event propagation conflict between a parent listener (for the ticket) and a child listener (for hyperlinks within the description). The final solution involved simplifying the event handling to ensure the correct menu appears based on the right-click target.
 -   **State Management for Edit Mode**: Fixed a bug where the "Edit Ticket" context menu option would not work reliably. This was due to React's `useState` initializer only running on the first render. The fix involved adding a `useEffect` hook to the `TaskAccordion` and `TabbedView` components, allowing them to react to prop changes and programmatically open or switch to the edit state.
--   **UI Consistency**: Refined the UI by replacing text buttons with icons, unifying the appearance of the active and completed task lists, and implementing non-intrusive toast notifications for user feedback.
+-   **UI Consistency with Font Awesome**: The UI has been significantly polished by replacing all text-based and emoji icons (`✅`, `🗑️`, `+`, `−`) with a consistent set of icons from Font Awesome. This includes all action buttons in the checklist system, accordion toggles, and various other controls throughout the application. This change provides a more professional, scalable, and maintainable user interface.
 
 ## Future Features
 -   **Alternating Tasks**: Link tasks where Completing starts another
@@ -107,13 +109,12 @@ The application has been significantly enhanced, evolving from a simple word lis
     -   **Template: Billing**:    
 -   **Copy to Sheets**: Explore how we could copy a task to sheets possibly or what we'd use this for
 -   **Inbox Expansion**
-    -   **Inbox Important**: Flag specific inbox items to not be deleted when the user hits Delete All Messages or attempts to hit X on the message
     -   **Inbox Archive**: Move inbox items out of the inbox and into an archived state
     -   **Inbox Trash**: Move inbox items out of the inbox and into a trash state rather than deleting them permanently
     -   **Inbox Options**: Expand the inbox options to choose which message are received
+    -   **Inbox Context Menus**: We need to add support for all inbox menu types
     
 -   **Standalone Application**: Package the application into a distributable and installable format for major operating systems (Windows, macOS, Linux).
--   **Full Task View**: Add support to view a task in a single page format allowing both a View and Edit mode.
 -   **Users**: Add a feature to create users and assign tickets to them, with the ability to filter the list to view tickets assigned to a specific user.
 -   **Themes**: Different style layouts
 -   **Settings**: Missing a few settings options and probably want to build a full settings view soon
@@ -137,8 +138,9 @@ The application has been significantly enhanced, evolving from a simple word lis
 -   **Total Refactoring**:  The codebase's individual files are getting rather large and likely need to start compartmentalizing structure into individual files to reduce strain on both the developer and code assist tools.
     - **Change "Word" to "Task"**: When the application was first created, its only purpose was to display a "word cloud," so the main data object was fittingly named Word. As we added more and more features, we transformed that simple Word object into a complex Task manager, but the original variable names like Word, words, handleCompleteWord, etc., remained. See "Rule 08.0: Codebase Naming Conventions (Word vs. Task)" for more details.
       - We need to update this handling to avoid confusion moving forward as the application grows from its original intention. The App started as a simple "word cloud" generator on a meme, which still functions as both a Meme Generator and links the tasks to a google search result when clicked. 
-      - We can likely overhaul the Meme view into a fullblown Meme Generator by including a different subview that allows the user to choose the image, text, and placement.      
+      - We can likely overhaul the Meme view into a fullblown Meme Generator by including a different subview that allows the user to choose the image, text, and placement.    
     - **Check for Duplications**: The codebase might have duplication in its declaratives so we'll need to check for that.
+    - **Refactor `<App>`**: App is growing too large and will cause performance issues 
 
 ---
 
@@ -146,7 +148,8 @@ The application has been significantly enhanced, evolving from a simple word lis
 
 All notable changes to this project will be documented in this file @CHANGELOG.md. Please update the separate changelog as development progresses.
 
-## [1.0.3] - 2024-09-20: Future Development based on Future Features section
+## [1.0.4] - 2024-09-21: 
+## [1.0.3] - 2024-09-20: Inbox Protection & Full Task View
 ## [1.0.2] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation
 ## [1.0.1] - 2024-09-18: Notification System & Inbox View
 ## [1.0.0] - 2024-09-15: Core Task Management & Data Persistence
@@ -177,6 +180,10 @@ Hello @Gemini Code Assist, if you can read this, please, before we make large fe
 
 ---
 ### Log of Issues and Lessons
+#### [1.0.8] - UI Lag on State Update in Large Component
+-   **Issue**: After implementing the "Inbox Important" toggle, a noticeable lag occurred when clicking the star icon. The state updated, but the UI took a moment to reflect the change.
+-   **Lesson**: This is a classic React performance issue. When a single component (like our main `App` in `renderer.tsx`) becomes too large, any state update can trigger a slow and expensive re-render of the entire component tree. The solution is to refactor distinct pieces of UI (like the Inbox) into their own smaller, memoized components. This ensures that only the relevant component re-renders, making the UI feel instantaneous. This will be addressed in a future refactoring task.
+
 #### [1.0.7] - Critical Build System Module Conflict
 -   **Issue**: The application failed to start due to a conflict between how the IDE's TypeScript server and Electron Forge's Node.js runtime interpreted the build configuration files (`forge.config.ts`, etc.). This created a loop of "Cannot redeclare block-scoped variable" and "module is not defined in ES module scope" errors.
 -   **Lesson**: The definitive solution was to rename all build configuration files from `.ts` to `.cts` (CommonJS TypeScript) and update the `require` statements in `forge.config.cts` to include the new extension. This provided an unambiguous signal to all tools that these files are CommonJS modules, permanently resolving the conflict. (See `GEMINILOOP.md` for a full history).
@@ -249,6 +256,7 @@ Hello @Gemini Code Assist, if you can read this, please, before we make large fe
   - Rule 35.0: Understanding `node_modules` further
   - Rule 36.0: Commiting Changes
   - Rule 37.0: Using the VS Code Source Control UI
+  - Rule 38.0: Using Font Awesome Icons
 
 ---
 
@@ -1695,3 +1703,66 @@ Before starting, ensure you have a stable, working version of the application.
     -   Clicking this button will perform a `git push` (and a `git pull` first, to sync any remote changes), uploading your local commits to the `main` branch on GitHub.
 
 Using the Source Control panel is a great way to have a more visual and interactive Git workflow directly within your editor.
+
+---
+
+# Developer Guide - Rule 38.0: Using Font Awesome Icons
+
+This guide explains how to use Font Awesome icons in the application to ensure a consistent and professional UI, replacing plain text or emojis.
+
+### How It Works
+
+We have included the Font Awesome 5 Free stylesheet in our global `index.css` file. This gives us access to a wide range of icons that can be easily added and styled.
+
+```css
+/* File: src/index.css */
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css');
+```
+
+---
+
+### Step 1: Find an Icon
+
+1.  Go to the Font Awesome 5 Free Icons Gallery.
+2.  Search for an icon that fits your need (e.g., "plus", "trash", "arrow-up").
+3.  Click on the icon to see its details. The name you need is the part after `fa-` (e.g., for `fa-trash-alt`, the name is `trash-alt`).
+
+---
+
+### Step 2: Add the Icon to Your Component
+
+To add an icon, use an `<i>` tag with the appropriate classes. The base class is `fas` (for Font Awesome Solid), followed by the specific icon class `fa-icon-name`.
+
+**Example**: Replacing a text button with an icon.
+
+```jsx
+// Before
+<button>Add Section</button>
+
+// After
+<button><i className="fas fa-plus"></i> Add Section</button>
+```
+
+**Conditional Icons**: You can dynamically change an icon based on component state using a template literal in the `className`.
+
+```jsx
+// This button's icon will change based on the 'areAllComplete' boolean
+<button title={areAllComplete ? "Reopen All" : "Complete All"}>
+  <i className={`fas ${areAllComplete ? 'fa-undo' : 'fa-check-square'}`}></i>
+</button>
+```
+
+---
+
+### Step 3: Add Custom Styling (Optional)
+
+We can add custom hover effects for icons inside specific buttons for better user feedback. Add a new rule to `index.css`.
+
+**File**: `src/index.css`
+
+```css
+/* Make the 'broom' icon turn yellow on hover inside a .checklist-action-btn */
+.checklist-action-btn:hover .fa-broom {
+  color: #f4d03f !important;
+}
+```

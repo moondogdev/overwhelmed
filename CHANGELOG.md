@@ -1,4 +1,4 @@
- # Changelog
+# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -18,13 +18,12 @@ All notable changes to this project will be documented in this file.
     -   **Template: Billing**:    
 -   **Copy to Sheets**: Explore how we could copy a task to sheets possibly or what we'd use this for
 -   **Inbox Expansion**
-    -   **Inbox Important**: Flag specific inbox items to not be deleted when the user hits Delete All Messages or attempts to hit X on the message
     -   **Inbox Archive**: Move inbox items out of the inbox and into an archived state
     -   **Inbox Trash**: Move inbox items out of the inbox and into a trash state rather than deleting them permanently
     -   **Inbox Options**: Expand the inbox options to choose which message are received
+    -   **Inbox Context Menus**: We need to add support for all inbox menu types
     
 -   **Standalone Application**: Package the application into a distributable and installable format for major operating systems (Windows, macOS, Linux).
--   **Full Task View**: Add support to view a task in a single page format allowing both a View and Edit mode.
 -   **Users**: Add a feature to create users and assign tickets to them, with the ability to filter the list to view tickets assigned to a specific user.
 -   **Themes**: Different style layouts
 -   **Settings**: Missing a few settings options and probably want to build a full settings view soon
@@ -48,9 +47,24 @@ All notable changes to this project will be documented in this file.
 -   **Total Refactoring**:  The codebase's individual files are getting rather large and likely need to start compartmentalizing structure into individual files to reduce strain on both the developer and code assist tools.
     - **Change "Word" to "Task"**: When the application was first created, its only purpose was to display a "word cloud," so the main data object was fittingly named Word. As we added more and more features, we transformed that simple Word object into a complex Task manager, but the original variable names like Word, words, handleCompleteWord, etc., remained. See "Rule 08.0: Codebase Naming Conventions (Word vs. Task)" for more details.
       - We need to update this handling to avoid confusion moving forward as the application grows from its original intention. The App started as a simple "word cloud" generator on a meme, which still functions as both a Meme Generator and links the tasks to a google search result when clicked. 
-      - We can likely overhaul the Meme view into a fullblown Meme Generator by including a different subview that allows the user to choose the image, text, and placement.        
+      - We can likely overhaul the Meme view into a fullblown Meme Generator by including a different subview that allows the user to choose the image, text, and placement.    
+    - **Check for Duplications**: The codebase might have duplication in its declaratives so we'll need to check for that.
+    - **Refactor `<App>`**: App is growing too large and will cause performance issues 
 
-## [1.0.2] - 2024-09-19
+## [1.0.3] - 2025-09-20: Inbox Protection & Full Task View
+ 
+### Added
+-   **Inbox Important Flag**: Added a star icon to each inbox message, allowing users to flag it as "important." Important messages are protected from being dismissed individually or by the "Clear All" action.
+    -   *Note: Context Menu support for toggling the important flag will be added in a future update.*
+-   **Full Task View**: Implemented a "Full Task View" mode, allowing a single task to be viewed and edited in a dedicated, full-screen layout. This is accessible via an "expand" icon in the list view.
+
+### Changed
+-   **UI Polish with Font Awesome**: Replaced all text-based and emoji icons (`✅`, `🗑️`, `🔄`, `↩️`, `↪️`, `+`, `−`, etc.) throughout the application with a consistent set of icons from Font Awesome. This affects the checklist system, accordion toggles, and various action buttons, providing a more professional and scalable UI.
+
+### Updated
+-   **Developer Documentation**: Added a new guide to `GEMINI.md` (Rule 38.0) explaining the standard procedure for finding, adding, and styling Font Awesome icons to maintain UI consistency.
+
+## [1.0.2] - 2025-09-19
 
 Critical errors trying to implement a Gemini prompt again... this time with "Copy Checklist" so I rolled back some changes from this version to salve what we've worked on. The following "Needs to be added" section is what is left from this chat session.        
 
