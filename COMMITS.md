@@ -5,12 +5,29 @@ A log of what was commited to git.
 ---
 
 ## Index
+- **[1.0.6] - 2025-09-22: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
 - **[1.0.5] - 2025-09-21: Task Types & Templated Forms**: feat(tasks): Implement Task Types and Templated Forms
 - **[1.0.4] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow**: feat(inbox): Implement full Archive and Trash system with UI polish 
 - **[1.0.3] - 2024-09-20: Inbox Protection & Full Task View**:
 - **[1.0.2] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.1] - 2024-09-18: Notification System & Inbox View**:
 - **[1.0.0] - 2024-09-15: Core Task Management & Data Persistence**:
+
+---
+
+### **[1.0.6] - 2025-09-22: Grouped Task View by Day**
+**feat(tasks): Add grouped view by day when sorting by due date**
+
+This feature enhances the list view by grouping tasks under distinct date headers when sorting by "Due Date (Soonest First)".
+
+## Features:
+-   **Date Grouping**: Implemented logic to process and group tasks by their `completeBy` date.
+-   **Relative Date Headers**: Added a helper function to generate user-friendly headers like "Today", "Tomorrow", and "No Due Date". Headers for other dates include the full date and year.
+-   **Task Count Display**: Each date header now includes a count of tasks for that day, with custom styling to differentiate it from the date.
+-   **UI/UX Polish**: Added custom CSS for the new date headers, including a different style for the "No Due Date" group to improve scannability and visual organization.
+
+#### Summary:
+This commit significantly improves the readability and organization of the task list, making it easier for users to see what's due at a glance.
 
 ---
 

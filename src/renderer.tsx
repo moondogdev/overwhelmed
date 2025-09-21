@@ -1864,6 +1864,40 @@ const defaultSettings: Settings = {
   ],
 };
 
+const getRelativeDateHeader = (dateStr: string): string => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Normalize today to the start of the day
+
+  // The date string from the grouping logic is 'YYYY-MM-DD'.
+  // We need to parse it carefully to avoid timezone issues.
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const taskDate = new Date(year, month - 1, day);
+
+  const diffTime = taskDate.getTime() - today.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays === -1) return 'Yesterday';
+
+  // For other dates, return the full formatted date
+  // return taskDate.toLocaleDateString(undefined, {
+  // For other dates, format the date. Include the year only if it's not the current year.
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric', // Always display the year
+  };
+  if (taskDate.getFullYear() !== today.getFullYear()) {
+    // options.year = 'numeric';
+    // Option to only show year on previous years
+  }
+
+  return taskDate.toLocaleDateString(undefined, options);
+}
+
+
 function App() {
   // Create a ref to hold the canvas DOM element
   const [fullTaskViewId, setFullTaskViewId] = useState<number | null>(null);
@@ -4273,7 +4307,206 @@ function App() {
                         )}
                       </div>
                       <div className="priority-list-main">
-                        {filteredWords.map((word, index) => (
+                        {currentSortConfig?.key === 'completeBy' && currentSortConfig.direction === 'ascending' ? (
+                          (() => {
+                            const wordsByDate = filteredWords.reduce((acc, word) => {
+                              // Use a consistent, sortable key for dates, and a special key for no-date items.
+                              const date = word.completeBy ? new Date(word.completeBy).toISOString().split('T')[0] : '0000-no-due-date';
+                              if (!acc[date]) {
+                                acc[date] = [];
+                              }
+                              acc[date].push(word);
+                              return acc;
+                            }, {} as Record<string, Word[]>);
+ 
+                            // Sort the date groups. The 'zzzz' prefix ensures 'No Due Date' comes last.
+                            // Sort the date groups. The '0000' prefix ensures 'No Due Date' comes first.
+                            const sortedDates = Object.keys(wordsByDate).sort();
+ 
+                            return sortedDates.map(dateStr => {
+                              const wordsOnDate = wordsByDate[dateStr];
+                              // const isNoDueDate = dateStr === 'zzzz-no-due-date';
+                              const isNoDueDate = dateStr === '0000-no-due-date';
+                              let headerText = isNoDueDate
+                                ? 'No Due Date' : getRelativeDateHeader(dateStr);
+                              const taskCountText = `(${wordsOnDate.length} ${wordsOnDate.length === 1 ? 'task' : 'tasks'})`;
+                              return (
+                              <div key={dateStr} className="date-group-container">
+                                <h4 className={`date-group-header ${isNoDueDate ? 'no-due-date-header' : ''}`}>
+                                  {headerText}
+                                  <span className="date-group-task-count">{taskCountText}</span>
+                                </h4>
+                                {wordsOnDate.map((word, index) => (
+                                  // The rest of your TaskAccordion rendering logic goes here
+                                  // We are now copying it from the original map below
+                                  <div key={word.id} className="priority-list-item" data-word-id={word.id}>
+                                    {editingWordId === word.id ? (
+                                      <input
+                                        type="text"
+                                        value={editingText}
+                                        onChange={handleEditChange}
+                                        onKeyDown={(e) => handleEditKeyDown(e, word.id)}
+                                        onBlur={() => setEditingWordId(null)}
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <TaskAccordion
+                                        word={word}
+                                        isOpen={settings.openAccordionIds.includes(word.id)}
+                                        onToggle={() => handleAccordionToggle(word.id)}
+                                        title={
+                                        <>
+                                          <div className="accordion-title-container">
+                                            <span className="accordion-main-title">{word.text}</span>
+                                            {(() => {
+                                              if (!word.categoryId) return null;
+                                              const category = settings.categories.find(c => c.id === word.categoryId);
+                                              if (!category) return null;
+
+                                              const parentCategory = category.parentId ? settings.categories.find(c => c.id === category.parentId) : null;
+
+                                              const handlePillClick = (e: React.MouseEvent, catId: number, parentId?: number) => {
+                                                e.stopPropagation();
+                                                setActiveCategoryId(parentId || catId);
+                                                if (parentId) setActiveSubCategoryId(catId);
+                                              };
+
+                                              return (
+                                                <>
+                                                  {parentCategory && (
+                                                    <span className="category-pill" onClick={(e) => handlePillClick(e, parentCategory.id)}>{parentCategory.name}</span>
+                                                  )}
+                                                  <span className="category-pill" onClick={(e) => handlePillClick(e, category.id, parentCategory?.id)}>{category.name}</span>
+                                                </>
+                                              );
+                                            })()}
+                                          </div>
+                                          <div className="accordion-subtitle">
+                                            {word.company && <span>{word.company}</span>}
+                                            <span>{formatDate(word.openDate)} {new Date(word.openDate).toLocaleTimeString()}</span>
+                                            {word.snoozeCount > 0 && <span>Snoozed: {word.snoozeCount} time(s)</span>}                                    
+                                            {word.snoozedAt && <span>Last Snoozed at: {formatTimestamp(word.snoozedAt)}</span>}
+                                            {word.lastNotified > word.createdAt && <span>Next Alert at: {formatTimestamp(word.lastNotified)}</span>}
+                                            {word.completeBy && <span>Due: {formatDate(word.completeBy)} {new Date(word.completeBy).toLocaleTimeString()}</span>}
+                                            <span><TimeLeft word={word} onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))} onNotify={handleTimerNotify} settings={settings} /></span>
+                                            <span className={`priority-indicator priority-${(word.priority || 'Medium').toLowerCase()}`}>
+                                              <span className="priority-dot"></span>
+                                              {word.priority || 'Medium'}
+                                            </span>
+                                          </div>
+                                        </>
+                                      }>
+                                        <>
+                                          <TabbedView 
+                                            startInEditMode={editingViaContext === word.id}
+                                            word={word} 
+                                            onTabChange={(wordId, tab) => setSettings(prev => ({
+                                              ...prev,
+                                              activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: tab }
+                                            }))}
+                                            onUpdate={handleWordUpdate}
+                                            onNotify={handleTimerNotify}
+                                            formatTimestamp={formatTimestamp}
+                                            setCopyStatus={setCopyStatus}
+                                            words={words}
+                                            setInboxMessages={setInboxMessages}
+                                            settings={settings} 
+                                            onDescriptionChange={() => {}} 
+                                            onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                                            onComplete={handleChecklistCompletion}
+                                            wordId={word.id}
+                                            checklistRef={activeChecklistRef}
+                                          />
+                                          <div className="word-item-display">
+                                            <span className="stopwatch date-opened">
+                                              Started at: {formatTimestamp(word.createdAt)}
+                                            </span>
+                                            <Stopwatch word={word} onTogglePause={handleTogglePause} />
+                                          </div>
+                                        </>
+                                        <div className="list-item-controls">
+                                          <button onClick={() => {
+                                            const newAutocompleteState = !word.isAutocomplete;
+                                            setWords(words.map(w => w.id === word.id ? { ...w, isAutocomplete: newAutocompleteState } : w));
+                                            setCopyStatus(`Autocomplete ${newAutocompleteState ? 'enabled' : 'disabled'}.`);
+                                            setTimeout(() => setCopyStatus(''), 2000);
+                                          }} title="Toggle Autocomplete" className={`icon-button recurring-toggle ${word.isAutocomplete ? 'active' : ''}`}>
+                                            <i className="fas fa-robot"></i>_
+                                          </button>
+                                          <button onClick={() => {
+                                            const newRecurringState = !word.isRecurring;
+                                            setWords(words.map(w => w.id === word.id ? { ...w, isRecurring: newRecurringState } : w));
+                                            setCopyStatus(`Re-occurring task ${newRecurringState ? 'enabled' : 'disabled'}.`);
+                                            setTimeout(() => setCopyStatus(''), 2000);
+                                          }} title="Toggle Re-occurring" className={`icon-button recurring-toggle ${word.isRecurring ? 'active' : ''}`}>
+                                            <i className="fas fa-sync-alt"></i>
+                                          </button>
+                                          <button onClick={() => {
+                                            const newState = !word.isDailyRecurring;
+                                            setWords(words.map(w => w.id === word.id ? { ...w, isDailyRecurring: newState } : w));
+                                            setCopyStatus(`Daily Repeat ${newState ? 'enabled' : 'disabled'}.`);
+                                            setTimeout(() => setCopyStatus(''), 2000);
+                                          }} title="Toggle Daily Repeat" className={`icon-button recurring-toggle ${word.isDailyRecurring ? 'active' : ''}`}>
+                                            <span title="Daily Repeat">D</span>
+                                          </button>
+                                          <button onClick={() => {
+                                            const newState = !word.isWeeklyRecurring;
+                                            setWords(words.map(w => w.id === word.id ? { ...w, isWeeklyRecurring: newState } : w));
+                                            setCopyStatus(`Weekly Repeat ${newState ? 'enabled' : 'disabled'}.`);
+                                            setTimeout(() => setCopyStatus(''), 2000);
+                                          }} title="Toggle Weekly Repeat" className={`icon-button recurring-toggle ${word.isWeeklyRecurring ? 'active' : ''}`}>
+                                            <span title="Weekly Repeat">W</span>
+                                          </button>
+                                          <button onClick={() => {
+                                            const newState = !word.isMonthlyRecurring;
+                                            setWords(words.map(w => w.id === word.id ? { ...w, isMonthlyRecurring: newState } : w));
+                                            setCopyStatus(`Monthly Repeat ${newState ? 'enabled' : 'disabled'}.`);
+                                            setTimeout(() => setCopyStatus(''), 2000);
+                                          }} title="Toggle Monthly Repeat" className={`icon-button recurring-toggle ${word.isMonthlyRecurring ? 'active' : ''}`}>
+                                            <span title="Monthly Repeat">M</span>
+                                          </button>
+                                          <button onClick={() => {
+                                            const newState = !word.isYearlyRecurring;
+                                            setWords(words.map(w => w.id === word.id ? { ...w, isYearlyRecurring: newState } : w));
+                                            setCopyStatus(`Yearly Repeat ${newState ? 'enabled' : 'disabled'}.`);
+                                            setTimeout(() => setCopyStatus(''), 2000);
+                                          }} title="Toggle Yearly Repeat" className={`icon-button recurring-toggle ${word.isYearlyRecurring ? 'active' : ''}`}>
+                                            <span title="Yearly Repeat">Y</span>
+                                          </button>
+                                          <button
+                                            className="icon-button"
+                                            title="View Full Page"
+                                            onClick={(e) => { e.stopPropagation(); setFullTaskViewId(word.id); }}>
+                                            <i className="fas fa-expand-arrows-alt"></i>
+                                          </button>                                  
+                                          <button onClick={() => handleCompleteWord(word)} className="icon-button complete-btn" title="Complete Task">
+                                            <i className="fas fa-check"></i>
+                                          </button>
+                                          {currentSortConfig === null && (
+                                            <>
+                                              <button className="icon-button" onClick={() => {
+                                                const targetWord = filteredWords[index - 1];
+                                                if (targetWord) moveWord(word.id, targetWord.id);
+                                              }} disabled={index === 0} title="Move Up"><i className="fas fa-arrow-up"></i></button>
+                                              <button className="icon-button" onClick={() => {
+                                                const targetWord = filteredWords[index + 1];
+                                                if (targetWord) moveWord(word.id, targetWord.id);
+                                              }} disabled={index === filteredWords.length - 1} title="Move Down"><i className="fas fa-arrow-down"></i></button>
+                                            </>
+                                          )}
+                                          <button onClick={() => removeWord(word.id)} className="icon-button remove-btn" title="Delete Task">
+                                            <i className="fas fa-trash"></i>_
+                                          </button>
+                                        </div>
+                                      </TaskAccordion>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                              );
+                            });
+                          })()
+                        ) : (filteredWords.map((word, index) => (
                           <div key={word.id} className="priority-list-item" data-word-id={word.id}>
                             {editingWordId === word.id ? (
                               <input
@@ -4436,7 +4669,7 @@ function App() {
                               </TaskAccordion>
                             )}
                           </div>
-                        ))}
+                        )))}
                         <div className="add-task-row">
                           <button className="add-task-button" onClick={() => {
                             focusAddTaskInput();

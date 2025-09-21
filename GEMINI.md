@@ -1,6 +1,6 @@
 # Overwhelmed
 
-A hybrid task management and "word cloud" visualization application designed for power users.
+A hybrid task management application designed for power users.
 
 ### Features
 
@@ -106,6 +106,7 @@ See `CHANGELOG.md` for a list of future features to implement. Strickly follow `
 
 All notable changes to this project will be documented in this file @CHANGELOG.md. Please update the separate changelog as development progresses.
 
+## [1.0.6] - 2025-09-22: Grouped Task View by Day
 ## [1.0.5] - 2025-09-21: Task Types & Templated Forms
 ## [1.0.4] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow
 ## [1.0.3] - 2024-09-20: Inbox Protection & Full Task View
@@ -124,6 +125,48 @@ This seems to be a caching issue where the chat is looking at an older file than
 
 ## Gemini Code Assist Communication
 Hello `@Gemini Code Assist`, if you can read this, please, before we make large feature changes & we have a stable application, lets use your 'Prompts to try' to push a commit to github so we can backtrack safely. Unless there are other ways to undo large sessions.
+
+### Start Feature Implementation
+We've committed to git and ready to begin working on implementing new features from our @CHANGELOG.md from the list in `## Future Features`. 
+
+Could you check out our @GEMINI.md before we get started and make sure we are implementing the new features with keeping our specs in mind. Specifically, please review our `# Critical Errors with Gemini`, `## Gemini Code Assist Communication`, and `### Other Guidelines for Gemini Code Assist to follow:` before suggesting prompts, code, or logic. 
+
+- See `### Log of Issues and Lessons` for a breakdown of issues encountered and what we can avoid in the future. 
+- See @DEFINITIONS.md for a central glossary for the project's key functions (handlers), state variables, and constants.
+- See @COMMITS.md for a record of what we've done so far to get a scope of the project up to this point.
+
+We've also made a `# Developer Guide Index` to help guide the development and provide a clear perspective of the codebase. 
+
+The current project structure can be found in our `### Project Structure` section.
+
+The main files to for context are:
+
+Main Files:
+- `renderer.tsx`: @renderer.tsk
+- `index.ts`: @index.ts
+- `preload.ts`: @preload.ts
+- `index.html`: @index.html
+- `index.css`: @index.css
+Config:
+- `forge.config.cts`: @forge.config.cts
+- `declarations.d.ts`: @declarations.d.ts
+- `.gitignore`: @.gitignore
+- `package.json`: @package.json
+- `package-lock.json`: @package-lock.json
+- `tsconfig.json`: @tsconfig.json
+- `tsconfig.node.json`: @tsconfig.node.json
+- `webpack.main.config.cts`: @webpack.main.config.cts
+- `webpack.renderer.config.cts`: @webpack.renderer.config.cts
+- `.eslintrc.json`: @.eslintrc.json
+Documentation:
+- `CHANGELOG.md`: @CHANGELOG.md
+- `GEMINI.md`: @GEMINI.md
+- `DEFINITIONS.md`: @DEFINITIONS.md
+- `COMMITS.md`: @COMMITS.md
+
+These files can be understood better in the `# Developer Guide Index` section.
+
+---
 
 ### Other Guidelines for Gemini Code Assist to follow:
   - **Gemini Thinks its 2024**: The current year is 2025 and the current month is September. Gemini frequently forgets the date based on its training data and will source 2024 examples, documents, and use those dates erroneously. @Gemini, please before we implement anything with dates, we check the current year date as of TODAY. We don't need to source the most relevant information but it would be nice, and most certainly we should always use the current year when including it anywhere in this codebase.

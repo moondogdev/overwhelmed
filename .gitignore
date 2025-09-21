@@ -90,3 +90,6 @@ typings/
 
 # Electron-Forge
 out/
+
+# Ignore specific markdown files, not all of them
+GEMINILOOP.md

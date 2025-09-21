@@ -59,6 +59,10 @@ This document should be updated whenever new declarative logic is implemented.
 ### `navigateToView(view: 'meme' | 'list' | 'reports' | 'inbox')`
 -   **Description**: Handles navigation between the main application views. It manages the browser-style back/forward history state.
 
+### `getRelativeDateHeader(dateStr: string)`
+-   **Description**: A helper function that takes a date string (e.g., "2025-09-22") and returns a user-friendly, relative date format. It produces outputs like "Today", "Tomorrow", or "Saturday, September 27, 2025" and includes the year if it's not the current year.
+
+
 #### Inbox Handlers
 
 ### `handleToggleImportant(messageId: number)`

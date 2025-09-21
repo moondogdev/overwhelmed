@@ -1754,6 +1754,39 @@ input[type="datetime-local"] + .button-group button {
 .checklist-action-btn:hover .fa-broom {
   color: #f4d03f !important;
 }
+.date-group-container {
+  margin-top: 20px; /* Add space above each new date group */
+  margin-bottom: 10px;
+}
+
+.date-group-header {
+  font-size: 1.1em;
+  font-weight: bold;
+  color: #61dafb; /* Use the accent color for visibility */
+  padding: 8px 12px;
+  margin: 0 0 10px 0; /* Reset default margin and add space below */
+  background-color: #21252b; /* A slightly different background */
+  border-left: 4px solid #61dafb; /* Add a colored accent bar */
+  border-radius: 3px;
+  text-transform: uppercase; /* Make it stand out more */
+  letter-spacing: 0.5px;
+}
+
+.no-due-date-header {
+  color: #aaa; /* A more muted gray color */
+  border-left-color: #555; /* A darker accent bar */
+}
+.date-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.date-group-task-count {
+  color: #aaa;
+  font-size: 0.8em;
+}
+
 .checklist-delete-btn:hover {
   color: #c94a4a !important;
 }

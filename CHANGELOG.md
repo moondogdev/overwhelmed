@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## Future Features
--   **Open Tasks View by Day**: In the Sort by Due Date view, add a breakpoint for each date for better grouping and readability
+-   **Cleanup Accordion Header UI**: UI is becoming cluttered with reporting details and actions
 -   **Alternating Tasks**: Link tasks where Completing starts another
 -   **Templated Tasks**: Save a task to use when creating a new task & predefined Templates to choose from:
     -   **Template: Finance**:
@@ -50,6 +50,16 @@ All notable changes to this project will be documented in this file.
     - **Check for Duplications**: The codebase might have duplication in its declaratives so we'll need to check for that.
     - **Refactor `<App>`**: App is growing too large and will cause performance issues 
     - **Rename `setCopyStatus`**: The `setCopyStatus` function and `copyStatus` state are used as the central toast notification system. They should be renamed to `setToastMessage` and `toastMessage` respectively to more accurately reflect their purpose.
+
+## [1.0.6] - 2025-09-22: Grouped Task View by Day
+
+### Added
+-   **Grouped Task View by Day**: When sorting the list view by "Due Date (Soonest First)", tasks are now grouped under headers for each day.
+    -   **Relative Date Headers**: Headers use relative terms like "Today" and "Tomorrow" for clarity. The full date and year are shown for other dates.
+    -   **Task Count**: Each date header displays a count of the tasks due on that day (e.g., "Today (3 tasks)").
+    -   **"No Due Date" Group**: Tasks without a due date are now grouped at the top for high visibility, with a distinct style to differentiate them.
+-   **UI Polish**: Added custom styling for the new date headers to improve readability and visual organization.
+
 
 ## [1.0.5] - 2025-09-21: Task Types & Templated Forms
 
