@@ -17,11 +17,10 @@ All notable changes to this project will be documented in this file.
     -   **Template: Home & Car Maintenance**:
     -   **Template: Billing**:    
 -   **Copy to Sheets**: Explore how we could copy a task to sheets possibly or what we'd use this for
--   **Inbox Expansion**
-    -   **Inbox Archive**: Move inbox items out of the inbox and into an archived state
-    -   **Inbox Trash**: Move inbox items out of the inbox and into a trash state rather than deleting them permanently
+-   **Inbox Expansion**:
     -   **Inbox Options**: Expand the inbox options to choose which message are received
     -   **Inbox Context Menus**: We need to add support for all inbox menu types
+    -   **Inbox Sort**: Expand sort to Important    
     
 -   **Standalone Application**: Package the application into a distributable and installable format for major operating systems (Windows, macOS, Linux).
 -   **Users**: Add a feature to create users and assign tickets to them, with the ability to filter the list to view tickets assigned to a specific user.
@@ -50,19 +49,29 @@ All notable changes to this project will be documented in this file.
       - We can likely overhaul the Meme view into a fullblown Meme Generator by including a different subview that allows the user to choose the image, text, and placement.    
     - **Check for Duplications**: The codebase might have duplication in its declaratives so we'll need to check for that.
     - **Refactor `<App>`**: App is growing too large and will cause performance issues 
+    - **Rename `setCopyStatus`**: The `setCopyStatus` function and `copyStatus` state are used as the central toast notification system. They should be renamed to `setToastMessage` and `toastMessage` respectively to more accurately reflect their purpose.
 
 ## [1.0.3] - 2025-09-20: Inbox Protection & Full Task View
  
 ### Added
 -   **Inbox Important Flag**: Added a star icon to each inbox message, allowing users to flag it as "important." Important messages are protected from being dismissed individually or by the "Clear All" action.
+-   **Inbox Archive**: Implemented an "Archive" feature in the Inbox. Users can now move messages from the "Active" view to a separate, persistent "Archived" tab.
+-   **Inbox Trash**: Implemented a full "Trash" system for the Inbox. Dismissed messages are now moved to a "Trash" tab instead of being permanently deleted, providing a safety net. The Trash view includes options to restore individual messages, restore all, or permanently empty the trash.
     -   *Note: Context Menu support for toggling the important flag will be added in a future update.*
 -   **Full Task View**: Implemented a "Full Task View" mode, allowing a single task to be viewed and edited in a dedicated, full-screen layout. This is accessible via an "expand" icon in the list view.
 
 ### Changed
 -   **UI Polish with Font Awesome**: Replaced all text-based and emoji icons (`✅`, `🗑️`, `🔄`, `↩️`, `↪️`, `+`, `−`, etc.) throughout the application with a consistent set of icons from Font Awesome. This affects the checklist system, accordion toggles, and various action buttons, providing a more professional and scalable UI.
+-   **Inbox Item Hover Effect**: Changed the hover effect on inbox items from a `background-color` change to a subtle `outline`. This improves the perceived responsiveness of action icons (like the "important" star) by preventing the background color change from visually interfering with the icon's own color state.
+
+### Fixed
+-   **Inbox Important Flag Persistence**: Ensured that the "important" status of inbox messages is correctly saved and restored across application restarts.
 
 ### Updated
 -   **Developer Documentation**: Added a new guide to `GEMINI.md` (Rule 38.0) explaining the standard procedure for finding, adding, and styling Font Awesome icons to maintain UI consistency.
+-   **Project Glossary**: Created a new `DEFINITIONS.md` file to serve as a central glossary for project-specific functions and state variables. Added a new guideline to `GEMINI.md` to ensure this file is kept up-to-date.
+-   **Developer Documentation**: Added a new guide to `GEMINI.md` (Rule 40.0) explaining the state management pattern for tabbed views like the new Inbox/Archive system.
+-   **Developer Documentation**: Added a new guide to `GEMINI.md` (Rule 41.0) to enforce using named handlers for UI actions, improving code clarity and maintainability.
 
 ## [1.0.2] - 2025-09-19
 

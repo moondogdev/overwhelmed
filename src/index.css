@@ -1422,6 +1422,7 @@ input[type="datetime-local"] + .button-group button {
   align-items: center;
   margin-left: auto; /* Pushes the actions to the far right */
   padding-left: 10px;
+  gap: 5px;
 }
 
 .inbox-message-action-btn {
@@ -1429,14 +1430,21 @@ input[type="datetime-local"] + .button-group button {
   border: none;
   color: #aaa;
   cursor: pointer;
-  padding: 2px 6px;
+  padding: 6px;
   font-size: 1em;
-  transition: color 0.2s ease-in-out;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  outline: 2px solid transparent;
+  transition: all 0.2s ease-in-out;
 }
-.inbox-message-action-btn:hover { color: #fff; }
+.inbox-message-action-btn:hover { color: #fff; outline: 2px solid currentColor; }
 .inbox-message-action-btn.important-btn .fa-star { color: #ccc; }
-.inbox-message-action-btn.important-btn:hover .fa-star { color: #f4d03f; }
+.inbox-message-action-btn.important-btn:hover { outline-color: #f4d03f;  }
+.inbox-message-action-btn.archive-btn:hover { outline-color: #61dafb; }
+.inbox-message-action-btn.restore-btn:hover { outline-color: #4caf50; }
 .inbox-message-action-btn.important-btn .fa-star.important { color: #f4d03f; }
+.inbox-message-action-btn.remove-btn:hover { color: red; outline-color: red; }
 .inbox-item {
   display: flex;
   align-items: center;
@@ -1462,6 +1470,7 @@ input[type="datetime-local"] + .button-group button {
 }
 .inbox-item.clickable:hover {
   background-color: #3a3f4b;
+  outline: 1px solid #4a4f5b
 }
 .backup-list li {
   padding: 10px;

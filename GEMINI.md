@@ -13,6 +13,8 @@ A hybrid task management and "word cloud" visualization application designed for
 -   **Intelligent Notification System**: A centralized, non-blocking notification system provides configurable alerts for overdue tasks and approaching deadlines, with actionable toasts for snoozing or completing tasks directly.
 -   **Inbox & Audit Trail**: A persistent inbox logs all major task events (created, completed, updated, overdue), providing a complete history of all activity.
     -   **Important Flag**: Users can mark inbox messages as "important" to protect them from being dismissed.
+    -   **Archive**: Users can archive messages to move them from the main inbox to a separate "Archived" view.
+    -   **Trash**: A full non-destructive trash system allows users to restore or permanently delete dismissed messages.
 -   **Data Reporting & Visualization**: A dedicated "Reports" view with `recharts` integration provides charts and raw data tables for task completions, earnings, and activity over time, with filtering and CSV export.
 -   **Customizable UI**: Features a collapsible sidebar, multiple views (Meme, List, Reports), and extensive settings for managing external links, browser integrations, and UI behavior.
 -   **"Meme View" Word Cloud**: The original word cloud feature remains, dynamically generating a visual representation of active tasks on a canvas, with clickable words and customizable text styling.
@@ -92,55 +94,10 @@ The application has been significantly enhanced, evolving from a simple word lis
 -   **Context Menu Logic**: A persistent bug where the ticket action context menu would not appear was resolved. The issue was caused by an event propagation conflict between a parent listener (for the ticket) and a child listener (for hyperlinks within the description). The final solution involved simplifying the event handling to ensure the correct menu appears based on the right-click target.
 -   **State Management for Edit Mode**: Fixed a bug where the "Edit Ticket" context menu option would not work reliably. This was due to React's `useState` initializer only running on the first render. The fix involved adding a `useEffect` hook to the `TaskAccordion` and `TabbedView` components, allowing them to react to prop changes and programmatically open or switch to the edit state.
 -   **UI Consistency with Font Awesome**: The UI has been significantly polished by replacing all text-based and emoji icons (`✅`, `🗑️`, `+`, `−`) with a consistent set of icons from Font Awesome. This includes all action buttons in the checklist system, accordion toggles, and various other controls throughout the application. This change provides a more professional, scalable, and maintainable user interface.
+-   **Inbox UI Polish**: Refined the hover effect on inbox items by replacing the `background-color` change with a subtle `outline`. This improves the perceived responsiveness of action icons (like the "important" star) by preventing visual interference with the icon's color state.
 
 ## Future Features
--   **Alternating Tasks**: Link tasks where Completing starts another
--   **Autocompletion of Checklists**: Add an option for when all items in a checklist is completed that it completes the task
--   **Task Types**: Templated forms based on categorical dropdown to simplfy the form fields based on the task type
--   **Templated Tasks**: Save a task to use when creating a new task & predefined Templates to choose from:
-    -   **Template: Finance**:
-    -   **Template: Learning**:
-    -   **Template: Cooking**:
-    -   **Template: Health & Exercise**:
-    -   **Template: Travel**:
-    -   **Template: Work**:
-    -   **Template: Shopping**:
-    -   **Template: Home & Car Maintenance**:
-    -   **Template: Billing**:    
--   **Copy to Sheets**: Explore how we could copy a task to sheets possibly or what we'd use this for
--   **Inbox Expansion**
-    -   **Inbox Archive**: Move inbox items out of the inbox and into an archived state
-    -   **Inbox Trash**: Move inbox items out of the inbox and into a trash state rather than deleting them permanently
-    -   **Inbox Options**: Expand the inbox options to choose which message are received
-    -   **Inbox Context Menus**: We need to add support for all inbox menu types
-    
--   **Standalone Application**: Package the application into a distributable and installable format for major operating systems (Windows, macOS, Linux).
--   **Users**: Add a feature to create users and assign tickets to them, with the ability to filter the list to view tickets assigned to a specific user.
--   **Themes**: Different style layouts
--   **Settings**: Missing a few settings options and probably want to build a full settings view soon
--   **Templated Tasks**: Save a task to use when creating a new task
--   **Calendar**: Task view in Calendar form. Can start new task on a specific due date by using the calendar
--   **Achievements**: Fun goal tracking system
--   **Score**: Add score to tasks
--   **Response to Ticket**: Like a comment but we want this to be a field where we would draft a response to a task acting as a ticket. Ideally we would be able to grab data from the task to help construct the response.
--   **Filtered search of Scripted responses**: Similar to above and likely used for the Response to Ticket but also allowing the user to user from a variety of responses and oneliners for Tasks functioning as Tickets. 
--   **Send Notifications externally**: Attempts to hook the various toast alerts to external sources
-    -   **Send to Desktop Notifications**: See whats possible with Electron
-    -   **Send to Email Notifications**: See whats possible with Electron
-    -   **Send to SMS Notifications**: See whats possible with Electron
--   **Advanced Checklist System**:  This system is already in place but we're still expanding it out.
-    -   Checklist Template Management
-        -   Implemented a full template system to save, load, and manage reusable checklists:
-            -   Phase 1: Data Structure & Storage
-            -   Phase 2: UI/UX Implementation
-            -   Phase 3: State Management & Logic
-        -   Add a "Manage Templates" button to open a modal for renaming/deleting templates.
--   **Total Refactoring**:  The codebase's individual files are getting rather large and likely need to start compartmentalizing structure into individual files to reduce strain on both the developer and code assist tools.
-    - **Change "Word" to "Task"**: When the application was first created, its only purpose was to display a "word cloud," so the main data object was fittingly named Word. As we added more and more features, we transformed that simple Word object into a complex Task manager, but the original variable names like Word, words, handleCompleteWord, etc., remained. See "Rule 08.0: Codebase Naming Conventions (Word vs. Task)" for more details.
-      - We need to update this handling to avoid confusion moving forward as the application grows from its original intention. The App started as a simple "word cloud" generator on a meme, which still functions as both a Meme Generator and links the tasks to a google search result when clicked. 
-      - We can likely overhaul the Meme view into a fullblown Meme Generator by including a different subview that allows the user to choose the image, text, and placement.    
-    - **Check for Duplications**: The codebase might have duplication in its declaratives so we'll need to check for that.
-    - **Refactor `<App>`**: App is growing too large and will cause performance issues 
+See `CHANGELOG.md` for a list of future features to implement. Strickly follow `## Gemini Code Assist Communication`, `### Other Guidelines for Gemini Code Assist to follow:`, `### Log of Issues and Lessons`, and `## Developer Guide Index` sections.
 
 ---
 
@@ -148,7 +105,7 @@ The application has been significantly enhanced, evolving from a simple word lis
 
 All notable changes to this project will be documented in this file @CHANGELOG.md. Please update the separate changelog as development progresses.
 
-## [1.0.4] - 2024-09-21: 
+## [1.0.5] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow
 ## [1.0.3] - 2024-09-20: Inbox Protection & Full Task View
 ## [1.0.2] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation
 ## [1.0.1] - 2024-09-18: Notification System & Inbox View
@@ -164,10 +121,11 @@ However, be wary of large feature changes as they sometimes come with errors bot
 This seems to be a caching issue where the chat is looking at an older file than what is current. Gemini should hopefully attempt to prompt us to commit these changes to github before large feature requests but I suggest doing so manually every so often when we have a working version.
 
 ## Gemini Code Assist Communication
-Hello @Gemini Code Assist, if you can read this, please, before we make large feature changes & we have a stable application, lets use your 'Prompts to try' to push a commit to github so we can backtrack safely. Unless there are other ways to undo large sessions.
+Hello `@Gemini Code Assist`, if you can read this, please, before we make large feature changes & we have a stable application, lets use your 'Prompts to try' to push a commit to github so we can backtrack safely. Unless there are other ways to undo large sessions.
 
 ### Other Guidelines for Gemini Code Assist to follow:
   - **Gemini Thinks its 2024**: The current year is 2025 and the current month is September. Gemini frequently forgets the date based on its training data and will source 2024 examples, documents, and use those dates erroneously. @Gemini, please before we implement anything with dates, we check the current year date as of TODAY. We don't need to source the most relevant information but it would be nice, and most certainly we should always use the current year when including it anywhere in this codebase.
+  - **Gemini should take microsteps**: Implement code in microsteps rather than large code changes so the user can understand whats changing and make it easier for them to see what exactly is happening with the changes.  
   - **Level User Knowledge of Code on a Scale: 1 out of 10**: Assume the user has a very low knowledge of the code being used and help explain what is going on with each change we are making. 
   - **Gemini should prompt to update CHANGELOG.md & GEMINI.md frequently**: Frequently suggest changelog and GEMINI.md (this file) changes so we can keep a log of what exactly is occuring during development.
   - **Use CHANGELOG.md & GEMINI.md frequently**: Refrence both the changelog and GEMINI.md (this file) frequently through development and prompt suggestions to avoid conflicts with existing structure as Gemini Code Assist will lose scope of the project for suggestions outside the existing support.
@@ -175,11 +133,28 @@ Hello @Gemini Code Assist, if you can read this, please, before we make large fe
   - **State the Goal First**: When requesting a new feature, state the high-level user goal first before describing the specific implementation. This provides better context for architectural decisions.
   - **Provide Full Error Messages**: When a bug occurs, always provide the full error message and stack trace from the console. This is the fastest way to debug the issue.
   - **Enforce a Step-by-Step Plan**: For new features, first ask Gemini to outline all the required steps (e.g., "1. Add interface, 2. Update main process, 3. Update renderer"). Then, proceed through the plan step-by-step. This prevents incomplete implementations.
+  - **Regularly check `DEFINITIONS.md`**: Reference our `DEFINITIONS.md` for existing delcariations and logic.
+  - **Regularly add & update `DEFINITIONS.md`**: Reference our `DEFINITIONS.md` and add & update new delcariations and logic as needed.
   - **Check for Existing Logic First**: Before adding new functions or state, explicitly ask Gemini to check if similar logic already exists that can be reused or extended. This prevents duplicate code and state management conflicts.
   - **Request Code Comments for Learning**: When a complex code block is provided, ask Gemini to add comments to it. This helps explain the purpose of each part of the code, which is a great way to learn.
+  - **Gemini should update the `### Other Guidelines for Gemini Code Assist to follow` section**: As we add new guidelines, Gemini should attempt to update this list we are currently in to provide more context for development philosophy and approach.
+  - **Gemini should update the `### Log of Issues and Lessons` section**: Create a new `[1.0.x]` for each error and lesson we learn.
+  - **Gemini should update the `## Developer Guide Index` section**: Create a rule for each new logic we implement or learn through the development process.
+    - **Developer Guide Index: Prompt Reply Example**: `@Gemini`, this will routinely fail due to comment code and trying to generate code examples. Please copy the blocks of content to add to the Developer Guide separately:
+      - For example, provide the Rule Change in one block of copy code:
+        - Provide the content of the `# Developer Guide - Rule XX.X:` separately but also;
+        - Provide the code example of the `# Developer Guide - Rule XX.X:` content separately in.
+      - This should ensure all parts of the `Developer Guide` updates are rendered without errors; (e.g) "Here is the title of the new rule", "Here is the content for the new rule without code examples", "here are the code examples for the new rule".
+  - **Gemini should perform a "wrap up"**: When we are finishing implementing a new feature, Gemini should prompt to update the previous mentioned areas in the `CHANGELOG.md`, `DEFINITIONS.md`, and `GEMINI.md`, specifically the `Other Guidelines for Gemini Code Assist to follow`, `Log of Issues and Lessons`, and `Developer Guide Index` sections. The `CHANGELOG.md` and `GEMINI.md` should reflect a persistent log of our activity and look to perform these wrap up prompts at the end of each new implementation just prior to making a new commit. 
+    - **Gemini should update `DEFINITIONS.md`**: As new handlers, state variables, or other key declaratives are created, they should be added to the `DEFINITIONS.md` file to maintain a project glossary.
+    - **Example Workflow**: Implement change > Update `Other Guidelines for Gemini Code Assist to follow`, `Log of Issues and Lessons`, and `Developer Guide Index` sections > update `GEMINI.md`, `DEFINITIONS.md`, and `CHANGELOG.md` sections to reflect the implemented feature AND the documentation updates.
 
 ---
 ### Log of Issues and Lessons
+#### [1.0.9] - JSX Syntax Errors from Complex Conditional Rendering
+-   **Issue**: While implementing the tabbed inbox views (Active, Archive, Trash), multiple cascading syntax errors occurred (e.g., `Unexpected token`, `JSX element has no corresponding closing tag`). These were difficult to pinpoint and were caused by incorrectly structured conditional rendering blocks.
+-   **Lesson**: When a component has multiple complex return paths (e.g., one for a "grouped" view and another for a "flat list" view), it's easy to make structural mistakes. The best practice is to simplify the rendering logic. Instead of having large, separate `return` statements inside each `if` block, it's better to define common elements (like headers) once and then conditionally render only the parts that change. This reduces code duplication and makes the component's JSX structure much easier to read and debug.
+
 #### [1.0.8] - UI Lag on State Update in Large Component
 -   **Issue**: After implementing the "Inbox Important" toggle, a noticeable lag occurred when clicking the star icon. The state updated, but the UI took a moment to reflect the change.
 -   **Lesson**: This is a classic React performance issue. When a single component (like our main `App` in `renderer.tsx`) becomes too large, any state update can trigger a slow and expensive re-render of the entire component tree. The solution is to refactor distinct pieces of UI (like the Inbox) into their own smaller, memoized components. This ensures that only the relevant component re-renders, making the UI feel instantaneous. This will be addressed in a future refactoring task.
@@ -218,7 +193,7 @@ Hello @Gemini Code Assist, if you can read this, please, before we make large fe
 
 ---
 
-# Developer Guide Index
+## Developer Guide Index
   - Rule 01.0: Adding a New Context Menu
   - Rule 02.0: Generating Unique Keys in React
   - Rule 03.0: Handling `onClick` with Function Arguments
@@ -257,10 +232,13 @@ Hello @Gemini Code Assist, if you can read this, please, before we make large fe
   - Rule 36.0: Commiting Changes
   - Rule 37.0: Using the VS Code Source Control UI
   - Rule 38.0: Using Font Awesome Icons
+  - Rule 39.0: Central Toast Notifications (`setCopyStatus`)
+  - Rule 40.0: State Management for Tabbed Views (e.g., Inbox/Archive)
+  - Rule 41.0: Prefer Named Handlers for UI Actions
 
 ---
 
-# Developer Guide - Rule 01.0: Adding a New Context Menu
+## Developer Guide - Rule 01.0: Adding a New Context Menu
 
 This guide outlines the three main steps required to add a new right-click context menu to the application. We will use the "Checklist Item" menu as an example.
 
@@ -1766,3 +1744,89 @@ We can add custom hover effects for icons inside specific buttons for better use
   color: #f4d03f !important;
 }
 ```
+---
+
+# Developer Guide - Rule 39.0: Central Toast Notifications (`setCopyStatus`)
+
+This guide clarifies the purpose of the `copyStatus` state and its setter function, `setCopyStatus`, which serves as the application's central toast notification system.
+
+### The History and Naming Convention
+
+Originally, this state was created for a single purpose: to show a "Copied!" message when a user copied text. As the application grew, it became the quickest and most convenient way to provide feedback for *any* user action (e.g., "Project Saved!", "Task Completed!", "Cannot dismiss an important message.").
+
+The name `setCopyStatus` is therefore a historical artifact. It should be interpreted as `setToastMessage`.
+
+### How It Works
+
+1.  **State**: The `copyStatus` state is a simple string defined in the root `App` component:
+    `const [copyStatus, setCopyStatus] = useState('');`
+
+2.  **Rendering**: A toast notification is conditionally rendered at the bottom of the screen whenever `copyStatus` is not an empty string:
+    `<div className="copy-status-toast">{copyStatus}</div>`
+
+3.  **Usage**: To display a toast, call `setCopyStatus` with the desired message. To hide it, call it with an empty string, usually after a `setTimeout`.
+
+    ```jsx
+    setCopyStatus('This is my toast message!');
+    setTimeout(() => setCopyStatus(''), 2000); // Hide after 2 seconds
+    ```
+
+### Refactoring Goal
+
+As part of our ongoing refactoring efforts (see `CHANGELOG.md`), this state and its related functions and components should eventually be renamed to something more descriptive, such as `toastMessage` and `setToastMessage`, to avoid confusion.
+
+---
+
+# Developer Guide - Rule 40.0: State Management for Tabbed Views (e.g., Inbox/Archive)
+
+This guide explains the standard pattern for managing items that can exist in different states or views, such as the "Active" and "Archived" tabs in the Inbox.
+
+### The Problem: A Single Array is Inefficient
+
+One way to implement an archive feature would be to use a single array for all messages and add a flag like `isArchived: boolean`. Then, for each view, we would filter the entire array:
+-   Active View: `messages.filter(msg => !msg.isArchived)`
+-   Archived View: `messages.filter(msg => msg.isArchived)`
+
+While simple, this becomes inefficient as the number of messages grows. Filtering a large array on every render can lead to performance issues.
+
+### The Solution: Separate State Arrays
+
+A more performant and scalable solution is to maintain separate state arrays for each view. This is the pattern we used for the Inbox Archive feature.
+
+```typescript
+const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
+const [archivedMessages, setArchivedMessages] = useState<InboxMessage[]>([]);
+```
+
+When a user archives a message, we perform two state updates: one to remove the item from the `inboxMessages` array and another to add it to the `archivedMessages` array. This way, each tab only needs to render its own, pre-filtered list, which is much more efficient. This pattern should be used for similar features in the future (e.g., an Inbox Trash).
+
+---
+
+# Developer Guide - Rule 41.0: Prefer Named Handlers for UI Actions
+This guide establishes a best practice for handling user interactions in React components to improve code clarity and maintainability.
+
+## The Problem: Inline Logic in `onClick`
+It is possible to write complex logic directly inside an `onClick` handler as an inline arrow function. While this works, it can make the JSX difficult to read and the logic harder to find and debug.
+
+### Less Readable:
+
+```jsx
+<button onClick={() => { if (window.confirm('Are you sure?')) { setState([]); setCopyStatus('Done.'); } }}>Do Thing</button>
+```
+
+## The Solution: Extract Logic to Named Handlers
+The preferred pattern is to extract all but the simplest logic into a named handler function within the component. This keeps the JSX clean and the logic centralized and easy to understand.
+
+### More Readable (Preferred):
+
+```jsx
+const handleDoThing = () => {
+  if (window.confirm('Are you sure?')) {
+    setState([]);
+    setCopyStatus('Done.');
+  }
+};
+
+<button onClick={handleDoThing}>Do Thing</button>
+```
+**Result**: This convention makes our components more predictable and easier to refactor in the future.

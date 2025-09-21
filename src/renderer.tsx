@@ -106,6 +106,7 @@ interface InboxMessage {
   wordId?: number; // Optional: link back to the task
   sectionId?: number; // Optional: for checklist items
   isImportant?: boolean;
+  isArchived?: boolean;
 }
 
 interface Browser {
@@ -1869,7 +1870,10 @@ function App() {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   // State for the new inbox
   const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
+  const [archivedMessages, setArchivedMessages] = useState<InboxMessage[]>([]);
+  const [trashedMessages, setTrashedMessages] = useState<InboxMessage[]>([]);
   // State for inline editing
+  const [activeInboxTab, setActiveInboxTab] = useState<'active' | 'archived' | 'trash'>('active');
   // State for navigation history
   const [viewHistory, setViewHistory] = useState(['meme']);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -1924,6 +1928,14 @@ function App() {
   const inboxMessagesRef = useRef(inboxMessages);
   inboxMessagesRef.current = inboxMessages;
 
+  // Ref for archived messages
+  const archivedMessagesRef = useRef(archivedMessages);
+  archivedMessagesRef.current = archivedMessages;
+
+  // Ref for trashed messages
+  const trashedMessagesRef = useRef(trashedMessages);
+  trashedMessagesRef.current = trashedMessages;
+
   // Ref to prevent duplicate 'overdue' inbox messages from being created in rapid succession.
   const overdueMessageSentRef = useRef(new Set<number>());
 
@@ -1943,6 +1955,93 @@ function App() {
     setIsDirty(true); // Mark that we have unsaved changes
   };
 
+  const handleArchiveInboxMessage = (messageId: number) => {
+    const messageToArchive = inboxMessages.find(msg => msg.id === messageId);
+    if (!messageToArchive) return;
+
+    // Add to archived list and remove from active inbox
+    setArchivedMessages(prev => [{ ...messageToArchive, isArchived: true }, ...prev]);
+    setInboxMessages(prev => prev.filter(msg => msg.id !== messageId));
+
+    setCopyStatus("Message archived.");
+    setTimeout(() => setCopyStatus(''), 2000);
+    setIsDirty(true);
+  };
+
+  const handleUnarchiveInboxMessage = (messageId: number) => {
+    const messageToUnarchive = archivedMessages.find(msg => msg.id === messageId);
+    if (!messageToUnarchive) return;
+
+    // Add back to active inbox and remove from archived list
+    setInboxMessages(prev => [{ ...messageToUnarchive, isArchived: false }, ...prev]);
+    setArchivedMessages(prev => prev.filter(msg => msg.id !== messageId));
+
+    setCopyStatus("Message un-archived.");
+    setTimeout(() => setCopyStatus(''), 2000);
+    setIsDirty(true);
+  };
+
+  const handleRestoreFromTrash = (messageId: number) => {
+    const messageToRestore = trashedMessages.find(msg => msg.id === messageId);
+    if (!messageToRestore) return;
+
+    // Add back to active inbox and remove from trash
+    setInboxMessages(prev => [messageToRestore, ...prev]);
+    setTrashedMessages(prev => prev.filter(msg => msg.id !== messageId));
+
+    setCopyStatus("Message restored from trash.");
+    setTimeout(() => setCopyStatus(''), 2000);
+    setIsDirty(true);
+  };
+
+  const handleDeletePermanently = (messageId: number) => {
+    // Permanently remove the message from the trash
+    setTrashedMessages(prev => prev.filter(msg => msg.id !== messageId));
+
+    setCopyStatus("Message permanently deleted.");
+    setTimeout(() => setCopyStatus(''), 2000);
+    setIsDirty(true);
+  };
+
+  const handleEmptyTrash = () => {
+    if (window.confirm(`Are you sure you want to permanently delete all ${trashedMessages.length} items in the trash? This cannot be undone.`)) {
+      setTrashedMessages([]);
+      setCopyStatus("Trash has been emptied.");
+      setTimeout(() => setCopyStatus(''), 2000);
+      setIsDirty(true);
+    }
+  };
+
+  const handleDismissArchivedMessage = (messageId: number) => {
+    const messageToTrash = archivedMessages.find(m => m.id === messageId);
+    if (!messageToTrash) return;
+
+    // Move the message from archive to the trash state
+    setTrashedMessages(prev => [messageToTrash, ...prev]);
+    setArchivedMessages(prev => prev.filter(m => m.id !== messageId));
+
+    setCopyStatus("Message moved from archive to trash.");
+    setTimeout(() => setCopyStatus(''), 2000);
+    setIsDirty(true);
+  };
+  const handleRestoreAllFromTrash = () => {
+    if (window.confirm('Are you sure you want to restore all items from the trash?')) {
+      setInboxMessages(prev => [...prev, ...trashedMessages]);
+      setTrashedMessages([]);
+      setIsDirty(true);
+      setCopyStatus('All messages restored from trash.');
+      setTimeout(() => setCopyStatus(''), 2000);
+    }
+  };
+  const handleTrashAllArchived = () => {
+    if (window.confirm(`Are you sure you want to move all ${archivedMessages.length} archived messages to the trash?`)) {
+      setTrashedMessages(prev => [...prev, ...archivedMessages]);
+      setArchivedMessages([]);
+      setIsDirty(true);
+      setCopyStatus('All archived messages moved to trash.');
+      setTimeout(() => setCopyStatus(''), 2000);
+    }
+  };
   const handleTaskOverdue = (wordId: number) => {
     // This function is now the single gatekeeper for creating overdue alerts. It uses
     // functional state updates for both state setters to prevent race conditions.
@@ -2002,6 +2101,8 @@ function App() {
         const savedCompletedWords = await window.electronAPI.getStoreValue('overwhelmed-completed-words');
         const savedSettings = await window.electronAPI.getStoreValue('overwhelmed-settings');
         const savedInboxMessages = await window.electronAPI.getStoreValue('overwhelmed-inbox-messages');
+        const savedArchivedMessages = await window.electronAPI.getStoreValue('overwhelmed-archived-messages');
+        const savedTrashedMessages = await window.electronAPI.getStoreValue('overwhelmed-trashed-messages');
 
         if (savedWords) {
             // Ensure lastNotified is initialized if it's missing from saved data
@@ -2014,9 +2115,13 @@ function App() {
         }
         if (savedInboxMessages) { setInboxMessages(savedInboxMessages);
         }
+        if (savedArchivedMessages) { setArchivedMessages(savedArchivedMessages);
+        }
+        if (savedTrashedMessages) { setTrashedMessages(savedTrashedMessages);
+        }
         setIsLoading(false); // Mark loading as complete
         // Now that all data is loaded, signal the main process that it can create a startup backup.
-        window.electronAPI.send('renderer-ready-for-startup-backup', { words: savedWords, completedWords: savedCompletedWords, settings: savedSettings, inboxMessages: savedInboxMessages });
+        window.electronAPI.send('renderer-ready-for-startup-backup', { words: savedWords, completedWords: savedCompletedWords, settings: savedSettings, inboxMessages: savedInboxMessages, archivedMessages: savedArchivedMessages, trashedMessages: savedTrashedMessages });
       } catch (error) {
         console.error("Failed to load data from electron-store", error);
         setIsLoading(false); // Also mark as complete on error to avoid getting stuck
@@ -2125,6 +2230,16 @@ function App() {
     if (!isLoading) setIsDirty(true);
   }, [inboxMessages]);
 
+  // Save archived messages whenever they change
+  useEffect(() => {
+    if (!isLoading) setIsDirty(true);
+  }, [archivedMessages]);
+
+  // Save trashed messages whenever they change
+  useEffect(() => {
+    if (!isLoading) setIsDirty(true);
+  }, [trashedMessages]);
+
   // Save settings to localStorage whenever they change
   useEffect(() => {
     if (!isLoading) setIsDirty(true);
@@ -2137,7 +2252,7 @@ function App() {
         if (prevCountdown <= 1) {
           // Countdown reached zero, trigger auto-save if dirty
           if (isDirty) {
-            window.electronAPI.send('auto-save-data', { words, completedWords, settings, inboxMessages });
+            window.electronAPI.send('auto-save-data', { words, completedWords, settings, inboxMessages, archivedMessages, trashedMessages });
             setIsDirty(false);
             setLastSaveTime(Date.now());
           }
@@ -2150,7 +2265,7 @@ function App() {
     }, 1000);
 
     return () => clearInterval(countdownInterval);
-  }, [isDirty, words, completedWords, settings, inboxMessages]); // Re-bind if state changes
+  }, [isDirty, words, completedWords, settings, inboxMessages, archivedMessages, trashedMessages]); // Re-bind if state changes
 
   // Centralized effect for all time-based notifications (overdue & approaching)
   useEffect(() => {
@@ -2238,13 +2353,13 @@ function App() {
         });
       }
 
-      window.electronAPI.send('data-for-quit', { words: wordsToSave, completedWords, settings, inboxMessages });
+      window.electronAPI.send('data-for-quit', { words: wordsToSave, completedWords, settings, inboxMessages, archivedMessages, trashedMessages });
     };
 
     const cleanup = window.electronAPI.on('get-data-for-quit', handleGetDataForQuit);
     // Cleanup the listener when the component unmounts
     return cleanup;
-  }, [words, completedWords, settings]); // Re-bind if state changes to send the latest version
+  }, [words, completedWords, settings, inboxMessages, archivedMessages, trashedMessages ]); // Re-bind if state changes to send the latest version
 
   // Effect to handle commands from the ticket context menu
   useEffect(() => {
@@ -2377,7 +2492,7 @@ function App() {
           break;
       }
     };
-    const cleanup = window.electronAPI.on('save-context-menu-command', handleMenuCommand);
+    const cleanup = window.electronAPI.on('save-context-menu-command', handleMenuCommand); // eslint-disable-line
     return cleanup;
   }, [words, completedWords, settings, inboxMessages]); // Re-bind if state changes to save the latest version
 
@@ -3298,7 +3413,9 @@ function App() {
     await window.electronAPI.setStoreValue('overwhelmed-words', wordsToSave);
     await window.electronAPI.setStoreValue('overwhelmed-completed-words', completedWords);
     await window.electronAPI.setStoreValue('overwhelmed-settings', settings);
-    await window.electronAPI.setStoreValue('overwhelmed-inbox-messages', inboxMessagesRef.current); // Use the ref to get the latest state
+    await window.electronAPI.setStoreValue('overwhelmed-inbox-messages', inboxMessagesRef.current);
+    await window.electronAPI.setStoreValue('overwhelmed-archived-messages', archivedMessagesRef.current);
+    await window.electronAPI.setStoreValue('overwhelmed-trashed-messages', trashedMessagesRef.current);
     
     setIsDirty(false); // Mark the state as clean/saved
     setLastSaveTime(Date.now());
@@ -3553,23 +3670,31 @@ function App() {
   };
 
   const handleDismissInboxMessage = (messageId: number) => {
-    const message = inboxMessages.find(m => m.id === messageId);
-    if (message && message.isImportant) {
+    const messageToTrash = inboxMessages.find(m => m.id === messageId);
+    if (!messageToTrash) return;
+
+    if (messageToTrash.isImportant) {
       setCopyStatus("Cannot dismiss an important message.");
       setTimeout(() => setCopyStatus(''), 2000);
       return;
     }
-    setCopyStatus("Message dismissed.");
-    setTimeout(() => setCopyStatus(''), 2000);
+
+    // Move the message to the trash state
+    setTrashedMessages(prev => [messageToTrash, ...prev]);
     setInboxMessages(prev => prev.filter(m => m.id !== messageId));
+
+    setCopyStatus("Message moved to trash.");
+    setTimeout(() => setCopyStatus(''), 2000);
     setIsDirty(true);
   };
 
   const handleDismissAllInboxMessages = () => {
-    const nonImportantCount = inboxMessages.filter(m => !m.isImportant).length;
-    setCopyStatus(`Cleared ${nonImportantCount} non-important message(s).`);
-    setTimeout(() => setCopyStatus(''), 2000);
+    const messagesToTrash = inboxMessages.filter(m => !m.isImportant);
+    setTrashedMessages(prev => [...messagesToTrash, ...prev]);
     setInboxMessages(prev => prev.filter(m => m.isImportant));
+
+    setCopyStatus(`Moved ${messagesToTrash.length} non-important message(s) to trash.`);
+    setTimeout(() => setCopyStatus(''), 2000);
     setIsDirty(true);
   };
   const Footer = () => {
@@ -3777,7 +3902,7 @@ function App() {
         {settings.currentView === 'inbox' && (
           <div className="inbox-view">
             <div className="list-header">
-              <h3>Inbox ({inboxMessages.length})</h3>
+              <h3>Inbox</h3>
               <div className="list-header-actions">
                 <div className="inbox-sort-control">
                   <label>Sort by:</label>
@@ -3792,81 +3917,169 @@ function App() {
                 }} title="Clear All Non-Important Messages"><i className="fas fa-trash"></i> Clear All</button>
               </div>
             </div>
-            {(() => {
-              if (inboxMessages.length === 0) {
-                return <p>Your inbox is empty.</p>;
-              }
+            <div className="tab-headers">
+              <button onClick={() => setActiveInboxTab('active')} className={activeInboxTab === 'active' ? 'active' : ''}>Active ({inboxMessages.length})</button>
+              <button onClick={() => setActiveInboxTab('archived')} className={activeInboxTab === 'archived' ? 'active' : ''}>Archived ({archivedMessages.length})</button>
+              <button onClick={() => setActiveInboxTab('trash')} className={activeInboxTab === 'trash' ? 'active' : ''}>Trash ({trashedMessages.length})</button>
+            </div>
+            {activeInboxTab === 'active' && (() => {
+                const activeHeader = (
+                  <div className="list-header">
+                    <button onClick={handleDismissAllInboxMessages} title="Move all non-important messages to trash"><i className="fas fa-trash"></i> Clear All</button>
+                  </div>
+                );
 
-              if (settings.inboxSort === 'type') {
-                const groupedMessages = inboxMessages.reduce((acc, message) => {
-                  const type = message.type;
-                  if (!acc[type]) {
-                    acc[type] = [];
-                  }
-                  acc[type].push(message);
-                  return acc;
-                }, {} as Record<string, InboxMessage[]>);
-
-                // Sort each group internally by timestamp
-                for (const type in groupedMessages) {
-                  groupedMessages[type].sort((a, b) => b.timestamp - a.timestamp);
+                if (inboxMessages.length === 0) {
+                  return <p>Your inbox is empty.</p>;
                 }
-
+  
+                if (settings.inboxSort === 'type') {
+                  const groupedMessages = inboxMessages.reduce((acc, message) => {
+                    const type = message.type;
+                    if (!acc[type]) {
+                      acc[type] = [];
+                    }
+                    acc[type].push(message);
+                    return acc;
+                  }, {} as Record<string, InboxMessage[]>);
+  
+                  // Sort each group internally by timestamp
+                  for (const type in groupedMessages) {
+                    groupedMessages[type].sort((a, b) => b.timestamp - a.timestamp);
+                  }
+  
+                  return (
+                    <div className="inbox-list">
+                      {Object.entries(groupedMessages).map(([type, messages]) => (
+                        <SimpleAccordion
+                          key={`${type}-${messages[0]?.id || 0}`} 
+                          title={`${type.charAt(0).toUpperCase() + type.slice(1)} (${messages.length})`} 
+                          startOpen={(settings.openInboxGroupTypes || []).includes(type)}
+                          onToggle={(isOpen) => {
+                            const newOpenTypes = isOpen ? [...(settings.openInboxGroupTypes || []), type] : (settings.openInboxGroupTypes || []).filter(t => t !== type);
+                            setSettings(prev => ({ ...prev, openInboxGroupTypes: newOpenTypes }));
+                          }}>
+                          <div className="inbox-group">
+                            {messages.map(message => (
+                              <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)} onContextMenu={(e) => { if (message.type !== 'created' && message.type !== 'deleted' && message.type !== 'updated' && message.type !== 'completed') { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); } else { e.preventDefault(); } }}>
+                                <span className="inbox-item-icon"><i className={`fas ${message.type === 'overdue' ? 'fa-exclamation-triangle' : message.type === 'timer-alert' ? 'fa-bell' : message.type === 'created' ? 'fa-magic' : message.type === 'completed' ? 'fa-check-circle' : message.type === 'deleted' ? 'fa-trash-alt' : 'fa-pencil-alt'}`}></i></span>
+                                <span className="inbox-item-text">{message.text}</span><span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
+                                <div className="inbox-message-actions">
+                                  <button className="inbox-message-action-btn important-btn" title={message.isImportant ? "Unmark as important" : "Mark as important"} onClick={(e) => { e.stopPropagation(); handleToggleImportant(message.id); }}>
+                                    <i className={`fas fa-star ${message.isImportant ? 'important' : ''}`}></i>
+                                  </button>
+                                  <button className="inbox-message-action-btn archive-btn" title="Archive Message" onClick={(e) => { e.stopPropagation(); handleArchiveInboxMessage(message.id); }}>
+                                    <i className="fas fa-archive"></i>
+                                  </button>
+                                  <button onClick={(e) => { e.stopPropagation(); handleDismissInboxMessage(message.id); }} className="inbox-message-action-btn remove-btn" title="Dismiss Message">
+                                    <i className="fas fa-times"></i>
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </SimpleAccordion>
+                      ))}
+                    </div>
+                  );
+                }
+  
+                const sortedMessages = [...inboxMessages].sort((a, b) => {
+                  if (settings.inboxSort === 'date-asc') {
+                    return a.timestamp - b.timestamp;
+                  }
+                  if (settings.inboxSort === 'type') {
+                    return a.type.localeCompare(b.type) || b.timestamp - a.timestamp;
+                  }
+                  return b.timestamp - a.timestamp; // Default 'date-desc'
+                });
+  
                 return (
                   <div className="inbox-list">
-                    {Object.entries(groupedMessages).map(([type, messages]) => (
-                      <SimpleAccordion
-                        key={`${type}-${messages[0]?.id || 0}`} 
-                        title={`${type.charAt(0).toUpperCase() + type.slice(1)} (${messages.length})`} 
-                        startOpen={(settings.openInboxGroupTypes || []).includes(type)}
-                        onToggle={(isOpen) => {
-                          const newOpenTypes = isOpen ? [...(settings.openInboxGroupTypes || []), type] : (settings.openInboxGroupTypes || []).filter(t => t !== type);
-                          setSettings(prev => ({ ...prev, openInboxGroupTypes: newOpenTypes }));
-                        }}>
-                        <div className="inbox-group">
-                          {messages.map(message => (
-                            <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)} onContextMenu={(e) => { if (message.type !== 'created' && message.type !== 'deleted' && message.type !== 'updated' && message.type !== 'completed') { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); } else { e.preventDefault(); } }}>
-                              <span className="inbox-item-icon"><i className={`fas ${message.type === 'overdue' ? 'fa-exclamation-triangle' : message.type === 'timer-alert' ? 'fa-bell' : message.type === 'created' ? 'fa-magic' : message.type === 'completed' ? 'fa-check-circle' : message.type === 'deleted' ? 'fa-trash-alt' : 'fa-pencil-alt'}`}></i></span>
-                              <span className="inbox-item-text">{message.text}</span><span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
-                              <div className="inbox-message-actions">
-                                <button className="inbox-message-action-btn important-btn" title={message.isImportant ? "Unmark as important" : "Mark as important"} onClick={(e) => { e.stopPropagation(); handleToggleImportant(message.id); }}>
-                                  <i className={`fas fa-star ${message.isImportant ? 'important' : ''}`}></i>
-                                </button>
-                                <button onClick={(e) => { e.stopPropagation(); handleDismissInboxMessage(message.id); }} className="inbox-message-action-btn" title="Dismiss Message">
-                                  <i className="fas fa-times"></i>
-                                </button>
-                              </div>
-                            </div>
-                          ))}
+                    {sortedMessages.map(message => (
+                      <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)} onContextMenu={(e) => { if (message.type !== 'created' && message.type !== 'deleted' && message.type !== 'updated' && message.type !== 'completed') { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); } else { e.preventDefault(); } }}>
+                        <span className="inbox-item-icon"><i className={`fas ${message.type === 'overdue' ? 'fa-exclamation-triangle' : message.type === 'timer-alert' ? 'fa-bell' : message.type === 'created' ? 'fa-magic' : message.type === 'completed' ? 'fa-check-circle' : message.type === 'deleted' ? 'fa-trash-alt' : 'fa-pencil-alt'}`}></i></span>
+                        <span className="inbox-item-text">{message.text}</span><span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
+                        <div className="inbox-message-actions">
+                          <button className="inbox-message-action-btn important-btn" title={message.isImportant ? "Unmark as important" : "Mark as important"} onClick={(e) => { e.stopPropagation(); handleToggleImportant(message.id); }}>
+                            <i className={`fas fa-star ${message.isImportant ? 'important' : ''}`}></i>
+                          </button>
+                          <button className="inbox-message-action-btn archive-btn" title="Archive Message" onClick={(e) => { e.stopPropagation(); handleArchiveInboxMessage(message.id); }}>
+                            <i className="fas fa-archive"></i>
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDismissInboxMessage(message.id); }} className="inbox-message-action-btn" title="Dismiss Message">
+                            <i className="fas fa-times"></i>
+                          </button>
                         </div>
-                      </SimpleAccordion>
+                      </div>
                     ))}
                   </div>
                 );
+              })()}
+            {activeInboxTab === 'archived' && (() => {
+              if (archivedMessages.length === 0) {
+                return <p>Your archive is empty.</p>;
               }
-
-              const sortedMessages = [...inboxMessages].sort((a, b) => {
-                if (settings.inboxSort === 'date-asc') {
-                  return a.timestamp - b.timestamp;
-                }
-                if (settings.inboxSort === 'type') {
-                  return a.type.localeCompare(b.type) || b.timestamp - a.timestamp;
-                }
-                return b.timestamp - a.timestamp; // Default 'date-desc'
-              });
-
+              const sortedArchived = [...archivedMessages].sort((a, b) => b.timestamp - a.timestamp);
+              const archiveHeader = (
+                <div className="list-header">
+                  <button onClick={() => { if(window.confirm('Are you sure you want to un-archive all messages?')) { setInboxMessages(prev => [...prev, ...archivedMessages]); setArchivedMessages([]); setIsDirty(true); } }} title="Un-archive all messages"><i className="fas fa-undo-alt"></i> Un-archive All</button><button onClick={handleTrashAllArchived} title="Move all archived messages to trash"><i className="fas fa-trash"></i> Trash All</button>
+                </div>
+              );
               return (
                 <div className="inbox-list">
-                  {sortedMessages.map(message => (
-                    <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)} onContextMenu={(e) => { if (message.type !== 'created' && message.type !== 'deleted' && message.type !== 'updated' && message.type !== 'completed') { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); } else { e.preventDefault(); } }}>
-                      <span className="inbox-item-icon"><i className={`fas ${message.type === 'overdue' ? 'fa-exclamation-triangle' : message.type === 'timer-alert' ? 'fa-bell' : message.type === 'created' ? 'fa-magic' : message.type === 'completed' ? 'fa-check-circle' : message.type === 'deleted' ? 'fa-trash-alt' : 'fa-pencil-alt'}`}></i></span>
-                      <span className="inbox-item-text">{message.text}</span><span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
+                  {archiveHeader}
+                  {sortedArchived.map(message => (
+                    <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)}>
+                      <span className="inbox-item-icon"><i className={`fas ${message.type === 'overdue' ? 'fa-exclamation-triangle' : message.type === 'timer-alert' ? 'fa-bell' : 'fa-info-circle'}`}></i></span>
+                      <span className="inbox-item-text">{message.text}</span>
+                      <span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
                       <div className="inbox-message-actions">
-                        <button className="inbox-message-action-btn important-btn" title={message.isImportant ? "Unmark as important" : "Mark as important"} onClick={(e) => { e.stopPropagation(); handleToggleImportant(message.id); }}>
-                          <i className={`fas fa-star ${message.isImportant ? 'important' : ''}`}></i>
+                        <button 
+                          className="inbox-message-action-btn archive-btn" 
+                          title="Un-archive Message" 
+                          onClick={(e) => { e.stopPropagation(); handleUnarchiveInboxMessage(message.id); }}>
+                          <i className="fas fa-undo-alt"></i>
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDismissInboxMessage(message.id); }} className="inbox-message-action-btn" title="Dismiss Message">
+                        <button onClick={(e) => { e.stopPropagation(); handleDismissArchivedMessage(message.id); }} className="inbox-message-action-btn remove-btn" title="Move to Trash">
                           <i className="fas fa-times"></i>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {activeInboxTab === 'trash' && (() => {
+              if (trashedMessages.length === 0) {
+                return <p>Your trash is empty.</p>;
+              }
+              const sortedTrashed = [...trashedMessages].sort((a, b) => b.timestamp - a.timestamp);
+              const trashHeader = (
+                <div className="list-header">
+                  <button onClick={handleRestoreAllFromTrash} title="Restore all messages from trash"><i className="fas fa-undo-alt"></i> Restore All</button><button onClick={handleEmptyTrash} title="Permanently delete all items in trash"><i className="fas fa-dumpster-fire"></i> Empty Trash</button>
+                </div>
+              );
+              return (
+                <div className="inbox-list">
+                  {trashHeader}
+                  {sortedTrashed.map(message => (
+                    <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)}>
+                      <span className="inbox-item-icon"><i className={`fas ${message.type === 'overdue' ? 'fa-exclamation-triangle' : message.type === 'timer-alert' ? 'fa-bell' : 'fa-info-circle'}`}></i></span>
+                      <span className="inbox-item-text">{message.text}</span>
+                      <span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
+                      <div className="inbox-message-actions">
+                        <button 
+                          className="inbox-message-action-btn restore-btn" 
+                          title="Restore Message" 
+                          onClick={(e) => { e.stopPropagation(); handleRestoreFromTrash(message.id); }}>
+                          <i className="fas fa-undo-alt"></i>
+                        </button>
+                        <button 
+                          className="inbox-message-action-btn remove-btn" 
+                          title="Delete Permanently"
+                          onClick={(e) => { e.stopPropagation(); handleDeletePermanently(message.id); }}>
+                          <i className="fas fa-trash-alt"></i>
                         </button>
                       </div>
                     </div>
