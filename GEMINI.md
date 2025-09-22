@@ -183,18 +183,23 @@ Now that this last change is complete and all documentation is updated, is there
 
 ---
 
+#### Log of Issues and Lessons
+Now that we're done adding this new feature, is there anything we can add to our `### Log of Issues and Lessons` in @GEMINI.md
+
+---
+
 #### DEFINITIONS.md update
 With one final pass at the changes we made before commit, could you please verify if there are any new definitions or logic to add to our @DEFINITIONS.md
 
 ---
 
-#### GEMINI.md update
-With one final pass at the changes we made before commit, could you please verify if there are any new Rules or logic to add to `## Developer Guide Index` in @GEMINI.md
+#### Update all documents and Commit
+Everything seems to be working as intended so far. Could we make a final round of updates on @GEMINI.md @CHANGELOG.md @DEFINITIONS.md and add a new section for our @COMMITS.md explaining what was done with this new entry.
 
 ---
 
-#### Update all documents and Commit
-Everything seems to be working as intended so far. Could we make a final round of updates on @GEMINI.md @CHANGELOG.md @DEFINITIONS.md and add a new section for our @COMMITS.md explaining what was done with this new entry.
+#### GEMINI.md update
+With one final pass at the changes we made before commit, could you please verify if there are any new Rules or logic to add to `## Developer Guide Index` in @GEMINI.md
 
 ---
 
@@ -242,6 +247,21 @@ New content for rule to add to `### Developer Guide - Rule `
 `##### Nested Title for New Rule`: Uses h5 #####
 
 Please keep this consistent to keep the maintainer from having to make frequent edits.
+
+---
+
+#### [1.0.14] - Prop Naming and Refactoring Errors
+-   **Issue**: While refactoring the `TaskAccordionHeader` to detect task loops, we introduced several TypeScript errors. We changed the prop name from `words` to `allWords` in the component's function signature but failed to update it in the component's props interface, or vice-versa. This led to a series of `Property 'X' does not exist on type 'Y'` errors that were difficult to trace.
+-   **Lesson**: When refactoring a component's props, it is critical to update the prop name in all three key places simultaneously:
+    1.  The **component's interface/type definition**.
+    2.  The **destructuring in the component's function signature**.
+    3.  The **prop being passed at the call site** where the component is used.
+    A mismatch in any of these places will cause TypeScript errors. This highlights the need for careful, step-by-step refactoring, especially when changing the "public API" of a component.
+
+---
+#### [1.0.13] - Variable Scope and Atomic State Updates
+-   **Issue**: While implementing the logic for re-occurring task loops, we repeatedly encountered `Cannot find name 'recurringTask'` errors. This was because the `recurringTask` variable was created inside an `if` block, making it unavailable to the subsequent logic block that needed to update the successor task.
+-   **Lesson**: This reinforced the importance of Rule 52.0. To solve complex, interdependent state changes (like creating a new task and updating another task that depends on the new one's ID), all related logic must be handled within a single, atomic state update (`setWords(prev => ...)`). This ensures all necessary variables (like the newly created task) are available within the same scope, preventing race conditions and reference errors.
 
 ---
 
@@ -408,6 +428,7 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 49.0: Prefer `outline` for Hover Effects on Interactive Items
   - Rule 50.0: State Management for Modals Editing Nested Data
   - Rule 51.0: Formatting Text for Clipboard
+  - Rule 52.0: Atomic State Updates for Looping Tasks
 
 ---
 
@@ -2310,3 +2331,48 @@ All "copy" functions should generate a plain text string using standard characte
 -   **Use Punctuation for Lists**: Use standard list markers like hyphens (`-`), asterisks (`*`), or bullets (`•`) for list items.
 -   **Indicate State with Brackets**: For items with a state (like a completed checklist item), use bracketed characters like `[✔]` for complete and `[✗]` or `[ ]` for incomplete. Avoid using strikethrough text, as it can be hard to read when pasted.
 -   **Exclude Internal Notes**: Private or internal-only fields (like a checklist item's `note`) should always be excluded from the copied text. Publicly visible fields (like a `response`) should be included.
+---
+
+### Developer Guide - Rule 52.0: Atomic State Updates for Looping Tasks
+
+This guide explains the complex state management required to correctly maintain a loop between two or more re-occurring tasks.
+
+#### The Problem: Broken Links in Re-occurring Loops
+
+We encountered a bug with the "Alternating Tasks" feature where a loop between two re-occurring tasks would break after one cycle.
+
+1.  **Task A** (re-occurring) completes and starts **Task B**.
+2.  **Task B** (re-occurring) completes and starts **Task A**.
+
+When Task A was completed, a *new* Task A was created with a *new ID*. However, Task B was still linked to the *old, completed* Task A's ID. When Task B was subsequently completed, it could not find its successor, and the loop was broken.
+
+This was caused by performing state updates in separate, non-atomic `setWords()` calls. The logic that created the new re-occurring task was separate from the logic that updated the successor task, and the latter did not have access to the newly created task's ID.
+
+#### The Solution: A Single, Atomic State Update
+
+The definitive solution is to perform all related state changes within a single, atomic `setWords()` call. This ensures all parts of the logic have access to the necessary data within the same scope.
+
+**File**: `src/renderer.tsx` (inside `handleCompleteWord`)
+```ts
+let newRecurringTask: Word | null = null;
+// ... logic to prepare the newRecurringTask object ...
+
+setWords(prevWords => {
+  let newWords = prevWords.map(w => {
+    // ... logic to find and update the successor task ...
+    if (w.startsTaskIdOnComplete === wordToComplete.id && newRecurringTask) {
+      // CRITICAL: Update the successor to point to the NEW task's ID.
+      updatedSuccessor.startsTaskIdOnComplete = newRecurringTask.id;
+    }
+    return updatedSuccessor;
+  });
+
+  // Add the new recurring task to the array in the same operation.
+  if (newRecurringTask) {
+    newWords = [newRecurringTask, ...newWords];
+  }
+  return newWords;
+});
+
+```
+---

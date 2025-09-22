@@ -230,40 +230,54 @@ interface Settings {
 interface Word {
   id: number;
   text: string;
-  x: number;
-  y: number;
+  x: number; // Add x coordinate
+  y: number; // Add y coordinate
+  // New Task Manager Fields
   url?: string;
   priority?: 'High' | 'Medium' | 'Low';
   categoryId?: number;
-  completeBy?: number;
+  completeBy?: number; // Storing as a timestamp
   company?: string;
   websiteUrl?: string;
   imageLinks?: string[];
   description?: string;
   attachments?: Attachment[];
-  checklist?: ChecklistSection[] | ChecklistItem[];
+  checklist?: ChecklistSection[] | ChecklistItem[]; // Support both for migration
   notes?: string;
+  // Add dimensions for hit detection
   width?: number;
   height?: number;
-  openDate: number;
-  createdAt: number;
+  openDate: number; // Use a separate field for the editable open date
+  createdAt: number; // Timestamp of when the word was created
   isPaused?: boolean;
   pausedDuration?: number;
-  completedDuration?: number;
-  manualTime?: number;
-  payRate?: number;
+  completedDuration?: number; // The final duration when completed
+  manualTime?: number; // Manually tracked time in ms
+  payRate?: number; // Dollars per hour
   isRecurring?: boolean;
   isDailyRecurring?: boolean;
   isWeeklyRecurring?: boolean;
   isMonthlyRecurring?: boolean;
   isYearlyRecurring?: boolean;
   isAutocomplete?: boolean;
-  lastNotified?: number;
-  snoozedAt?: number;
+  lastNotified?: number; // Timestamp of the last notification sent for this task
+  snoozeCount?: number; // How many times the task has been snoozed
+  snoozedAt?: number; // Timestamp of when the last snooze was initiated
+  manualTimeRunning?: boolean;
+  taskType?: string; // New property for task types
+  startsTaskIdOnComplete?: number; // ID of the task to start when this one is completed
+  manualTimeStart?: number; // Timestamp when manual timer was started
 }
+
 ```
 ---
 ## Interface Descriptions
+
+### `Word`
+-   **Description**: The primary data object representing a single task.
+-   **`startsTaskIdOnComplete?: number`**: An optional field that holds the `id` of another task. When the current task is completed, the task with this ID will have its `openDate` set to `Date.now()`, effectively activating it.
+
+---
 
 ### `ChecklistItem`
 -   **Description**: An object representing a single item within a `Checklist`.

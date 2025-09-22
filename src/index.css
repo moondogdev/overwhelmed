@@ -1892,3 +1892,39 @@ input[type="datetime-local"] + .button-group button {
 .checklist-item-note i {
   margin-right: 8px;
 }
+.linked-task-display {
+  font-size: 0.8em;
+  color: #aaa;
+  margin-top: 5px;
+  padding: 3px 8px;
+  background-color: #3a3f4b;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.linked-task-display .fa-sync-alt {
+  color: #61dafb; /* Use accent color for the loop icon */
+  animation: spin 2s linear infinite;
+}
+.linked-task-display {
+  font-size: 0.8em;
+  color: #aaa;
+  margin-top: 5px;
+  padding: 3px 8px;
+  background-color: #3a3f4b;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.linked-task-display .fa-sync-alt {
+  color: #61dafb; /* Use accent color for the loop icon */
+  animation: spin 2s linear infinite;
+}
+.task-id-display {
+  font-size: 0.7em;
+  color: #888;
+}

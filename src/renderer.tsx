@@ -98,6 +98,7 @@ interface Word {
   snoozedAt?: number; // Timestamp of when the last snooze was initiated
   manualTimeRunning?: boolean;
   taskType?: string; // New property for task types
+  startsTaskIdOnComplete?: number; // ID of the task to start when this one is completed
   manualTimeStart?: number; // Timestamp when manual timer was started
 }
 
@@ -471,7 +472,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
       <div className="tab-content" ref={tabContentRef}>
         {activeTab === 'ticket' && (
           <div className="ticket-display-view">            
-            <h3 onContextMenu={handleTaskContextMenu}>{word.text}</h3>            
+            <h3 onContextMenu={handleTaskContextMenu}>{word.text} (ID: {word.id})</h3>            
             {word.url && <p><strong>URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.url}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); setCopyStatus('URL copied!'); setTimeout(() => setCopyStatus(''), 2000); }}><i className="fas fa-copy"></i></button></span></p>}
             <p><strong>Category:</strong> {settings.categories.find(c => c.id === word.categoryId)?.name || 'Uncategorized'}</p>
             <p><strong>Priority:</strong> {word.priority || 'Medium'}</p>
@@ -578,7 +579,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
         )}
         {activeTab === 'edit' && !word.completedDuration && (
           <div className="word-item-details-form">
-            <label><h4>Task Title:</h4>
+            <label><h4>Task Title (ID: {word.id}):</h4>
               <input type="text" value={word.text} onChange={(e) => handleFieldChange('text', e.target.value)} />
             </label>
             <label><h4>Category:</h4>
@@ -738,6 +739,19 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
             <label className="checkbox-label flexed-column">
               <input type="checkbox" checked={word.isAutocomplete || false} onChange={(e) => handleFieldChange('isAutocomplete', e.target.checked)} />
               <span className="checkbox-label-text">Autocomplete on Deadline</span>
+            </label>
+            <label><h4>Starts Task on Complete:</h4>
+              <select
+                value={word.startsTaskIdOnComplete || ''}
+                onChange={(e) => handleFieldChange('startsTaskIdOnComplete', e.target.value ? Number(e.target.value) : undefined)}
+              >
+                <option value="">-- None --</option>
+                {words
+                  .filter(w => w.id !== word.id) // Exclude the current task from the list
+                  .map(w => (
+                    <option key={w.id} value={w.id}>{w.text}</option>
+                  ))}
+              </select>
             </label>
           </div>
         )}
@@ -1983,16 +1997,17 @@ function TaskAccordionHeader({
   word, 
   settings, 
   onCategoryClick,
-  onUpdate,
-  onNotify
+  onUpdate, // This is correct
+  onNotify,
+  allWords
 }: { 
-  word: Word, settings: Settings, onCategoryClick: (e: React.MouseEvent, catId: number, parentId?: number) => void, onUpdate?: (updatedWord: Word) => void, onNotify?: (word: Word) => void
+  word: Word, settings: Settings, onCategoryClick: (e: React.MouseEvent, catId: number, parentId?: number) => void, onUpdate?: (updatedWord: Word) => void, onNotify?: (word: Word) => void, allWords: Word[]
 }) {
   return (
     <>
       <div className="accordion-title-container">
         <span className="accordion-main-title">{word.text}</span>
-        {/* Category Pills - MOVED HERE */}
+        <span className="task-id-display">(ID: {word.id})</span>
         {(() => {
           if (!word.categoryId) return null;
           const category = settings.categories.find(c => c.id === word.categoryId);
@@ -2054,6 +2069,21 @@ function TaskAccordionHeader({
           </>
         )}
       </div>
+      {word.startsTaskIdOnComplete && (
+        (() => {
+          const successorTask = allWords.find(w => w.id === word.startsTaskIdOnComplete);
+          // A loop exists if the successor task links back to the current task.
+          const isLoop = successorTask?.startsTaskIdOnComplete === word.id;
+          return (
+            <div className="linked-task-display">
+              <i className={`fas ${isLoop ? 'fa-sync-alt' : 'fa-link'}`} title={isLoop ? 'This task is part of a loop.' : 'This task starts another.'}></i>
+              <span>
+                Completing starts: <strong>{successorTask?.text || 'Unknown Task'} (ID: {word.startsTaskIdOnComplete})</strong>
+              </span>
+            </div>
+          );
+        })()
+      )}
     </>
   );
 }
@@ -3325,110 +3355,84 @@ function App() {
     }, ...prev]);
     setCopyStatus('Task completed!');
 
-    // Also remove it from any active notifications to hide the toast
-    setOverdueNotifications(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(wordToComplete.id);
-      return newSet;
-    });
     setTimeout(() => setCopyStatus(''), 2000);
 
-    // If the task is re-occurring, create a new one
-    if (wordToComplete.isRecurring) {
+    // --- Refactored Recurring and Alternating Task Logic ---
+
+    let newRecurringTask: Word | null = null;
+
+    // Determine if a new recurring task should be created
+    if (wordToComplete.isRecurring || wordToComplete.isDailyRecurring || wordToComplete.isWeeklyRecurring || wordToComplete.isMonthlyRecurring || wordToComplete.isYearlyRecurring) {
+      let newOpenDate = Date.now();
       let newCompleteBy: number | undefined = undefined;
-      if (wordToComplete.completeBy && wordToComplete.createdAt) {
-        // Calculate the original duration and add it to the current time
+
+      if (wordToComplete.isDailyRecurring) {
+        newOpenDate += 24 * 60 * 60 * 1000;
+        if (wordToComplete.completeBy) newCompleteBy = wordToComplete.completeBy + 24 * 60 * 60 * 1000;
+      } else if (wordToComplete.isWeeklyRecurring) {
+        newOpenDate += 7 * 24 * 60 * 60 * 1000;
+        if (wordToComplete.completeBy) newCompleteBy = wordToComplete.completeBy + 7 * 24 * 60 * 60 * 1000;
+      } else if (wordToComplete.isMonthlyRecurring) {
+        const d = new Date(newOpenDate);
+        d.setMonth(d.getMonth() + 1);
+        newOpenDate = d.getTime();
+        if (wordToComplete.completeBy) {
+          const cbd = new Date(wordToComplete.completeBy);
+          cbd.setMonth(cbd.getMonth() + 1);
+          newCompleteBy = cbd.getTime();
+        }
+      } else if (wordToComplete.isYearlyRecurring) {
+        const d = new Date(newOpenDate);
+        d.setFullYear(d.getFullYear() + 1);
+        newOpenDate = d.getTime();
+        if (wordToComplete.completeBy) {
+          const cbd = new Date(wordToComplete.completeBy);
+          cbd.setFullYear(cbd.getFullYear() + 1);
+          newCompleteBy = cbd.getTime();
+        }
+      } else if (wordToComplete.isRecurring && wordToComplete.completeBy && wordToComplete.createdAt) {
         const originalDuration = wordToComplete.completeBy - wordToComplete.createdAt;
         newCompleteBy = Date.now() + originalDuration;
       }
 
-      const recurringTask: Word = {
+      newRecurringTask = {
         ...wordToComplete,
-        id: Date.now(),
-        createdAt: Date.now(),
-        openDate: Date.now(),
-        completedDuration: undefined,
-        completeBy: newCompleteBy,
-      };
-      setWords(prev => [recurringTask, ...prev]);
-    }
-
-    // If the task is a daily recurring one, create a new one for the next day
-    if (wordToComplete.isDailyRecurring) {
-      const oneDay = 24 * 60 * 60 * 1000;
-      const newOpenDate = wordToComplete.openDate + oneDay;
-      const newCompleteBy = wordToComplete.completeBy ? wordToComplete.completeBy + oneDay : undefined;
-
-      const dailyTask: Word = {
-        ...wordToComplete,
-        id: Date.now(),
-        createdAt: newOpenDate, // Set createdAt to the new open date
+        id: Date.now() + Math.random(),
+        createdAt: newOpenDate,
         openDate: newOpenDate,
-        completeBy: newCompleteBy,
-        completedDuration: undefined, // Reset completion status
-      };
-      setWords(prev => [dailyTask, ...prev]);
-    }
-
-    // If the task is a weekly recurring one, create a new one for the next week
-    if (wordToComplete.isWeeklyRecurring) {
-      const oneWeek = 7 * 24 * 60 * 60 * 1000;
-      const newOpenDate = wordToComplete.openDate + oneWeek;
-      const newCompleteBy = wordToComplete.completeBy ? wordToComplete.completeBy + oneWeek : undefined;
-
-      const weeklyTask: Word = {
-        ...wordToComplete,
-        id: Date.now(),
-        createdAt: newOpenDate, // Set createdAt to the new open date
-        openDate: newOpenDate,
-        completeBy: newCompleteBy,
-        completedDuration: undefined, // Reset completion status
-      };
-      setWords(prev => [weeklyTask, ...prev]);
-    }
-
-    // If the task is a monthly recurring one, create a new one for the next month
-    if (wordToComplete.isMonthlyRecurring) {
-      const newOpenDate = new Date(wordToComplete.openDate);
-      newOpenDate.setMonth(newOpenDate.getMonth() + 1);
-
-      let newCompleteBy: number | undefined = undefined;
-      if (wordToComplete.completeBy) {
-        const completeByDate = new Date(wordToComplete.completeBy);
-        completeByDate.setMonth(completeByDate.getMonth() + 1);
-        newCompleteBy = completeByDate.getTime();
-      }
-
-      const monthlyTask: Word = {
-        ...wordToComplete,
-        id: Date.now(),
-        openDate: newOpenDate.getTime(),
-        completeBy: newCompleteBy,
         completedDuration: undefined,
+        completeBy: newCompleteBy,
+        startsTaskIdOnComplete: wordToComplete.startsTaskIdOnComplete,
       };
-      setWords(prev => [monthlyTask, ...prev]);
     }
 
-    // If the task is a yearly recurring one, create a new one for the next year
-    if (wordToComplete.isYearlyRecurring) {
-      const newOpenDate = new Date(wordToComplete.openDate);
-      newOpenDate.setFullYear(newOpenDate.getFullYear() + 1);
+    // --- Alternating Task & Loop Logic ---
+    if (wordToComplete.startsTaskIdOnComplete) {
+      const successorTaskId = wordToComplete.startsTaskIdOnComplete;
+      setWords(prevWords => {
+        let newWords = prevWords.map(w => {
+          if (w.id !== successorTaskId) return w;
+          
+          // This is the successor task. Activate it.
+          const updatedSuccessor = { ...w, openDate: Date.now(), completeBy: Date.now() };
+          
+          // If the successor was part of a loop, we need to update its link.
+          if (w.startsTaskIdOnComplete === wordToComplete.id && newRecurringTask) {
+            updatedSuccessor.startsTaskIdOnComplete = newRecurringTask.id;
+          }
+          return updatedSuccessor;
+        });
 
-      let newCompleteBy: number | undefined = undefined;
-      if (wordToComplete.completeBy) {
-        const completeByDate = new Date(wordToComplete.completeBy);
-        completeByDate.setFullYear(completeByDate.getFullYear() + 1);
-        newCompleteBy = completeByDate.getTime();
-      }
+        // Add the new recurring task if it was created
+        if (newRecurringTask) {
+          newWords = [newRecurringTask, ...newWords];
+        }
 
-      const yearlyTask: Word = {
-        ...wordToComplete,
-        id: Date.now(),
-        openDate: newOpenDate.getTime(),
-        completeBy: newCompleteBy,
-        completedDuration: undefined,
-      };
-      setWords(prev => [yearlyTask, ...prev]);
+        return newWords;
+      });
+    } else if (newRecurringTask) {
+      // If there's no successor but there is a recurring task, just add it.
+      setWords(prev => [newRecurringTask, ...prev]);
     }
   };
 
@@ -4612,6 +4616,7 @@ function App() {
                                             settings={settings}
                                             onCategoryClick={(e, catId, parentId) => {
                                               e.stopPropagation();
+                                              
                                               setActiveCategoryId(parentId || catId);
                                               // If a parentId is provided, it's a sub-category click.
                                               // If not, it's a parent category click, so reset the sub-category filter.
@@ -4620,7 +4625,7 @@ function App() {
                                               } else {
                                                 setActiveSubCategoryId('all');
                                               }
-                                            }}
+                                            }} allWords={[...words, ...completedWords]}
                                           />
                                       }>
                                         <>
@@ -4735,6 +4740,7 @@ function App() {
                                         setActiveSubCategoryId('all');
                                       }
                                     }} 
+                                    allWords={[...words, ...completedWords]}
                                     onUpdate={handleWordUpdate}
                                     onNotify={handleTimerNotify}
                                   />
@@ -4912,7 +4918,7 @@ function App() {
                     const title = (
                       <>
                         <div className="accordion-main-title">{word.text}</div>
-                        <div className="accordion-subtitle">
+                        <div className="accordion-subtitle">                          
                           {word.company && <span>{word.company}</span>}
                           <span>{formatTimestamp(word.openDate)}</span>
                           <span>Completed in: {formatTime(word.completedDuration ?? 0)}</span>
@@ -4920,7 +4926,12 @@ function App() {
                       </>
                     );
                     return (
-                      <div key={word.id} className="priority-list-item completed-item">
+                      <div key={word.id} className="priority-list-item completed-item">                        
+                        <TaskAccordionHeader
+                          word={word}
+                          settings={settings}
+                          allWords={[...words, ...completedWords]} // Pass all words here
+                          onCategoryClick={() => {}} />
                         <TaskAccordion word={word} title={title} isOpen={settings.openAccordionIds.includes(word.id)} onToggle={() => handleAccordionToggle(word.id)}>
                           {/* This first child is the 'content' for the accordion */}
                           <TabbedView 
@@ -4937,7 +4948,7 @@ function App() {
                             onComplete={handleChecklistCompletion}
                             checklistRef={activeChecklistRef}
                             wordId={word.id}
-                            setInboxMessages={setInboxMessages}
+                                  setInboxMessages={setInboxMessages} 
                           />
                           {/* This second child is the 'headerActions' for the accordion */}
                           <div className="list-item-controls">

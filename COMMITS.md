@@ -6,16 +6,82 @@ A log of what was commited to git.
 
 ## Log of Changes
 
-- **[1.0.9] - 2025-09-22: Copy Checklist**: feat(checklist): Add copy to clipboard functionality
-- **[1.0.8] - 2025-09-22: Checklist Responses & Notes**: feat(checklist): Add response and note fields to items. Doc edits
-- **[1.0.7] - 2025-09-21: UI Polish & Category Color-Coding**: feat(ui): Add category colors and refactor task header/actions
-- **[1.0.6] - 2025-09-21: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
-- **[1.0.5] - 2025-09-21: Task Types & Templated Forms**: feat(tasks): Implement Task Types and Templated Forms
-- **[1.0.4] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow**: feat(inbox): Implement full Archive and Trash system with UI polish 
-- **[1.0.3] - 2024-09-20: Inbox Protection & Full Task View**:
-- **[1.0.2] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation**:
-- **[1.0.1] - 2024-09-18: Notification System & Inbox View**:
-- **[1.0.0] - 2024-09-15: Core Task Management & Data Persistence**:
+- **[1.0.14] - YYYY-MM-DD**:
+- **[1.0.13] - YYYY-MM-DD**:
+- **[1.0.12] - YYYY-MM-DD**:
+- **[1.0.11] - YYYY-MM-DD**:
+- **[1.0.10] - 2025-09-22: Alternating & Looping Tasks**: feat(tasks): Add alternating and looping task functionality
+- **[1.0.09] - 2025-09-22: Copy Checklist**: feat(checklist): Add copy to clipboard functionality
+- **[1.0.08] - 2025-09-22: Checklist Responses & Notes**: feat(checklist): Add response and note fields to items. Doc edits
+- **[1.0.07] - 2025-09-21: UI Polish & Category Color-Coding**: feat(ui): Add category colors and refactor task header/actions
+- **[1.0.06] - 2025-09-21: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
+- **[1.0.05] - 2025-09-21: Task Types & Templated Forms**: feat(tasks): Implement Task Types and Templated Forms
+- **[1.0.04] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow**: feat(inbox): Implement full Archive and Trash system with UI polish 
+- **[1.0.03] - 2024-09-20: Inbox Protection & Full Task View**:
+- **[1.0.02] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation**:
+- **[1.0.01] - 2024-09-18: Notification System & Inbox View**:
+- **[1.0.00] - 2024-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.14] - 2025-09-22: 
+**feat(): Feat Message Here**
+
+Future feature addtion here
+
+---
+
+## [1.0.13] - 2025-09-22: 
+**feat(): Feat Message Here**
+
+Future feature addtion here
+
+---
+
+## [1.0.12] - 2025-09-22: 
+**feat(): Feat Message Here**
+
+Future feature addtion here
+
+---
+
+## [1.0.11] - 2025-09-22: 
+**feat(): Feat Message Here**
+
+Future feature addtion here
+
+---
+
+## [1.0.10] - 2025-09-22: Alternating & Looping Tasks
+**feat(tasks): Add alternating and looping task functionality**
+
+This feature introduces a system for linking tasks, allowing the completion of one task to automatically activate another, and adds support for self-perpetuating loops between two re-occurring tasks.
+
+#### Features:
+-   **Data Structure**: Added a new optional `startsTaskIdOnComplete` field to the `Word` interface to store the ID of the successor task.
+-   **UI Implementation**: A new "Starts Task on Complete" dropdown has been added to the "Edit Task" view. This dropdown is populated with all other open tasks, allowing a user to create a dependency.
+-   **Core Logic**: The `handleCompleteWord` function was updated to check for the `startsTaskIdOnComplete` field. If a successor task ID is present, it finds that task and updates its `openDate` to `Date.now()`, effectively "starting" it.
+-   **Loop Detection**: The `TaskAccordionHeader` now checks if a task's successor links back to the original task. If a two-way link is detected, it displays a spinning "sync" icon to indicate a loop.
+-   **Loop Persistence**: Refactored the `handleCompleteWord` function to be a single, atomic state update. When a re-occurring task in a loop is completed, it now correctly finds the successor and updates its `startsTaskIdOnComplete` field to point to the ID of the *newly created* re-occurring task, ensuring the loop integrity is maintained.
+-   **Debugging UI**: Added the unique Task ID to the accordion header, edit view, and "Completing starts" display to make tracing task relationships easier.
+
+#### Summary:
+This commit adds a powerful workflow feature, enabling users to create simple, sequential dependencies and two-task loops. The logic was carefully refactored to handle the complexities of state updates for re-occurring tasks within a loop.
+
+---
+
+## [1.0.10] - 2025-09-23: Alternating Tasks (Initial)
+**feat(tasks): Add alternating tasks functionality**
+
+This feature introduces a system for linking tasks, allowing the completion of one task to automatically activate another.
+
+#### Features:
+-   **Data Structure**: Added a new optional `startsTaskIdOnComplete` field to the `Word` interface to store the ID of the successor task.
+-   **UI Implementation**: A new "Starts Task on Complete" dropdown has been added to the "Edit Task" view. This dropdown is populated with all other open tasks, allowing a user to create a dependency.
+-   **Core Logic**: The `handleCompleteWord` function was updated to check for the `startsTaskIdOnComplete` field. If a successor task ID is present, it finds that task and updates its `openDate` to `Date.now()`, effectively "starting" it.
+
+#### Summary:
+This commit adds a powerful workflow feature, enabling users to create simple, sequential dependencies between tasks.
 
 ---
 

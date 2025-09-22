@@ -4,33 +4,8 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
-## Future Features
--   ### **Copy Checklist**: 
-    - We need various ways to copy the checklist. Maybe a button or dropdown options to copy the checklist content so we can paste it into other text fields like emails or notepads. 
-    - I assume we'll want to copy with strikouts, without strikeouts, with checkboxes, raw html, etc but we should implement a way to at least "copy checklist section" and "copy all checklist sections" and see how the data comes out and add additional ways. 
-    - The issue being that pasting text with strikeout makes it hard to read so we may want to even generate another option called Bulleted or Brackets where it gives us a breakdown like this:
-        - **Title of Checklist**: 1/2 completed (bullet example)
-            - **Completed**:
-            - **• Item Completed**: in bullet list item format avoid major conflicts
-            - **Incomplete**:
-            - **• Item Incomplete**: in bullet list item format avoid major conflicts    
-        - **Title of Checklist**: 2/3 completed (bracketed example)
-            - **Completed**:
-            - **[✔] Item Completed**: in lined format (new line no markup) to avoid conflicts
-            - **[✔] Item Completed**: in lined format (new line no markup) to avoid conflicts
-            - **Incomplete**:
-            - **[✗] Item Incomplete**: In lined format to avoid conflicts    
-        - **Title of Checklist**: 2/3 completed (strikeout example)
-            - **• Item Completed**: in bullet list item format avoid major conflicts <= (item striked out)
-            - **• Item Completed**: in bullet list item format avoid major conflicts <= (item striked out)
-            - **• Item Incomplete**: in bullet list item format avoid major conflicts <= (item striked out)
-        - **Title of Checklist**: 1/4 completed        
-            - **• Item Completed**: in bullet list item format avoid major conflicts
-                - **Response**: This is a response to the checklist item above <= (always shows in copy)
-                - **Note**: This is an internal note response to the checklist item above <= (never shows in copy)
+## Future Features 
 
--   ### **Alternating Tasks**: 
-    Link tasks where Completing starts another
 -   ### **Templated Tasks**: 
     Save a task to use when creating a new task & predefined Templates to choose from:
     -   **Template: Finance**:
@@ -56,7 +31,6 @@ All notable changes to this project will be documented in this file. See `## Log
 -   ### **Users**: Add a feature to create users and assign tickets to them, with the ability to filter the list to view tickets assigned to a specific user.
 -   ### **Themes**: Different style layouts
 -   ### **Settings**: Missing a few settings options and probably want to build a full settings view soon
--   ### **Templated Tasks**: Save a task to use when creating a new task
 -   ### **Calendar**: Task view in Calendar form. Can start new task on a specific due date by using the calendar
 -   ### **Achievements**: Fun goal tracking system
 -   ### **Score**: Add score to tasks
@@ -82,18 +56,49 @@ All notable changes to this project will be documented in this file. See `## Log
     - **Rename `setCopyStatus`**: The `setCopyStatus` function and `copyStatus` state are used as the central toast notification system. They should be renamed to `setToastMessage` and `toastMessage` respectively to more accurately reflect their purpose.
 
 ---
+
 ## Log of Changes
 
-- **[1.0.9] - 2025-09-22: Copy Checklist**: feat(checklist): Add copy to clipboard functionality
-- **[1.0.8] - 2025-09-22: Checklist Responses & Notes**: feat(checklist): Add response and note fields to items. Doc edits
-- **[1.0.7] - 2025-09-21: UI Polish & Category Color-Coding**: feat(ui): Add category colors and refactor task header/actions
-- **[1.0.6] - 2025-09-21: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
-- **[1.0.5] - 2025-09-21: Task Types & Templated Forms**: feat(tasks): Implement Task Types and Templated Forms
-- **[1.0.4] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow**: feat(inbox): Implement full Archive and Trash system with UI polish 
-- **[1.0.3] - 2024-09-20: Inbox Protection & Full Task View**:
-- **[1.0.2] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation**:
-- **[1.0.1] - 2024-09-18: Notification System & Inbox View**:
-- **[1.0.0] - 2024-09-15: Core Task Management & Data Persistence**:
+- **[1.0.14] - YYYY-MM-DD**:
+- **[1.0.13] - YYYY-MM-DD**:
+- **[1.0.12] - YYYY-MM-DD**:
+- **[1.0.11] - YYYY-MM-DD**:
+- **[1.0.10] - 2025-09-22: Alternating & Looping Tasks**: feat(tasks): Add alternating and looping task functionality
+- **[1.0.09] - 2025-09-22: Copy Checklist**: feat(checklist): Add copy to clipboard functionality
+- **[1.0.08] - 2025-09-22: Checklist Responses & Notes**: feat(checklist): Add response and note fields to items. Doc edits
+- **[1.0.07] - 2025-09-21: UI Polish & Category Color-Coding**: feat(ui): Add category colors and refactor task header/actions
+- **[1.0.06] - 2025-09-21: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
+- **[1.0.05] - 2025-09-21: Task Types & Templated Forms**: feat(tasks): Implement Task Types and Templated Forms
+- **[1.0.04] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow**: feat(inbox): Implement full Archive and Trash system with UI polish 
+- **[1.0.03] - 2024-09-20: Inbox Protection & Full Task View**:
+- **[1.0.02] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation**:
+- **[1.0.01] - 2024-09-18: Notification System & Inbox View**:
+- **[1.0.00] - 2024-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.14] - 2025-09-22: 
+
+---
+
+## [1.0.13] - 2025-09-22: 
+
+---
+
+## [1.0.12] - 2025-09-22: 
+
+---
+
+## [1.0.11] - 2025-09-22: 
+
+---
+
+## [1.0.10] - 2025-09-23: Alternating Tasks
+#### Added
+-   **Alternating Tasks**: Implemented a system to link tasks together. A new "Starts Task on Complete" dropdown in the "Edit Task" view allows a user to select a successor task. When the predecessor is completed, the successor task is automatically activated.
+-   **Task Loops**: The system now visually detects and indicates when two tasks are linked to each other, forming a loop. A spinning `fa-sync-alt` icon is displayed instead of the standard link icon.
+-   **Loop Persistence**: When a re-occurring task in a two-task loop is completed, the logic now correctly updates the successor task to point to the *newly created* re-occurring task, ensuring the loop is not broken.
+-   **Debug IDs**: Added the unique Task ID to the accordion header and "Edit" view to make debugging task relationships easier.
 
 ---
 
