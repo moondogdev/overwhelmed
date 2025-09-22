@@ -106,6 +106,7 @@ See `CHANGELOG.md` for a list of future features to implement. Strickly follow `
 
 All notable changes to this project will be documented in this file @CHANGELOG.md. Please update the separate changelog as development progresses.
 
+## [1.0.7] - 2025-09-23: UI Polish & Category Color-Coding
 ## [1.0.6] - 2025-09-22: Grouped Task View by Day
 ## [1.0.5] - 2025-09-21: Task Types & Templated Forms
 ## [1.0.4] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow
@@ -142,22 +143,22 @@ The current project structure can be found in our `### Project Structure` sectio
 The main files to for context are:
 
 Main Files:
-- `renderer.tsx`: @renderer.tsk
-- `index.ts`: @index.ts
-- `preload.ts`: @preload.ts
-- `index.html`: @index.html
-- `index.css`: @index.css
+- `/src/index.css`: @index.css
+- `/src/index.ts`: @index.ts
+- `/src/index.html`: @index.html
+- `/src/preload.ts`: @preload.ts
+- `/src/renderer.tsx`: @renderer.tsk
 Config:
-- `forge.config.cts`: @forge.config.cts
-- `declarations.d.ts`: @declarations.d.ts
+- `.eslintrc.json`: @.eslintrc.json
 - `.gitignore`: @.gitignore
-- `package.json`: @package.json
+- `forge.config.cts`: @forge.config.cts
 - `package-lock.json`: @package-lock.json
+- `package.json`: @package.json
 - `tsconfig.json`: @tsconfig.json
 - `tsconfig.node.json`: @tsconfig.node.json
 - `webpack.main.config.cts`: @webpack.main.config.cts
 - `webpack.renderer.config.cts`: @webpack.renderer.config.cts
-- `.eslintrc.json`: @.eslintrc.json
+- `/src/declarations.d.ts`: @declarations.d.ts
 Documentation:
 - `CHANGELOG.md`: @CHANGELOG.md
 - `GEMINI.md`: @GEMINI.md
@@ -166,36 +167,46 @@ Documentation:
 
 These files can be understood better in the `# Developer Guide Index` section.
 
+### Detailed Documentation Prompt
+
+Now that this last change is complete and all documentation is updated, is there anything we can add to `### Other Guidelines for Gemini Code Assist to follow`, `### Log of Issues and Lessons`, and `## Developer Guide Index` in our @GEMINI.md file.
+
+Please follow GGl 1.15.01 and GGl 1.15.02 to ensure new rules for the `## Developer Guide Index` are generated without errors.
+
 ---
 
-### Other Guidelines for Gemini Code Assist to follow:
-  - **Gemini Thinks its 2024**: The current year is 2025 and the current month is September. Gemini frequently forgets the date based on its training data and will source 2024 examples, documents, and use those dates erroneously. @Gemini, please before we implement anything with dates, we check the current year date as of TODAY. We don't need to source the most relevant information but it would be nice, and most certainly we should always use the current year when including it anywhere in this codebase.
-  - **Gemini should take microsteps**: Implement code in microsteps rather than large code changes so the user can understand whats changing and make it easier for them to see what exactly is happening with the changes.  
-  - **Level User Knowledge of Code on a Scale: 1 out of 10**: Assume the user has a very low knowledge of the code being used and help explain what is going on with each change we are making. 
-  - **Gemini should prompt to update CHANGELOG.md & GEMINI.md frequently**: Frequently suggest changelog and GEMINI.md (this file) changes so we can keep a log of what exactly is occuring during development.
-  - **Use CHANGELOG.md & GEMINI.md frequently**: Refrence both the changelog and GEMINI.md (this file) frequently through development and prompt suggestions to avoid conflicts with existing structure as Gemini Code Assist will lose scope of the project for suggestions outside the existing support.
-  - **Gemini forgets sessions when searching for solutions**: Not all chat sessions will be remembered, so Gemini Code Assist should attempt to update the changelog and GEMINI.md frequently to offload its memory into these static documents without having to maintain constant codebase knowledge.  
-  - **State the Goal First**: When requesting a new feature, state the high-level user goal first before describing the specific implementation. This provides better context for architectural decisions.
-  - **Provide Full Error Messages**: When a bug occurs, always provide the full error message and stack trace from the console. This is the fastest way to debug the issue.
-  - **Enforce a Step-by-Step Plan**: For new features, first ask Gemini to outline all the required steps (e.g., "1. Add interface, 2. Update main process, 3. Update renderer"). Then, proceed through the plan step-by-step. This prevents incomplete implementations.
-  - **Regularly check `DEFINITIONS.md`**: Reference our `DEFINITIONS.md` for existing delcariations and logic.
-  - **Regularly add & update `DEFINITIONS.md`**: Reference our `DEFINITIONS.md` and add & update new delcariations and logic as needed.
-  - **Check for Existing Logic First**: Before adding new functions or state, explicitly ask Gemini to check if similar logic already exists that can be reused or extended. This prevents duplicate code and state management conflicts.
-  - **Request Code Comments for Learning**: When a complex code block is provided, ask Gemini to add comments to it. This helps explain the purpose of each part of the code, which is a great way to learn.
-  - **Gemini should update the `### Other Guidelines for Gemini Code Assist to follow` section**: As we add new guidelines, Gemini should attempt to update this list we are currently in to provide more context for development philosophy and approach.
-  - **Gemini should update the `### Log of Issues and Lessons` section**: Create a new `[1.0.x]` for each error and lesson we learn.
-  - **Gemini should update the `## Developer Guide Index` section**: Create a rule for each new logic we implement or learn through the development process.
-    - **Developer Guide Index: Prompt Reply Example**: `@Gemini`, this will routinely fail due to comment code and trying to generate code examples. Please copy the blocks of content to add to the Developer Guide separately:
-      - For example, provide the Rule Change in one block of copy code:
-        - Provide the content of the `# Developer Guide - Rule XX.X:` separately but also;
-        - Provide the code example of the `# Developer Guide - Rule XX.X:` content separately in.
-      - This should ensure all parts of the `Developer Guide` updates are rendered without errors; (e.g) "Here is the title of the new rule", "Here is the content for the new rule without code examples", "here are the code examples for the new rule".
-  - **Gemini should perform a "wrap up"**: When we are finishing implementing a new feature, Gemini should prompt to update the previous mentioned areas in the `CHANGELOG.md`, `DEFINITIONS.md`, and `GEMINI.md`, specifically the `Other Guidelines for Gemini Code Assist to follow`, `Log of Issues and Lessons`, and `Developer Guide Index` sections. The `CHANGELOG.md` and `GEMINI.md` should reflect a persistent log of our activity and look to perform these wrap up prompts at the end of each new implementation just prior to making a new commit. 
-    - **Gemini should update `DEFINITIONS.md`**: As new handlers, state variables, or other key declaratives are created, they should be added to the `DEFINITIONS.md` file to maintain a project glossary.
-    - **Example Workflow**: Implement change > Update `Other Guidelines for Gemini Code Assist to follow`, `Log of Issues and Lessons`, and `Developer Guide Index` sections > update `GEMINI.md`, `DEFINITIONS.md`, and `CHANGELOG.md` sections to reflect the implemented feature AND the documentation updates.
+### Gemini Guidelines (GGl): Other Guidelines for Gemini Code Assist to follow:
+  - **GGl 1.00: Gemini Thinks its 2024**: The current year is 2025 and the current month is September. Gemini frequently forgets the date based on its training data and will source 2024 examples, documents, and use those dates erroneously. @Gemini, please before we implement anything with dates, we check the current year date as of TODAY. We don't need to source the most relevant information but it would be nice, and most certainly we should always use the current year when including it anywhere in this codebase.
+  - **GGl 1.01.00: Gemini should take microsteps**: Implement code in microsteps rather than large code changes so the user can understand whats changing and make it easier for them to see what exactly is happening with the changes.  
+  - **GGl 1.02.00: Level User Knowledge of Code on a Scale: 1 out of 10**: Assume the user has a very low knowledge of the code being used and help explain what is going on with each change we are making. 
+  - **GGl 1.03.00: Gemini should prompt to update CHANGELOG.md & GEMINI.md frequently**: Frequently suggest changelog and GEMINI.md (this file) changes so we can keep a log of what exactly is occuring during development.
+  - **GGl 1.04.00: Use CHANGELOG.md & GEMINI.md frequently**: Refrence both the changelog and GEMINI.md (this file) frequently through development and prompt suggestions to avoid conflicts with existing structure as Gemini Code Assist will lose scope of the project for suggestions outside the existing support.
+  - **GGl 1.05.00: Gemini forgets sessions when searching for solutions**: Not all chat sessions will be remembered, so Gemini Code Assist should attempt to update the changelog and GEMINI.md frequently to offload its memory into these static documents without having to maintain constant codebase knowledge.  
+  - **GGl 1.06.00: State the Goal First**: When requesting a new feature, state the high-level user goal first before describing the specific implementation. This provides better context for architectural decisions.
+  - **GGl 1.07.00: Provide Full Error Messages**: When a bug occurs, always provide the full error message and stack trace from the console. This is the fastest way to debug the issue.
+  - **GGl 1.08.00: Enforce a Step-by-Step Plan**: For new features, first ask Gemini to outline all the required steps (e.g., "1. Add interface, 2. Update main process, 3. Update renderer"). Then, proceed through the plan step-by-step. This prevents incomplete implementations.
+  - **GGl 1.09.00: Regularly check `DEFINITIONS.md`**: Reference our `DEFINITIONS.md` for existing delcariations and logic.
+  - **GGl 1.10.00: Regularly add & update `DEFINITIONS.md`**: Reference our `DEFINITIONS.md` and add & update new delcariations and logic as needed.
+  - **GGl 1.11.00: Check for Existing Logic First**: Before adding new functions or state, explicitly ask Gemini to check if similar logic already exists that can be reused or extended. This prevents duplicate code and state management conflicts.
+  - **GGl 1.12.00: Request Code Comments for Learning**: When a complex code block is provided, ask Gemini to add comments to it. This helps explain the purpose of each part of the code, which is a great way to learn.
+  - **GGl 1.13.00: Gemini should update the `### Other Guidelines for Gemini Code Assist to follow` section**: As we add new guidelines, Gemini should attempt to update this list we are currently in to provide more context for development philosophy and approach.
+  - **GGl 1.14.00: Gemini should update the `### Log of Issues and Lessons` section**: Create a new `[1.0.x]` for each error and lesson we learn.
+  - **GGl 1.15.00: Gemini should update the `## Developer Guide Index` section**: Create a rule for each new logic we implement or learn through the development process.
+    - **GGl 1.15.01:: Developer Guide Index: Prompt Reply Example**: `@Gemini`, this will routinely fail due to comment code and trying to generate code examples. Please copy the blocks of content to add to the Developer Guide separately:
+      - **GGl 1.15.01.01**: For example, provide the Rule Change in one block of copy code:
+        - **GGl 1.15.01.01.01**: Provide the content of the `# Developer Guide - Rule XX.X:` separately but also;
+        - **GGl 1.15.01.01.02**: Provide the code example of the `# Developer Guide - Rule XX.X:` content separately in.
+      - **GGl 1.15.01.02**: This should ensure all parts of the `Developer Guide - Rule XX.X` updates are rendered without errors; (e.g) "Here is the title of the new rule", "Here is the content for the new rule without code examples", "here are the code examples for the new rule".
+  - **GGl 1.16.00: Gemini should perform a "wrap up"**: When we are finishing implementing a new feature, Gemini should prompt to update the previous mentioned areas in the `CHANGELOG.md`, `DEFINITIONS.md`, and `GEMINI.md`, specifically the `Other Guidelines for Gemini Code Assist to follow`, `Log of Issues and Lessons`, and `Developer Guide Index` sections. The `CHANGELOG.md` and `GEMINI.md` should reflect a persistent log of our activity and look to perform these wrap up prompts at the end of each new implementation just prior to making a new commit. 
+    - **GGl 1.16.01**: Gemini should update `DEFINITIONS.md`**: As new handlers, state variables, or other key declaratives are created, they should be added to the `DEFINITIONS.md` file to maintain a project glossary.
+    - **GGl 1.16.02**: Example Workflow**: Implement change > Update `Other Guidelines for Gemini Code Assist to follow`, `Log of Issues and Lessons`, and `Developer Guide Index` sections > update `GEMINI.md`, `DEFINITIONS.md`, and `CHANGELOG.md` sections to reflect the implemented feature AND the documentation updates.
 
 ---
 ### Log of Issues and Lessons
+#### [1.0.10] - Component and Function Scope Errors
+-   **Issue**: While creating new helper functions (`getContrastColor`) and components (`Dropdown`), we encountered multiple `Cannot find name 'X'` errors. This was because the new code was defined inside a component, making it inaccessible to other components that needed it.
+-   **Lesson**: All reusable helper functions and components within a single file should be defined at the top level of the file, outside and before the main `App` component. This ensures they are properly hoisted and available throughout the component's scope, preventing reference errors.
+
 #### [1.0.9] - JSX Syntax Errors from Complex Conditional Rendering
 -   **Issue**: While implementing the tabbed inbox views (Active, Archive, Trash), multiple cascading syntax errors occurred (e.g., `Unexpected token`, `JSX element has no corresponding closing tag`). These were difficult to pinpoint and were caused by incorrectly structured conditional rendering blocks.
 -   **Lesson**: When a component has multiple complex return paths (e.g., one for a "grouped" view and another for a "flat list" view), it's easy to make structural mistakes. The best practice is to simplify the rendering logic. Instead of having large, separate `return` statements inside each `if` block, it's better to define common elements (like headers) once and then conditionally render only the parts that change. This reduces code duplication and makes the component's JSX structure much easier to read and debug.
@@ -280,6 +291,7 @@ These files can be understood better in the `# Developer Guide Index` section.
   - Rule 39.0: Central Toast Notifications (`setCopyStatus`)
   - Rule 40.0: State Management for Tabbed Views (e.g., Inbox/Archive)
   - Rule 41.0: Prefer Named Handlers for UI Actions
+  - Rule 42.0: Creating Reusable Components and Helpers
 
 ---
 
@@ -1875,3 +1887,19 @@ const handleDoThing = () => {
 <button onClick={handleDoThing}>Do Thing</button>
 ```
 **Result**: This convention makes our components more predictable and easier to refactor in the future.
+
+---
+
+## Developer Guide - Rule 42.0: Creating Reusable Components and Helpers
+
+This guide establishes the standard for creating new, reusable components and helper functions within a single file like `renderer.tsx`.
+
+### The Problem: Scope and Organization
+
+As a file like `renderer.tsx` grows, it's tempting to define helper functions or small components inside the main `App` component. This can lead to two problems:
+1.  **Scope Errors**: A component or function defined inside `App` is not accessible to other components outside of it, leading to `Cannot find name 'X'` errors.
+2.  **Poor Readability**: Burying component definitions inside other components makes the file structure hard to follow.
+
+### The Solution: Define at the Top Level
+
+The standard pattern is to define all reusable helper functions and components at the **top level of the file**, before the main `App` component that uses them.

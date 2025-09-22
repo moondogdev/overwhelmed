@@ -5,6 +5,7 @@ A log of what was commited to git.
 ---
 
 ## Index
+- **[1.0.7] - 2025-09-23: UI Polish & Category Color-Coding**: feat(ui): Add category colors and refactor task header/actions
 - **[1.0.6] - 2025-09-22: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
 - **[1.0.5] - 2025-09-21: Task Types & Templated Forms**: feat(tasks): Implement Task Types and Templated Forms
 - **[1.0.4] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow**: feat(inbox): Implement full Archive and Trash system with UI polish 
@@ -12,6 +13,22 @@ A log of what was commited to git.
 - **[1.0.2] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.1] - 2024-09-18: Notification System & Inbox View**:
 - **[1.0.0] - 2024-09-15: Core Task Management & Data Persistence**:
+
+---
+
+### **[1.0.7] - 2025-09-23: UI Polish & Category Color-Coding**
+**feat(ui): Add category colors and refactor task header/actions**
+
+This feature introduces a major UI polish, adding a color-coding system for categories and cleaning up the task accordion header and action buttons.
+
+## Features:
+-   **Category Color-Coding**: Users can now assign a custom color to each category and sub-category via a new color picker in the "Category Manager". These colors are reflected in the task list pills and the main category filter tabs.
+-   **Automatic Contrast**: Implemented a helper function (`getContrastColor`) to automatically set pill text to black or white for optimal readability against any user-selected color.
+-   **Accordion Header Refactor**: The task header has been refactored into a dedicated `TaskAccordionHeader` component, cleaning up the main `App` component. Category and Priority information was moved to the main title line for a more compact layout.
+-   **Action Button Cleanup**: The action buttons in the task accordion have been restyled for a uniform size. Recurring task options are now consolidated into a new, space-saving `Dropdown` component.
+
+#### Summary:
+This commit significantly improves the visual organization and clarity of the UI, making it more intuitive and aesthetically pleasing.
 
 ---
 

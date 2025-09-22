@@ -3,7 +3,6 @@
 All notable changes to this project will be documented in this file.
 
 ## Future Features
--   **Cleanup Accordion Header UI**: UI is becoming cluttered with reporting details and actions
 -   **Alternating Tasks**: Link tasks where Completing starts another
 -   **Templated Tasks**: Save a task to use when creating a new task & predefined Templates to choose from:
     -   **Template: Finance**:
@@ -51,7 +50,22 @@ All notable changes to this project will be documented in this file.
     - **Refactor `<App>`**: App is growing too large and will cause performance issues 
     - **Rename `setCopyStatus`**: The `setCopyStatus` function and `copyStatus` state are used as the central toast notification system. They should be renamed to `setToastMessage` and `toastMessage` respectively to more accurately reflect their purpose.
 
-## [1.0.6] - 2025-09-22: Grouped Task View by Day
+## [1.0.7] - 2025-09-21: UI Polish & Category Color-Coding
+
+### Added
+-   **Category Color-Coding**:
+    -   Added a color picker to the "Category Manager" for each category and sub-category.
+    -   Category pills in the task list and category filter tabs in the header now display their assigned custom color.
+    -   Pill text color (black or white) is now automatically calculated for optimal contrast against the custom background color.
+    -   Added a "Reset Color" button to the Category Manager.
+
+### Changed
+-   **Accordion Header UI Cleanup**: Refactored the task accordion header into a cleaner, more organized layout.
+    -   Created a dedicated `TaskAccordionHeader` component to improve code modularity.
+    -   Moved Category and Priority information to the main title line for a more compact view.
+-   **Action Button UI Cleanup**: The action buttons for each task have been redesigned for a more uniform look. Recurring task options (Daily, Weekly, etc.) are now consolidated into a space-saving dropdown menu.
+
+## [1.0.6] - 2025-09-21: Grouped Task View by Day
 
 ### Added
 -   **Grouped Task View by Day**: When sorting the list view by "Due Date (Soonest First)", tasks are now grouped under headers for each day.

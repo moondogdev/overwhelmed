@@ -182,8 +182,9 @@ button {
 }
 
 .category-tabs button.active {
-  color: white;
-  border-bottom-color: #61dafb;
+  color: white !important; /* Use important to override inline style */
+  border-bottom-color: #61dafb; /* Keep the bright underline for active state */
+  box-shadow: 0 -3px 10px -4px #61dafb inset; /* Add a subtle inner glow */
 }
 
 .sub-category-tabs {
@@ -204,9 +205,9 @@ button {
 }
 
 .sub-category-tabs button.active {
-  background-color: #61dafb;
-  color: #21252b;
-  border-color: #61dafb;
+  color: #fff !important; /* Ensure text is always white for high contrast on any color */
+  border-color: #61dafb; /* Use a bright border to indicate active state */
+  box-shadow: 0 0 8px #61dafb, 0 0 4px #61dafb inset; /* Add a glow effect and a subtle inner glow */
 }
 
 .list-view-controls {
@@ -423,17 +424,55 @@ input[type="datetime-local"] + .button-group button {
 .accordion-subtitle {
   font-size: 0.75em;
   color: #aaa;
-  display: flex;
+  display: flex; /* Changed to flex for better alignment */
+  flex-wrap: wrap; /* Allow pills to wrap on smaller screens */
   gap: 10px;
   margin-top: 4px;
+  align-items: center; /* Vertically align all items in the subtitle */
 }
 
 .priority-indicator {
   display: flex;
   align-items: center;
   gap: 5px;
+  font-weight: bold; /* Make priority stand out more */
 }
 
+.due-date-pill {
+  background-color: #3a3f4b;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid #555;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.timer-pill {
+  background-color: #3a3f4b;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid #555;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.timer-pill:has(.priority-high) {
+  background-color: #c94a4a; /* Red background for overdue */
+  border-color: #a93232; /* Darker red border */
+  color: white; /* Make all text inside the pill white */
+}
+
+.timer-pill .priority-high {
+  color: white; /* Ensure the text inside the red pill is white */
+}
+
+.timer-pill:has(.priority-high) {
+  background-color: #c94a4a; /* Red background for overdue */
+  border-color: #a93232; /* Darker red border */
+}
 .priority-dot {
   width: 8px;
   height: 8px;
@@ -825,12 +864,17 @@ input[type="datetime-local"] + .button-group button {
   justify-content: flex-end; /* Align buttons to the right */
   padding: 0 10px;
 }
-.list-item-controls button {
-  background: #555;
-  border: none;
-  color: white;
+.list-item-controls .icon-button {
+  background: #555 !important;
+  border: 1px solid #666 !important;
+  color: white !important;
   cursor: pointer;
-  padding: 2px 6px;
+  width: 30px; /* Uniform width */
+  height: 30px; /* Uniform height */
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin: 0 0 0 5px;
 }
 
@@ -856,6 +900,32 @@ input[type="datetime-local"] + .button-group button {
   opacity: 1;
   background-color: #61dafb !important; /* Use a distinct color for active state */
 }
+
+.dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-menu {
+  position: absolute;
+  bottom: 100%; /* Position above the button */
+  right: 0;
+  background-color: #21252b;
+  border: 1px solid #555;
+  border-radius: 5px;
+  z-index: 10;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  padding: 5px;
+  gap: 5px;
+}
+
+.dropdown-menu button {
+  width: 100%;
+  text-align: left;
+}
+
 .stopwatch-container {
   display: flex;
   align-items: center;
@@ -1220,6 +1290,14 @@ input[type="datetime-local"] + .button-group button {
   gap: 5px;
   margin-bottom: 5px;
   align-items: center;
+}
+.category-color-picker {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 25px;
+  height: 25px;
+  border: none;
 }
 .timer-notification-container {
   position: fixed;

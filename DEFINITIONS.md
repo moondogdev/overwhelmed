@@ -62,6 +62,18 @@ This document should be updated whenever new declarative logic is implemented.
 ### `getRelativeDateHeader(dateStr: string)`
 -   **Description**: A helper function that takes a date string (e.g., "2025-09-22") and returns a user-friendly, relative date format. It produces outputs like "Today", "Tomorrow", or "Saturday, September 27, 2025" and includes the year if it's not the current year.
 
+### `getContrastColor(hexColor: string)`
+-   **Description**: A helper function that takes a hex color string and returns either black ('#000000') or white ('#FFFFFF') to ensure the highest contrast for text readability against that color.
+
+---
+
+## Components
+
+### `TaskAccordionHeader`
+-   **Description**: A dedicated component that renders the title and subtitle area for a task in the list view. It includes the task title, category pills, priority, and time-related information in a compact, organized layout.
+
+### `Dropdown`
+-   **Description**: A reusable component that displays a menu of items when a trigger element is hovered over. Used for the recurring task options in the task action controls.
 
 #### Inbox Handlers
 

@@ -119,6 +119,7 @@ interface Category {
   id: number;
   name: string;
   parentId?: number; // If present, this is a sub-category
+  color?: string; // Add color property
 }
 
 interface TaskType {
@@ -170,6 +171,7 @@ interface Settings {
   inboxSort?: 'date-desc' | 'date-asc' | 'type';
   openInboxGroupTypes?: string[];
   taskTypes?: TaskType[];
+  allCategoryColor?: string;
 }
 
 
@@ -1897,6 +1899,114 @@ const getRelativeDateHeader = (dateStr: string): string => {
   return taskDate.toLocaleDateString(undefined, options);
 }
 
+const getContrastColor = (hexColor: string) => {
+  if (!hexColor) return '#FFFFFF'; // Default to white if no color
+  // Remove the hash at the start if it's there
+  const hex = hexColor.replace('#', '');
+
+  // Convert hex to RGB
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+
+  // Calculate luminance (per W3C standards)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+  // Return black for light colors, white for dark colors
+  return luminance > 0.5 ? '#000000' : '#FFFFFF';
+};
+
+function Dropdown({ trigger, children }: { trigger: React.ReactNode, children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="dropdown-container" 
+      onMouseEnter={() => setIsOpen(true)} 
+      onMouseLeave={() => setIsOpen(false)}>
+      {trigger}
+      {isOpen && <div className="dropdown-menu">{children}</div>}
+    </div>
+  );
+}
+
+function TaskAccordionHeader({
+  word, 
+  settings, 
+  onCategoryClick,
+  onUpdate,
+  onNotify
+}: { 
+  word: Word, settings: Settings, onCategoryClick: (e: React.MouseEvent, catId: number, parentId?: number) => void, onUpdate?: (updatedWord: Word) => void, onNotify?: (word: Word) => void
+}) {
+  return (
+    <>
+      <div className="accordion-title-container">
+        <span className="accordion-main-title">{word.text}</span>
+        {/* Category Pills - MOVED HERE */}
+        {(() => {
+          if (!word.categoryId) return null;
+          const category = settings.categories.find(c => c.id === word.categoryId);
+          if (!category) return null;
+
+          const parentCategory = category.parentId ? settings.categories.find(c => c.id === category.parentId) : null;
+
+          return (
+            <>
+              {parentCategory && (
+                <span 
+                  className="category-pill parent-category-pill" 
+                  onClick={(e) => onCategoryClick(e, parentCategory.id, undefined)}
+                  style={{ 
+                    backgroundColor: parentCategory.color || '#555',
+                    color: getContrastColor(parentCategory.color) 
+                  }}
+                >
+                  {parentCategory.name}
+                </span>
+              )}
+              <span 
+                className="category-pill child-category-pill" 
+                onClick={(e) => onCategoryClick(e, category.id, parentCategory?.id)}
+                style={{ 
+                  backgroundColor: category.color || '#555',
+                  color: getContrastColor(category.color) 
+                }}
+              >
+                {category.name}
+              </span>
+            </>
+          );
+        })()}
+        {/* Priority Indicator - MOVED HERE */}
+        <span className={`priority-indicator priority-${(word.priority || 'Medium').toLowerCase()}`}>
+          <span className="priority-dot"></span>
+          {word.priority || 'Medium'}
+        </span>
+      </div>
+      <div className="accordion-subtitle">
+        {/* Time Open */}
+        <span className="timer-pill">
+          <i className="fas fa-clock"></i>
+          <TimeOpen startDate={word.createdAt} />
+        </span>
+
+        {/* Due Date */}
+        {word.completeBy && (
+          <>
+            <span className="due-date-pill">
+              <i className="fas fa-calendar-alt"></i>
+              Due: {new Date(word.completeBy).toLocaleDateString()}
+            </span>
+            <span className="timer-pill">
+              <i className="fas fa-hourglass-half"></i>
+              <TimeLeft word={word} onUpdate={onUpdate || (() => {})} onNotify={onNotify || (() => {})} settings={settings} />
+            </span>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
 
 function App() {
   // Create a ref to hold the canvas DOM element
@@ -4200,8 +4310,15 @@ function App() {
 
               return (
                 <>
-                  <div className="category-tabs">
-                    <button onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); setSearchQuery(''); }} className={activeCategoryId === 'all' ? 'active' : ''}>
+                  <div className="category-tabs">                    
+                     <button 
+                      onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); setSearchQuery(''); }} 
+                      className={`all-category-btn ${activeCategoryId === 'all' ? 'active' : ''}`}
+                      style={{
+                        backgroundColor: settings.allCategoryColor || '#4a4f5b',
+                        color: getContrastColor(settings.allCategoryColor || '#4a4f5b')
+                      }}
+                     >
                       All ({words.length})
                     </button>
                     {parentCategories.map((cat: Category) => {
@@ -4212,7 +4329,14 @@ function App() {
                         (w.categoryId && subCatIds.includes(w.categoryId))
                       ).length;
                       return (
-                        <button key={cat.id} onClick={() => { setActiveCategoryId(cat.id); setActiveSubCategoryId('all'); setSearchQuery(''); }} className={activeCategoryId === cat.id ? 'active' : ''}>
+                        <button 
+                          key={cat.id} 
+                          onClick={() => { setActiveCategoryId(cat.id); setActiveSubCategoryId('all'); setSearchQuery(''); }} 
+                          className={activeCategoryId === cat.id ? 'active' : ''}
+                          style={{ 
+                            backgroundColor: cat.color || 'transparent', 
+                            color: getContrastColor(cat.color || '#282c34') 
+                          }}>
                           {cat.name} ({count})
                         </button>
                       );
@@ -4225,15 +4349,28 @@ function App() {
                         const subCatIds = settings.categories.filter(sc => sc.parentId === parentCategory?.id).map(sc => sc.id);
                         const totalCount = words.filter(w => w.categoryId === parentCategory?.id || (w.categoryId && subCatIds.includes(w.categoryId))).length;
                         return (
-                          <button onClick={() => { setActiveSubCategoryId('all'); setSearchQuery(''); }} className={activeSubCategoryId === 'all' ? 'active' : ''}>All ({totalCount})</button>
+                          <button 
+                            onClick={() => { setActiveSubCategoryId('all'); setSearchQuery(''); }} 
+                            className={`all-category-btn ${activeSubCategoryId === 'all' ? 'active' : ''}`}
+                            style={{
+                              backgroundColor: parentCategory?.color || '#3a3f4b',
+                              color: getContrastColor(parentCategory?.color || '#3a3f4b')
+                            }}
+                          >All ({totalCount})</button>
                         );
                       })()}
                       {subCategoriesForActive.map(subCat => (
                         (() => {
-                          // Calculate count from the full 'words' list, not the filtered one,
-                          // to ensure counts are stable regardless of the active sub-filter.
                           const count = words.filter(w => w.categoryId === subCat.id).length;
-                          return <button key={subCat.id} onClick={() => { setActiveSubCategoryId(subCat.id); setSearchQuery(''); }} className={activeSubCategoryId === subCat.id ? 'active' : ''}>
+                          return <button 
+                            key={subCat.id} 
+                            onClick={() => { setActiveSubCategoryId(subCat.id); setSearchQuery(''); }} 
+                            className={activeSubCategoryId === subCat.id ? 'active' : ''}
+                            style={{ 
+                              backgroundColor: subCat.color || '#3a3f4b', 
+                              color: getContrastColor(subCat.color || '#3a3f4b') 
+                            }}
+                          >
                             {subCat.name} ({count})
                           </button>
                         })()
@@ -4355,46 +4492,21 @@ function App() {
                                         isOpen={settings.openAccordionIds.includes(word.id)}
                                         onToggle={() => handleAccordionToggle(word.id)}
                                         title={
-                                        <>
-                                          <div className="accordion-title-container">
-                                            <span className="accordion-main-title">{word.text}</span>
-                                            {(() => {
-                                              if (!word.categoryId) return null;
-                                              const category = settings.categories.find(c => c.id === word.categoryId);
-                                              if (!category) return null;
-
-                                              const parentCategory = category.parentId ? settings.categories.find(c => c.id === category.parentId) : null;
-
-                                              const handlePillClick = (e: React.MouseEvent, catId: number, parentId?: number) => {
-                                                e.stopPropagation();
-                                                setActiveCategoryId(parentId || catId);
-                                                if (parentId) setActiveSubCategoryId(catId);
-                                              };
-
-                                              return (
-                                                <>
-                                                  {parentCategory && (
-                                                    <span className="category-pill" onClick={(e) => handlePillClick(e, parentCategory.id)}>{parentCategory.name}</span>
-                                                  )}
-                                                  <span className="category-pill" onClick={(e) => handlePillClick(e, category.id, parentCategory?.id)}>{category.name}</span>
-                                                </>
-                                              );
-                                            })()}
-                                          </div>
-                                          <div className="accordion-subtitle">
-                                            {word.company && <span>{word.company}</span>}
-                                            <span>{formatDate(word.openDate)} {new Date(word.openDate).toLocaleTimeString()}</span>
-                                            {word.snoozeCount > 0 && <span>Snoozed: {word.snoozeCount} time(s)</span>}                                    
-                                            {word.snoozedAt && <span>Last Snoozed at: {formatTimestamp(word.snoozedAt)}</span>}
-                                            {word.lastNotified > word.createdAt && <span>Next Alert at: {formatTimestamp(word.lastNotified)}</span>}
-                                            {word.completeBy && <span>Due: {formatDate(word.completeBy)} {new Date(word.completeBy).toLocaleTimeString()}</span>}
-                                            <span><TimeLeft word={word} onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))} onNotify={handleTimerNotify} settings={settings} /></span>
-                                            <span className={`priority-indicator priority-${(word.priority || 'Medium').toLowerCase()}`}>
-                                              <span className="priority-dot"></span>
-                                              {word.priority || 'Medium'}
-                                            </span>
-                                          </div>
-                                        </>
+                                          <TaskAccordionHeader
+                                            word={word}
+                                            settings={settings}
+                                            onCategoryClick={(e, catId, parentId) => {
+                                              e.stopPropagation();
+                                              setActiveCategoryId(parentId || catId);
+                                              // If a parentId is provided, it's a sub-category click.
+                                              // If not, it's a parent category click, so reset the sub-category filter.
+                                              if (parentId) {
+                                                setActiveSubCategoryId(catId);
+                                              } else {
+                                                setActiveSubCategoryId('all');
+                                              }
+                                            }}
+                                          />
                                       }>
                                         <>
                                           <TabbedView 
@@ -4431,48 +4543,19 @@ function App() {
                                             setCopyStatus(`Autocomplete ${newAutocompleteState ? 'enabled' : 'disabled'}.`);
                                             setTimeout(() => setCopyStatus(''), 2000);
                                           }} title="Toggle Autocomplete" className={`icon-button recurring-toggle ${word.isAutocomplete ? 'active' : ''}`}>
-                                            <i className="fas fa-robot"></i>_
+                                            <i className="fas fa-robot"></i>
                                           </button>
-                                          <button onClick={() => {
-                                            const newRecurringState = !word.isRecurring;
-                                            setWords(words.map(w => w.id === word.id ? { ...w, isRecurring: newRecurringState } : w));
-                                            setCopyStatus(`Re-occurring task ${newRecurringState ? 'enabled' : 'disabled'}.`);
-                                            setTimeout(() => setCopyStatus(''), 2000);
-                                          }} title="Toggle Re-occurring" className={`icon-button recurring-toggle ${word.isRecurring ? 'active' : ''}`}>
-                                            <i className="fas fa-sync-alt"></i>
-                                          </button>
-                                          <button onClick={() => {
-                                            const newState = !word.isDailyRecurring;
-                                            setWords(words.map(w => w.id === word.id ? { ...w, isDailyRecurring: newState } : w));
-                                            setCopyStatus(`Daily Repeat ${newState ? 'enabled' : 'disabled'}.`);
-                                            setTimeout(() => setCopyStatus(''), 2000);
-                                          }} title="Toggle Daily Repeat" className={`icon-button recurring-toggle ${word.isDailyRecurring ? 'active' : ''}`}>
-                                            <span title="Daily Repeat">D</span>
-                                          </button>
-                                          <button onClick={() => {
-                                            const newState = !word.isWeeklyRecurring;
-                                            setWords(words.map(w => w.id === word.id ? { ...w, isWeeklyRecurring: newState } : w));
-                                            setCopyStatus(`Weekly Repeat ${newState ? 'enabled' : 'disabled'}.`);
-                                            setTimeout(() => setCopyStatus(''), 2000);
-                                          }} title="Toggle Weekly Repeat" className={`icon-button recurring-toggle ${word.isWeeklyRecurring ? 'active' : ''}`}>
-                                            <span title="Weekly Repeat">W</span>
-                                          </button>
-                                          <button onClick={() => {
-                                            const newState = !word.isMonthlyRecurring;
-                                            setWords(words.map(w => w.id === word.id ? { ...w, isMonthlyRecurring: newState } : w));
-                                            setCopyStatus(`Monthly Repeat ${newState ? 'enabled' : 'disabled'}.`);
-                                            setTimeout(() => setCopyStatus(''), 2000);
-                                          }} title="Toggle Monthly Repeat" className={`icon-button recurring-toggle ${word.isMonthlyRecurring ? 'active' : ''}`}>
-                                            <span title="Monthly Repeat">M</span>
-                                          </button>
-                                          <button onClick={() => {
-                                            const newState = !word.isYearlyRecurring;
-                                            setWords(words.map(w => w.id === word.id ? { ...w, isYearlyRecurring: newState } : w));
-                                            setCopyStatus(`Yearly Repeat ${newState ? 'enabled' : 'disabled'}.`);
-                                            setTimeout(() => setCopyStatus(''), 2000);
-                                          }} title="Toggle Yearly Repeat" className={`icon-button recurring-toggle ${word.isYearlyRecurring ? 'active' : ''}`}>
-                                            <span title="Yearly Repeat">Y</span>
-                                          </button>
+                                          <Dropdown trigger={
+                                            <button title="Recurring Options" className={`icon-button recurring-toggle ${word.isRecurring || word.isDailyRecurring || word.isWeeklyRecurring || word.isMonthlyRecurring || word.isYearlyRecurring ? 'active' : ''}`}>
+                                              <i className="fas fa-sync-alt"></i>
+                                            </button>
+                                          }>
+                                            <button onClick={() => handleWordUpdate({ ...word, isRecurring: !word.isRecurring })} className={word.isRecurring ? 'active' : ''}>Re-occur on Complete</button>
+                                            <button onClick={() => handleWordUpdate({ ...word, isDailyRecurring: !word.isDailyRecurring })} className={word.isDailyRecurring ? 'active' : ''}>Repeat Daily</button>
+                                            <button onClick={() => handleWordUpdate({ ...word, isWeeklyRecurring: !word.isWeeklyRecurring })} className={word.isWeeklyRecurring ? 'active' : ''}>Repeat Weekly</button>
+                                            <button onClick={() => handleWordUpdate({ ...word, isMonthlyRecurring: !word.isMonthlyRecurring })} className={word.isMonthlyRecurring ? 'active' : ''}>Repeat Monthly</button>
+                                            <button onClick={() => handleWordUpdate({ ...word, isYearlyRecurring: !word.isYearlyRecurring })} className={word.isYearlyRecurring ? 'active' : ''}>Repeat Yearly</button>
+                                          </Dropdown>
                                           <button
                                             className="icon-button"
                                             title="View Full Page"
@@ -4495,7 +4578,7 @@ function App() {
                                             </>
                                           )}
                                           <button onClick={() => removeWord(word.id)} className="icon-button remove-btn" title="Delete Task">
-                                            <i className="fas fa-trash"></i>_
+                                            <i className="fas fa-trash"></i>
                                           </button>
                                         </div>
                                       </TaskAccordion>
@@ -4523,46 +4606,23 @@ function App() {
                                 isOpen={settings.openAccordionIds.includes(word.id)}
                                 onToggle={() => handleAccordionToggle(word.id)}
                                 title={
-                                <>
-                                  <div className="accordion-title-container">
-                                    <span className="accordion-main-title">{word.text}</span>
-                                    {(() => {
-                                      if (!word.categoryId) return null;
-                                      const category = settings.categories.find(c => c.id === word.categoryId);
-                                      if (!category) return null;
-
-                                      const parentCategory = category.parentId ? settings.categories.find(c => c.id === category.parentId) : null;
-
-                                      const handlePillClick = (e: React.MouseEvent, catId: number, parentId?: number) => {
-                                        e.stopPropagation();
-                                        setActiveCategoryId(parentId || catId);
-                                        if (parentId) setActiveSubCategoryId(catId);
-                                      };
-
-                                      return (
-                                        <>
-                                          {parentCategory && (
-                                            <span className="category-pill" onClick={(e) => handlePillClick(e, parentCategory.id)}>{parentCategory.name}</span>
-                                          )}
-                                          <span className="category-pill" onClick={(e) => handlePillClick(e, category.id, parentCategory?.id)}>{category.name}</span>
-                                        </>
-                                      );
-                                    })()}
-                                  </div>
-                                  <div className="accordion-subtitle">
-                                    {word.company && <span>{word.company}</span>}
-                                    <span>{formatDate(word.openDate)} {new Date(word.openDate).toLocaleTimeString()}</span>
-                                    {word.snoozeCount > 0 && <span>Snoozed: {word.snoozeCount} time(s)</span>}                                    
-                                    {word.snoozedAt && <span>Last Snoozed at: {formatTimestamp(word.snoozedAt)}</span>}
-                                    {word.lastNotified > word.createdAt && <span>Next Alert at: {formatTimestamp(word.lastNotified)}</span>}
-                                    {word.completeBy && <span>Due: {formatDate(word.completeBy)} {new Date(word.completeBy).toLocaleTimeString()}</span>}
-                                    <span><TimeLeft word={word} onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))} onNotify={handleTimerNotify} settings={settings} /></span>
-                                    <span className={`priority-indicator priority-${(word.priority || 'Medium').toLowerCase()}`}>
-                                      <span className="priority-dot"></span>
-                                      {word.priority || 'Medium'}
-                                    </span>
-                                  </div>
-                                </>
+                                  <TaskAccordionHeader
+                                    word={word}
+                                    settings={settings}
+                                    onCategoryClick={(e, catId, parentId) => {
+                                      e.stopPropagation();
+                                      setActiveCategoryId(parentId || catId);
+                                      // If a parentId is provided, it's a sub-category click.
+                                      // If not, it's a parent category click, so reset the sub-category filter.
+                                      if (parentId) {
+                                        setActiveSubCategoryId(catId);
+                                      } else {
+                                        setActiveSubCategoryId('all');
+                                      }
+                                    }} 
+                                    onUpdate={handleWordUpdate}
+                                    onNotify={handleTimerNotify}
+                                  />
                               }>
                                 <>
                                   <TabbedView 
@@ -4601,46 +4661,17 @@ function App() {
                                   }} title="Toggle Autocomplete" className={`icon-button recurring-toggle ${word.isAutocomplete ? 'active' : ''}`}>
                                     <i className="fas fa-robot"></i>
                                   </button>
-                                  <button onClick={() => {
-                                    const newRecurringState = !word.isRecurring;
-                                    setWords(words.map(w => w.id === word.id ? { ...w, isRecurring: newRecurringState } : w));
-                                    setCopyStatus(`Re-occurring task ${newRecurringState ? 'enabled' : 'disabled'}.`);
-                                    setTimeout(() => setCopyStatus(''), 2000);
-                                  }} title="Toggle Re-occurring" className={`icon-button recurring-toggle ${word.isRecurring ? 'active' : ''}`}>
-                                    <i className="fas fa-sync-alt"></i>
-                                  </button>
-                                  <button onClick={() => {
-                                    const newState = !word.isDailyRecurring;
-                                    setWords(words.map(w => w.id === word.id ? { ...w, isDailyRecurring: newState } : w));
-                                    setCopyStatus(`Daily Repeat ${newState ? 'enabled' : 'disabled'}.`);
-                                    setTimeout(() => setCopyStatus(''), 2000);
-                                  }} title="Toggle Daily Repeat" className={`icon-button recurring-toggle ${word.isDailyRecurring ? 'active' : ''}`}>
-                                    <span title="Daily Repeat">D</span>
-                                  </button>
-                                  <button onClick={() => {
-                                    const newState = !word.isWeeklyRecurring;
-                                    setWords(words.map(w => w.id === word.id ? { ...w, isWeeklyRecurring: newState } : w));
-                                    setCopyStatus(`Weekly Repeat ${newState ? 'enabled' : 'disabled'}.`);
-                                    setTimeout(() => setCopyStatus(''), 2000);
-                                  }} title="Toggle Weekly Repeat" className={`icon-button recurring-toggle ${word.isWeeklyRecurring ? 'active' : ''}`}>
-                                    <span title="Weekly Repeat">W</span>
-                                  </button>
-                                  <button onClick={() => {
-                                    const newState = !word.isMonthlyRecurring;
-                                    setWords(words.map(w => w.id === word.id ? { ...w, isMonthlyRecurring: newState } : w));
-                                    setCopyStatus(`Monthly Repeat ${newState ? 'enabled' : 'disabled'}.`);
-                                    setTimeout(() => setCopyStatus(''), 2000);
-                                  }} title="Toggle Monthly Repeat" className={`icon-button recurring-toggle ${word.isMonthlyRecurring ? 'active' : ''}`}>
-                                    <span title="Monthly Repeat">M</span>
-                                  </button>
-                                  <button onClick={() => {
-                                    const newState = !word.isYearlyRecurring;
-                                    setWords(words.map(w => w.id === word.id ? { ...w, isYearlyRecurring: newState } : w));
-                                    setCopyStatus(`Yearly Repeat ${newState ? 'enabled' : 'disabled'}.`);
-                                    setTimeout(() => setCopyStatus(''), 2000);
-                                  }} title="Toggle Yearly Repeat" className={`icon-button recurring-toggle ${word.isYearlyRecurring ? 'active' : ''}`}>
-                                    <span title="Yearly Repeat">Y</span>
-                                  </button>
+                                  <Dropdown trigger={
+                                    <button title="Recurring Options" className={`icon-button recurring-toggle ${word.isRecurring || word.isDailyRecurring || word.isWeeklyRecurring || word.isMonthlyRecurring || word.isYearlyRecurring ? 'active' : ''}`}>
+                                      <i className="fas fa-sync-alt"></i>
+                                    </button>
+                                  }>
+                                    <button onClick={() => handleWordUpdate({ ...word, isRecurring: !word.isRecurring })} className={word.isRecurring ? 'active' : ''}>Re-occur on Complete</button>
+                                    <button onClick={() => handleWordUpdate({ ...word, isDailyRecurring: !word.isDailyRecurring })} className={word.isDailyRecurring ? 'active' : ''}>Repeat Daily</button>
+                                    <button onClick={() => handleWordUpdate({ ...word, isWeeklyRecurring: !word.isWeeklyRecurring })} className={word.isWeeklyRecurring ? 'active' : ''}>Repeat Weekly</button>
+                                    <button onClick={() => handleWordUpdate({ ...word, isMonthlyRecurring: !word.isMonthlyRecurring })} className={word.isMonthlyRecurring ? 'active' : ''}>Repeat Monthly</button>
+                                    <button onClick={() => handleWordUpdate({ ...word, isYearlyRecurring: !word.isYearlyRecurring })} className={word.isYearlyRecurring ? 'active' : ''}>Repeat Yearly</button>
+                                  </Dropdown>
                                   <button
                                     className="icon-button"
                                     title="View Full Page"
@@ -4957,6 +4988,21 @@ function App() {
         </SimpleAccordion>
         <TaskTypeManager settings={settings} setSettings={setSettings} />
 
+        <SimpleAccordion title="Global Category Settings">
+          <div className="category-manager-item">
+            <span>"All" Category Color:</span>
+            <input
+              type="color"
+              value={settings.allCategoryColor || '#4a4f5b'}
+              className="category-color-picker"
+              onChange={(e) => setSettings(prev => ({ ...prev, allCategoryColor: e.target.value }))}
+            />
+            <button className="icon-button" onClick={() => setSettings(prev => ({ ...prev, allCategoryColor: undefined }))} title="Reset Color">
+              <i className="fas fa-times-circle"></i>
+            </button>
+          </div>
+        </SimpleAccordion>
+
         <SimpleAccordion className="accordion-category-manager" title="Category Manager">
           {settings.categories.filter(c => !c.parentId).map((parentCat: Category) => (
             <div key={parentCat.id} className="category-manager-group">
@@ -4966,6 +5012,15 @@ function App() {
                   value={parentCat.name}
                   onChange={(e) => {
                     const newCategories = settings.categories.map(c => c.id === parentCat.id ? { ...c, name: e.target.value } : c);
+                    setSettings(prev => ({ ...prev, categories: newCategories }));
+                  }}
+                />
+                <input
+                  type="color"
+                  value={parentCat.color || '#555555'} // Default to gray
+                  className="category-color-picker"
+                  onChange={(e) => {
+                    const newCategories = settings.categories.map(c => c.id === parentCat.id ? { ...c, color: e.target.value } : c);
                     setSettings(prev => ({ ...prev, categories: newCategories }));
                   }}
                 />
@@ -4996,6 +5051,15 @@ function App() {
                       );
                       setSettings(prev => ({ ...prev, categories: newCategories }));
                   }}
+                  />
+                  <input
+                    type="color"
+                    value={subCat.color || '#555555'} // Default to gray
+                    className="category-color-picker"
+                    onChange={(e) => {
+                      const newCategories = settings.categories.map(c => c.id === subCat.id ? { ...c, color: e.target.value } : c);
+                      setSettings(prev => ({ ...prev, categories: newCategories }));
+                    }}
                   />
                   <button className="icon-button" onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, subCat.id, 'up') }))} title="Move Up"><i className="fas fa-arrow-up"></i></button>
                   <button className="icon-button" onClick={() => setSettings(prev => ({ ...prev, categories: moveCategory(prev.categories, subCat.id, 'down') }))} title="Move Down"><i className="fas fa-arrow-down"></i></button>
