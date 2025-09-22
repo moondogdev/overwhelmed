@@ -509,6 +509,18 @@ app.whenReady().then(() => {
       },
       { type: 'separator' },
       {
+        label: 'Add/Edit Response',
+        click: () => webContents.send('checklist-item-command', { command: 'edit_response', sectionId, itemId }),
+      },
+      {
+        label: 'Add/Edit Note',
+        click: () => webContents.send('checklist-item-command', { command: 'edit_note', sectionId, itemId }),
+      },
+      {
+        label: 'Copy Response',
+        click: () => webContents.send('checklist-item-command', { command: 'copy_response', sectionId, itemId }),
+      },
+      {
         label: 'Edit Item',
         click: () => webContents.send('checklist-item-command', { command: 'edit', sectionId, itemId }),
       },

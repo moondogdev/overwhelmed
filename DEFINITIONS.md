@@ -37,6 +37,239 @@ This document should be updated whenever new declarative logic is implemented.
 ### `settings.taskTypes: TaskType[]`
 -   **Description**: An array within the `settings` object that stores the user-defined task types, including their name and the list of fields they display.
 
+### `isChecklistPromptOpen: boolean`
+-   **Description**: A boolean flag that controls the visibility of the `PromptModal` used for editing a checklist item's `response` or `note` field.
+
+### `editingChecklistItem: object | null`
+-   **Description**: A state object that holds the context for the checklist item currently being edited via the `PromptModal`. It stores the `sectionId`, `itemId`, the `field` being edited ('response' or 'note'), and the `currentText`. It is `null` when the modal is closed.
+
+---
+
+## Interfaces
+
+### `AccordionProps` Interface
+```ts
+interface AccordionProps {
+  title: React.ReactNode;
+  children: React.ReactNode;
+}
+```
+---
+### `Attachment` Interface
+```typescript
+interface Attachment {
+  name: string;
+  path: string;
+}
+```
+---
+### `Browser` Interface
+```typescript
+interface Browser {
+  name: string;
+  path: string;
+}
+```
+---
+
+### `Category` Interface 
+
+```ts
+interface Category {
+  id: number;
+  name: string;
+  color: string;
+}
+```
+---  
+### `ChecklistItem` Interface
+```typescript
+interface ChecklistItem {
+  id: number;
+  text: string;
+  isCompleted: boolean;
+  response?: string;
+  note?: string;
+
+}
+```
+---
+### `ChecklistSection` Interface
+```ts
+interface ChecklistSection {
+  id: number;
+  title: string;
+  items: ChecklistItem[];
+}
+```
+---
+### `FullTaskViewProps` Interface
+```ts
+interface FullTaskViewProps {
+  task: Word;
+  onClose: () => void;
+  onUpdate: (updatedWord: Word) => void;
+  onNotify: (word: Word) => void;
+  formatTimestamp: (ts: number) => string;
+  setCopyStatus: (message: string) => void;
+  settings: Settings;
+  onSettingsChange: (newSettings: Partial<Settings>) => void;
+  words: Word[];
+  setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>;
+  onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
+  onTabChange: (wordId: number, tab: 'ticket' | 'edit') => void;
+  onDescriptionChange: (html: string) => void;
+}
+```
+---
+### `InboxMessage` Interface
+```ts
+interface InboxMessage {
+  id: number;
+  type: 'overdue' | 'timer-alert' | 'created' | 'completed' | 'deleted' | 'updated';
+  text: string;
+  timestamp: number;
+  wordId?: number;
+  sectionId?: number;
+  isImportant?: boolean;
+  isArchived?: boolean;
+}
+```
+---
+### `PrioritySortConfig` Interface
+```ts
+interface PrioritySortConfig {
+  [key: string]: { key: keyof Word | 'timeOpen', direction: 'ascending' | 'descending' } | null;
+}
+```
+---
+### `PromptModalProps` Interface
+```typescript
+interface PromptModalProps {
+  isOpen: boolean;
+  title: string;
+  onClose: () => void;
+  onConfirm: (inputValue: string) => void;
+  placeholder?: string;
+  initialValue?: string;
+}
+```
+---
+### `TabbedViewProps` Interface
+```ts
+interface TabbedViewProps {
+  word: Word;
+  onUpdate: (updatedWord: Word) => void;
+  onTabChange: (wordId: number, tab: 'ticket' | 'edit') => void;
+  onNotify: (word: Word) => void;
+  formatTimestamp: (ts: number) => string;
+  setCopyStatus: (message: string) => void;  
+  onSettingsChange: (newSettings: Partial<Settings>) => void;
+  onDescriptionChange: (html: string) => void;
+  settings: Settings;
+  startInEditMode?: boolean;
+  words: Word[];
+  onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
+  setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>;
+  className?: string;
+  wordId: number;
+  checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>;
+}
+```
+---
+### `TaskType` Interface
+```ts
+interface TaskType {
+  id: string;
+  name: string;
+  fields: (keyof Word)[];
+}
+```
+---
+### `Settings` Interface
+```ts
+interface Settings {
+  fontFamily: string;
+  fontColor: string;
+  shadowColor: string;
+  shadowBlur: number;
+  shadowOffsetX: number;
+  shadowOffsetY: number;
+  isOverlayEnabled: boolean;
+  overlayColor: string;
+  overlayOpacity: number;
+  isDebugModeEnabled: boolean;
+  minFontSize: number;
+  maxFontSize: number;
+  browsers: Browser[];
+  activeBrowserIndex: number;
+  categories: Category[];
+  externalLinks: ExternalLink[];
+  currentView: 'meme' | 'list' | 'reports' | 'inbox';
+  activeCategoryId?: number | 'all';
+  activeSubCategoryId?: number | 'all';
+  warningTime: number;
+  isSidebarVisible: boolean;
+  openAccordionIds: number[];
+  activeTaskTabs: { [key: number]: 'ticket' | 'edit' };
+  timerNotificationLevel: 'silent' | 'low' | 'medium' | 'high';
+  prioritySortConfig?: PrioritySortConfig;
+  autoBackupLimit?: number;
+  snoozeTime: 'low' | 'medium' | 'high';
+  editorHeights?: { [key: string]: string };
+  useDefaultBrowserForSearch?: boolean;
+  inboxSort?: 'date-desc' | 'date-asc' | 'type';
+  openInboxGroupTypes?: string[];
+  taskTypes?: TaskType[];
+  allCategoryColor?: string;
+}
+```
+---
+### `Word` Interface
+```ts
+interface Word {
+  id: number;
+  text: string;
+  x: number;
+  y: number;
+  url?: string;
+  priority?: 'High' | 'Medium' | 'Low';
+  categoryId?: number;
+  completeBy?: number;
+  company?: string;
+  websiteUrl?: string;
+  imageLinks?: string[];
+  description?: string;
+  attachments?: Attachment[];
+  checklist?: ChecklistSection[] | ChecklistItem[];
+  notes?: string;
+  width?: number;
+  height?: number;
+  openDate: number;
+  createdAt: number;
+  isPaused?: boolean;
+  pausedDuration?: number;
+  completedDuration?: number;
+  manualTime?: number;
+  payRate?: number;
+  isRecurring?: boolean;
+  isDailyRecurring?: boolean;
+  isWeeklyRecurring?: boolean;
+  isMonthlyRecurring?: boolean;
+  isYearlyRecurring?: boolean;
+  isAutocomplete?: boolean;
+  lastNotified?: number;
+  snoozedAt?: number;
+}
+```
+---
+## Interface Descriptions
+
+### `ChecklistItem`
+-   **Description**: An object representing a single item within a `Checklist`.
+-   **`response?: string`**: An optional public response or comment related to the checklist item. This field is intended to be visible when copying or exporting the checklist.
+-   **`note?: string`**: An optional private note for the checklist item. This field is for internal use and should not be included in copied or exported content.
+
 ---
 
 ## Handlers (Functions)

@@ -32,7 +32,7 @@ declare global {
     showToastContextMenu: (payload: { wordId: number, x: number, y: number }) => void;
     showInboxItemContextMenu: (payload: { message: InboxMessage, x: number, y: number }) => void;
     showNavButtonContextMenu: (payload: { x: number, y: number, canGoBack: boolean, canGoForward: boolean }) => void;
-    showSaveButtonContextMenu: (payload: { x: number, y: number }) => void;
+    showSaveButtonContextMenu: (payload: { x: number, y: number }) => void;    
     showChecklistItemContextMenu: (payload: { sectionId: number, itemId: number, isCompleted: boolean, x: number, y: number }) => void;
     showChecklistSectionContextMenu: (payload: { wordId: number, sectionId: number, areAllComplete: boolean, x: number, y: number }) => void;
     notifyDirtyState: (isDirty: boolean) => void;
@@ -49,6 +49,8 @@ interface ChecklistItem {
   id: number;
   text: string;
   isCompleted: boolean;
+  response?: string;
+  note?: string;
 }
 
 interface ChecklistSection {
@@ -316,10 +318,11 @@ interface PromptModalProps {
   onClose: () => void;
   onConfirm: (inputValue: string) => void;
   placeholder?: string;
+  initialValue?: string;
 }
 
-function PromptModal({ isOpen, title, onClose, onConfirm, placeholder }: PromptModalProps) {
-  const [inputValue, setInputValue] = useState('');
+function PromptModal({ isOpen, title, onClose, onConfirm, placeholder, initialValue = '' }: PromptModalProps) {
+  const [inputValue, setInputValue] = useState(initialValue);
 
   if (!isOpen) return null;
 
@@ -1300,17 +1303,25 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                       className="checklist-item-text-input"
                     />
                   ) : (
-                    <label className="checklist-item-label">
-                      <input
-                        type="checkbox"
-                        checked={item.isCompleted}
-                        onChange={() => handleToggleItem(section.id, item.id)}
-                      />
-                      <span className="checklist-item-text" onContextMenu={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation(); // Stop the event from bubbling up to the parent task
-                        window.electronAPI.showChecklistItemContextMenu({ sectionId: section.id, itemId: item.id, isCompleted: item.isCompleted, x: e.clientX, y: e.clientY });
-                      }}>{item.text}</span>
+                    <label className="checklist-item-label flexed-column">
+                      <div className="checklist-item-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={item.isCompleted}
+                          onChange={() => handleToggleItem(section.id, item.id)}
+                        />
+                        <span className="checklist-item-text" onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation(); // Stop the event from bubbling up to the parent task
+                          window.electronAPI.showChecklistItemContextMenu({ sectionId: section.id, itemId: item.id, isCompleted: item.isCompleted, x: e.clientX, y: e.clientY });
+                        }}>{item.text}</span>
+                      </div>
+                      {item.response && (
+                        <div className="checklist-item-response"><strong><i className="fas fa-reply"></i> Response:</strong> {item.response}</div>
+                      )}
+                      {item.note && (
+                        <div className="checklist-item-note"><strong><i className="fas fa-sticky-note"></i> Note:</strong> {item.note}</div>
+                      )}
                     </label>
                   )}
                 </div>
@@ -2096,6 +2107,11 @@ function App() {
   // Ref to prevent duplicate 'overdue' inbox messages from being created in rapid succession.
   const overdueMessageSentRef = useRef(new Set<number>());
 
+  // State for the checklist item response/note editing modal
+  const [isChecklistPromptOpen, setIsChecklistPromptOpen] = useState(false);
+  const [editingChecklistItem, setEditingChecklistItem] = useState<{ sectionId: number; itemId: number; field: 'response' | 'note'; currentText: string; } | null>(null);
+
+
   const handleToggleImportant = (messageId: number) => {
     let isNowImportant: boolean;
     setInboxMessages(prevMessages => {
@@ -2701,7 +2717,7 @@ function App() {
         handleWordUpdate({ ...wordContainingChecklist }); // This triggers the update flow
         return; // Stop here for edit command
       }
-      const newSections = (wordContainingChecklist.checklist as ChecklistSection[]).map(sec => {
+      let newSections = (wordContainingChecklist.checklist as ChecklistSection[]).map(sec => {
         if (sec.id !== sectionId) return sec;
 
         const itemIndex = sec.items.findIndex(item => item.id === itemId);
@@ -2757,6 +2773,27 @@ function App() {
         }
         return { ...sec, items: newItems };
       });
+
+      // Handle response and note editing
+      if (command === 'edit_response' || command === 'edit_note') {
+        const itemToUpdate = newSections.flatMap(s => s.items).find(i => i.id === itemId);
+        if (itemToUpdate) {
+          const fieldToEdit = command === 'edit_response' ? 'response' : 'note';
+          setEditingChecklistItem({ sectionId, itemId, field: fieldToEdit, currentText: itemToUpdate[fieldToEdit] || '' });
+          setIsChecklistPromptOpen(true);
+          return; // Stop further processing, the modal will handle the update
+        }
+      }
+
+
+      if (command === 'copy_response') {
+        const itemToCopy = newSections.flatMap(s => s.items).find(i => i.id === itemId);
+        if (itemToCopy?.response) {
+          navigator.clipboard.writeText(itemToCopy.response);
+          setCopyStatus('Response copied!');
+          setTimeout(() => setCopyStatus(''), 2000);
+        }
+      }
 
       handleWordUpdate({ ...wordContainingChecklist, checklist: newSections });
     };
@@ -4000,6 +4037,30 @@ function App() {
             })}
           </div>
         </div>
+      )}
+      {isChecklistPromptOpen && editingChecklistItem && (
+        <PromptModal
+          isOpen={isChecklistPromptOpen}
+          title={`Edit ${editingChecklistItem.field}`}
+          placeholder={`Enter ${editingChecklistItem.field}...`}
+          initialValue={editingChecklistItem.currentText}
+          onClose={() => setIsChecklistPromptOpen(false)}
+          onConfirm={(newText) => {
+            const { sectionId, itemId, field } = editingChecklistItem;
+            const wordContainingChecklist = words.find(w => w.checklist?.some(sec => 'items' in sec && sec.items.some(item => item.id === itemId)));
+            if (wordContainingChecklist) {
+              const newSections = (wordContainingChecklist.checklist as ChecklistSection[]).map(sec => ({
+                ...sec,
+                items: sec.items.map(item =>
+                  item.id === itemId ? { ...item, [field]: newText } : item
+                )
+              }));
+              handleWordUpdate({ ...wordContainingChecklist, checklist: newSections });
+            }
+            setIsChecklistPromptOpen(false);
+            setEditingChecklistItem(null);
+          }}
+        />
       )}
       <Footer />
       <div className="main-content">
