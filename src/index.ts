@@ -562,6 +562,15 @@ app.whenReady().then(() => {
         label: areAllComplete ? 'Re-Open All in Section' : 'Complete All in Section',
         click: () => webContents.send('checklist-section-command', { command: 'toggle_all_in_section', sectionId }),
       },
+      {
+        label: 'Copy Section',
+        click: () => webContents.send('checklist-section-command', { command: 'copy_section', sectionId }),
+      },
+      {
+        label: 'Copy All Sections',
+        click: () => webContents.send('checklist-section-command', { command: 'copy_all_sections', sectionId }),
+      },
+      { type: 'separator' },
       { type: 'separator' },
       {
         label: 'Duplicate Section',

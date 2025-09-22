@@ -1,6 +1,8 @@
 # Changelog
 
-All notable changes to this project will be documented in this file. See
+All notable changes to this project will be documented in this file. See `## Log of Changes` below.
+
+---
 
 ## Future Features
 -   ### **Copy Checklist**: 
@@ -82,6 +84,7 @@ All notable changes to this project will be documented in this file. See
 ---
 ## Log of Changes
 
+- **[1.0.9] - 2025-09-22: Copy Checklist**: feat(checklist): Add copy to clipboard functionality
 - **[1.0.8] - 2025-09-22: Checklist Responses & Notes**: feat(checklist): Add response and note fields to items. Doc edits
 - **[1.0.7] - 2025-09-21: UI Polish & Category Color-Coding**: feat(ui): Add category colors and refactor task header/actions
 - **[1.0.6] - 2025-09-21: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
@@ -94,7 +97,20 @@ All notable changes to this project will be documented in this file. See
 
 ---
 
-### [1.0.8] - 2025-09-23: Checklist Responses & Notes
+## [1.0.9] - 2025-09-22: Copy Checklist
+
+### Added
+-   **Copy Checklist**: Implemented a feature to copy checklist data to the clipboard as formatted plain text.
+    -   Added "Copy Section" and "Copy All Sections" buttons to the UI and the section header context menu.
+    -   Created a `formatChecklistForCopy` helper function that formats the checklist according to `Rule 51.0`, including completion status (`[✔]`/`[✗]`) and public `response` fields, while excluding private `note` fields.
+    -   The copied section title now includes the completion count (e.g., "Section Title (2/5)").
+
+### Changed
+-   The checklist section header in the UI now displays the completion count (e.g., "Section Title (2/5)").
+
+---
+
+### [1.0.8] - 2025-09-22: Checklist Responses & Notes
 
 #### Added
 -   **Checklist Responses & Notes**: Added the ability to add a "Response" and a private "Note" to each individual checklist item.

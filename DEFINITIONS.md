@@ -111,7 +111,7 @@ interface FullTaskViewProps {
   onUpdate: (updatedWord: Word) => void;
   onNotify: (word: Word) => void;
   formatTimestamp: (ts: number) => string;
-  setCopyStatus: (message: string) => void;
+  setCopyStatus?: (message: string) => void;
   settings: Settings;
   onSettingsChange: (newSettings: Partial<Settings>) => void;
   words: Word[];
@@ -297,6 +297,9 @@ interface Word {
 
 ### `getContrastColor(hexColor: string)`
 -   **Description**: A helper function that takes a hex color string and returns either black ('#000000') or white ('#FFFFFF') to ensure the highest contrast for text readability against that color.
+
+### `formatChecklistForCopy(sections: ChecklistSection[]): string`
+-   **Description**: A helper function that takes an array of checklist sections and formats them into a clean, plain-text string suitable for copying to the clipboard. It follows the rules in `Rule 51.0`, including completion status (`[✔]`) and public `response` fields, while excluding private `note` fields.
 
 ---
 

@@ -230,6 +230,7 @@ Other Guidelines for Gemini Code Assist to follow:
 ### Follow GGl 1.15.01 & GGl 1.15.02
 Please follow GGl 1.15.01 and GGl 1.15.02 to ensure new rules for the `## Developer Guide Index` are generated without errors. 
 
+#### Adding a new rule
 A quick guideline on how the content should be formatted to match the current markup using # should be as followed:
 
 New rule to add to `## Developer Guide Index`
@@ -406,6 +407,7 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 48.0: Handling Events on Nested Elements
   - Rule 49.0: Prefer `outline` for Hover Effects on Interactive Items
   - Rule 50.0: State Management for Modals Editing Nested Data
+  - Rule 51.0: Formatting Text for Clipboard
 
 ---
 
@@ -2286,3 +2288,25 @@ return (
   </div>
 );
 ```
+---
+
+### Developer Guide - Rule 51.0: Formatting Text for Clipboard
+
+This guide establishes the standard for formatting any application data that is copied to the user's clipboard.
+
+#### The Goal: Readability and Compatibility
+
+When a user copies content (like a checklist or a report), the primary goal is to produce a clean, human-readable, plain-text string that can be pasted into any other application (e.g., an email, a text document, a messaging app) without formatting issues.
+
+#### The Problem: HTML is Unreliable
+
+While copying raw HTML can preserve rich formatting like colors and font sizes, it is unreliable. Many applications do not interpret pasted HTML correctly, resulting in broken layouts, un-styled text, or visible HTML tags, which provides a poor user experience.
+
+#### The Solution: Plain Text with Simple Formatting
+
+All "copy" functions should generate a plain text string using standard characters for formatting.
+
+-   **Use Indentation**: Use spaces or tabs to create a clear visual hierarchy (e.g., indenting checklist items under their section title).
+-   **Use Punctuation for Lists**: Use standard list markers like hyphens (`-`), asterisks (`*`), or bullets (`•`) for list items.
+-   **Indicate State with Brackets**: For items with a state (like a completed checklist item), use bracketed characters like `[✔]` for complete and `[✗]` or `[ ]` for incomplete. Avoid using strikethrough text, as it can be hard to read when pasted.
+-   **Exclude Internal Notes**: Private or internal-only fields (like a checklist item's `note`) should always be excluded from the copied text. Publicly visible fields (like a `response`) should be included.

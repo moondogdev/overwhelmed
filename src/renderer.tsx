@@ -217,7 +217,7 @@ interface FullTaskViewProps {
   onDescriptionChange: (html: string) => void; // Add the missing prop
 }
 
-function FullTaskView({ task, onClose, ...props }: FullTaskViewProps) {
+function FullTaskView({ task, onClose, setCopyStatus, ...props }: FullTaskViewProps) {
   return (
     <div className="full-task-view-container">
       <div className="full-task-view-header">
@@ -229,6 +229,7 @@ function FullTaskView({ task, onClose, ...props }: FullTaskViewProps) {
         <TabbedView
           word={task}
           wordId={task.id}
+          setCopyStatus={setCopyStatus}
           {...props}
           // These are already in props, but being explicit for clarity
           onUpdate={props.onUpdate}
@@ -354,7 +355,7 @@ function PromptModal({ isOpen, title, onClose, onConfirm, placeholder, initialVa
   );
 }
 
-function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange, onSettingsChange, words, setInboxMessages, onComplete, wordId, checklistRef }: TabbedViewProps) {
+function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange, onSettingsChange, words, setInboxMessages, onComplete, wordId, checklistRef, ...rest }: TabbedViewProps) {
   const initialTab = settings.activeTaskTabs[word.id] || (word.completedDuration ? 'ticket' : 'ticket');
   const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(initialTab);
 
@@ -548,6 +549,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
                 setInboxMessages={setInboxMessages}
                 wordId={wordId}
                 checklistRef={checklistRef}
+                setCopyStatus={setCopyStatus}
                 isEditable={false} />
               <DescriptionEditor 
                 description={word.description || ''} 
@@ -696,6 +698,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
               setInboxMessages={setInboxMessages}
               checklistRef={checklistRef}
               wordId={wordId}
+              setCopyStatus={setCopyStatus}
               />
             <DescriptionEditor 
               description={word.description || ''} 
@@ -905,7 +908,7 @@ function DescriptionEditor({ description, onDescriptionChange, settings, onSetti
   );
 }
 
-function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInboxMessages, wordId, checklistRef }: { sections: ChecklistSection[] | ChecklistItem[], onUpdate: (newSections: ChecklistSection[]) => void, isEditable: boolean, onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void, words: Word[], setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>, wordId: number, checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }> }) {
+function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInboxMessages, wordId, checklistRef, setCopyStatus }: { sections: ChecklistSection[] | ChecklistItem[], onUpdate: (newSections: ChecklistSection[]) => void, isEditable: boolean, onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void, words: Word[], setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>, wordId: number, checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>, setCopyStatus: (message: string) => void }) {
   const [newItemTexts, setNewItemTexts] = useState<{ [key: number]: string }>({});
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
   const [editingSectionTitle, setEditingSectionTitle] = useState('');
@@ -1198,6 +1201,13 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
               <button className="checklist-action-btn" onClick={handleRedo} disabled={historyIndex === history.length - 1} title="Redo Checklist Action">
                 <i className="fas fa-redo-alt"></i>
               </button>
+              <button className="checklist-action-btn" onClick={() => {
+                const textToCopy = formatChecklistForCopy(normalizedSections);
+                navigator.clipboard.writeText(textToCopy);
+                setCopyStatus('All sections copied to clipboard!');
+              }} title="Copy All Sections">
+                <i className="fas fa-copy"></i>
+              </button>
             </div>
           );
         })()}
@@ -1242,8 +1252,8 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                     }
                   }}
                 >
-                  {section.title}
-                </strong>
+                  {section.title} ({completedCount}/{totalCount})
+                </strong> 
               )}
               {totalCount > 0 && (
                 <span className="checklist-progress">
@@ -1261,6 +1271,14 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                     <i className="fas fa-broom"></i>
                   </button>
                 )}
+                <button className="checklist-action-btn" onClick={() => {
+                  const sectionToCopy = normalizedSections.find(s => s.id === section.id);
+                  if (sectionToCopy) {
+                    const textToCopy = formatChecklistForCopy([sectionToCopy]);
+                    navigator.clipboard.writeText(textToCopy);
+                    setCopyStatus('Section copied to clipboard!');
+                  }
+                }} title="Copy Section"><i className="fas fa-copy"></i></button>
                 <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(normalizedSections, section.id, 'up'))} title="Move Section Up"><i className="fas fa-arrow-up"></i></button>
                 <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(normalizedSections, section.id, 'down'))} title="Move Section Down"><i className="fas fa-arrow-down"></i></button>
                 {isEditable && (
@@ -1926,6 +1944,27 @@ const getContrastColor = (hexColor: string) => {
   // Return black for light colors, white for dark colors
   return luminance > 0.5 ? '#000000' : '#FFFFFF';
 };
+
+const formatChecklistForCopy = (sections: ChecklistSection[]): string => {
+  let output = '';
+  for (const section of sections) {
+    const completedCount = section.items.filter(item => item.isCompleted).length;
+    const totalCount = section.items.length;
+    output += `${section.title} (${completedCount}/${totalCount}):\n`;
+    for (const item of section.items) {
+      const status = item.isCompleted ? '[✔]' : '[✗]';
+      output += `  ${status} ${item.text}\n`;
+
+      if (item.response) {
+        output += `      Response: ${item.response}\n`;
+      }
+      // The 'note' field is intentionally excluded per Rule 51.0
+    }
+    output += '\n'; // Add a blank line between sections
+  }
+  return output.trim();
+};
+
 
 function Dropdown({ trigger, children }: { trigger: React.ReactNode, children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -2814,6 +2853,21 @@ function App() {
       if (sectionIndex === -1) return;
 
       switch (command) {
+        case 'copy_section': {
+          const sectionToCopy = newSections.find(s => s.id === sectionId);
+          if (sectionToCopy) {
+            const textToCopy = formatChecklistForCopy([sectionToCopy]);
+            navigator.clipboard.writeText(textToCopy);
+            setCopyStatus('Section copied to clipboard!');
+          }
+          return; // Don't update state, just copy
+        }
+        case 'copy_all_sections': {
+          const textToCopy = formatChecklistForCopy(newSections);
+          navigator.clipboard.writeText(textToCopy);
+          setCopyStatus('All sections copied to clipboard!');
+          return; // Don't update state, just copy
+        }
         case 'duplicate_section':
           const newSection = { ...newSections[sectionIndex], id: Date.now(), title: `${newSections[sectionIndex].title} (Copy)` };
           newSections.splice(sectionIndex + 1, 0, newSection);
@@ -3930,7 +3984,7 @@ function App() {
           setInboxMessages={setInboxMessages}
           onComplete={handleChecklistCompletion}
           onTabChange={(wordId, tab) => setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: tab } }))}
-          onDescriptionChange={(html) => handleWordUpdate({ ...taskToShow, description: html })}
+          onDescriptionChange={(html) => handleWordUpdate({ ...taskToShow, description: html })}          
         />
       );
     }
@@ -5003,6 +5057,7 @@ function App() {
               setInboxMessages={setInboxMessages}
               checklistRef={activeChecklistRef}
               wordId={Date.now()} // Use a temporary ID for the new task context
+              setCopyStatus={setCopyStatus}
                   />}
                   {shouldShow('description') && <DescriptionEditor 
               description={newTask.description || ''} 

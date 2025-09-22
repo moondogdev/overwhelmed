@@ -6,6 +6,7 @@ A log of what was commited to git.
 
 ## Log of Changes
 
+- **[1.0.9] - 2025-09-22: Copy Checklist**: feat(checklist): Add copy to clipboard functionality
 - **[1.0.8] - 2025-09-22: Checklist Responses & Notes**: feat(checklist): Add response and note fields to items. Doc edits
 - **[1.0.7] - 2025-09-21: UI Polish & Category Color-Coding**: feat(ui): Add category colors and refactor task header/actions
 - **[1.0.6] - 2025-09-21: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
@@ -15,6 +16,22 @@ A log of what was commited to git.
 - **[1.0.2] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.1] - 2024-09-18: Notification System & Inbox View**:
 - **[1.0.0] - 2024-09-15: Core Task Management & Data Persistence**:
+
+---
+
+### **[1.0.9] - 2025-09-22: Copy Checklist**
+**feat(checklist): Add copy to clipboard functionality**
+
+This feature adds the ability to copy checklist data to the clipboard as clean, readable, plain text, making it easy to share or use in other applications.
+
+#### Features:
+-   **Copy to Clipboard**: Implemented a `formatChecklistForCopy` helper function to convert checklist data into a plain-text string, following the guidelines in `Rule 51.0`.
+-   **Context Menu & UI Buttons**: Added "Copy Section" and "Copy All Sections" actions to both the UI as dedicated buttons and to the right-click context menu on section headers for easy access.
+-   **Enhanced Formatting**: The copied text now includes the section's completion count (e.g., "Section Title (3/5)") and includes any public `response` fields while correctly excluding private `note` fields.
+-   **UI Improvement**: The checklist section headers in the UI now also display the live completion count, improving at-a-glance progress tracking.
+
+#### Summary:
+This commit makes the checklist system more versatile by providing a simple and effective way to export its content for external use.
 
 ---
 
