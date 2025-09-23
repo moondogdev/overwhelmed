@@ -6,30 +6,33 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Future Features 
 -   ### **Checklists**":
-    - Checklist Item: Individual Due Date for Checklist Items    
-    - Checklists Duplicate issue: It seems like when we duplicate a section OR checklist item and try to add a note, it doesn't have unique enough IDs so the checklist items share the same notes/responses
-    - Checklists Item Copy: Copy the raw content of a section without any checkboxes or header to clipboard
-    - Checklists Items Delete: Use the "checked" to "delete selected" and another option to "delete checklists" to clear bulk items faster
-    - Checklist Item: Make it full width so we can edit the area easier
-    - Checklist Context Menu: If in Edit task mode, allow to "View Task" in place of the "Edit Task" to toggle back to it. Try to maintain scroll page length so we can dont need to find where we were.
-    - Checklist Item Context Menu: Edit Item doesn't work when in Task view, it should allow editing of that checklist item while staying in Task View
-    - Checklist Item Context Menu: Make the "Add Item" options autofocus the input field so we can start typing as soon as we choose the option
-    - Checklists Notes/Responses Context Menus: notes/responses currently receive right click context menus associated with their checklist item. Do we want to add context menus just for notes/responses? or is the current implementation fine?
-    - Checklists Notes/Responses Buttons: Add Note/Response buttons to the checklist item ui to make it easier to add
-    - Checklists Item Highlight: Need to add a context menu option to highlight a list item; maybe make a key like priority list, doesn't concern me, etc
-    - Checklists Item Fields in Edit state: checklist fields and active response/notes, should all have their fields in a editable state as an <input> rather than display rendered when in Edit mode
-    - Checklists Item Bulk Note Add: Need a "Add Notes to All Checklist (in Section)" and "Add Notes to All Checklists"
-    - Checklists Item Bulk Response Add: Need a "Add Responses to All Checklist (in Section)" and "Add Notes to All Checklists"
-    - Checklists Item Links : Add "Open Link" to context menu if the item has a url?    
-    - Time Tracker per Checklist item in a Task: Checkbox option on a checklist section that makes the checklist function where, as we add a checklist item, it starts a timer next to that item:
-        #### Time Tracker (Example):
-        Checklist
-
-        My Checklist Section: 0:48 [x] Time Tracker? (show clock icon here maybe? if toggled on, show total timer in header
-        - Item with only 14s showing a resume record icon: 0:14 [•] < (Resume Recording Time) 
-        - Item that is currently being recorded: 0:34 [=] < (Pause Timer)
-        - [input placeholder="Add item to start timer"/][+]
-    - Checklist Item: Individual Time Trackers for Checklist Items - like the ability to track time on a singular checklist item with no additional logic attached
+    - **Checklist Items**:
+        - Checklists Item Context Menu (in development): Make the "Add Item" options autofocus the input field so we can start typing as soon as we choose the option
+            - **Attempt #1**: We've begun trying to add this but it doesn't seem fully supported. We fixed the issue of allowing checklist items to be editable when Edit Item is selected while in Task View in hopes to solve the underlining issue but its not working yet. We'll need to explore what can be done to string `Add Item Before/After` and `Edit Item` together so when a checklist item is added it starts in Edit Mode. The very next request is stating that all checklist items should be in an editable state and not require entering into Edit mode if we are on the Edit view so when we `Add Item Before/After` in the Edit view it should automatically work since the items added should be in Edit mode based on the next request. Maybe we should solve the next request first?
+        - Checklists Item Fields in Edit state: checklist fields and active response/notes, should all have their fields in a editable state as an <input> rather than display rendered when in Edit mode
+        - Checklists Item Copy: Copy the raw content of a section without any checkboxes or header to clipboard
+        - Checklists Context Menu: If in Edit task mode, allow to "View Task" in place of the "Edit Task" to toggle back to it. Try to maintain scroll page length so we can dont need to find where we were between toggles.
+        - Checklists Item Highlight: Need to add a context menu option to highlight a list item; maybe make a key like priority list, doesn't concern me, etc
+        - Checklists Item Links : Add "Open Link" to context menu if the item has a url?
+    - **Checkist Notes/Responses**:
+        - Checklists Notes/Responses Context Menus: notes/responses currently receive right click context menus associated with their checklist item. Do we want to add context menus just for notes/responses? or is the current implementation fine?
+        - Checklists Notes/Responses Buttons: Add Note/Response buttons to the checklist item UI to make it easier to add
+        - Checklists Notes/Responses UI: Make the icon a hover submenu that allows options like: 
+            - copy the content of the note or response to the clipboard 
+            - edit the note/response
+            - delete the note/response
+        - Checklists Item Bulk Note Add: Need a "Add Notes to All Checklist (in Section)" and "Add Notes to All Checklists"
+        - Checklists Item Bulk Response Add: Need a "Add Responses to All Checklist (in Section)" and "Add Notes to All Checklists"
+    - **Time Tracker**:
+        - Time Tracker per Checklist item in a Task: 
+            - Checkbox option on a checklist section that makes the checklist function where, as we add a checklist item, it starts a timer next to that item:
+                #### `Time Tracker (Example)`:
+                ### Checklist            
+                #### **My Checklist Section: 0:48 [x] Time Tracker? `(show clock icon here maybe? if time tracker is toggled on, show total timer in header)`
+                - Item with only 14s showing a resume record icon: 0:14 [•] < (Resume Recording Time) 
+                - Item that is currently being recorded: 0:34 [=] < (Pause Timer)
+                - `[input placeholder="Add item to start timer"/][+]` < input and button
+            - Checklist Item: Individual Time Trackers for Checklist Items - like the ability to track time on a singular checklist item with no additional logic attached
 
 - ### Linked / Looped Tasks:
     - Task Series Loop: Need to implement a series of tasks that are using the new linked task loop logic
@@ -114,9 +117,7 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
-- **[1.0.14] - YYYY-MM-DD**:
-- **[1.0.13] - YYYY-MM-DD**:
-- **[1.0.12] - YYYY-MM-DD**:
+- **[1.0.12] - 2025-09-23: Checklist Enhancements**: feat(checklist): Add due dates, fix duplication, and improve layout
 - **[1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish**: feat(checklist): Improve checklist UX and add delete note/response actions
 - **[1.0.10] - 2025-09-22: Alternating & Looping Tasks**: feat(tasks): Add alternating and looping task functionality
 - **[1.0.09] - 2025-09-22: Copy Checklist**: feat(checklist): Add copy to clipboard functionality
@@ -130,17 +131,27 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.01] - 2024-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2024-09-15: Core Task Management & Data Persistence**:
 
----
 
-## [1.0.14] - YYYY-MM-DD: 
+## [1.0.12] - 2025-09-24: Checklist Enhancements
 
----
+#### Added
+-   **Individual Due Dates**: Implemented a feature to add an optional due date to each individual checklist item.
+    -   **Date Picker UI**: Added a date picker input next to each checklist item in the "Edit" view for easy date selection.
+    -   **Due Date Display**: Due dates are now displayed cleanly next to the checklist item text in the "Task" view, with visual cues for urgency (red for overdue, yellow for due today).
+-   **Bulk Deletion**: Added a "Delete Checked" button to both individual section headers and the main checklist header, allowing for bulk deletion of completed items either per-section or globally.
+-   **Item Duplication**: Added a dedicated "Duplicate Item" option to the checklist item's context menu for clarity and ease of use.
 
-## [1.0.13] - YYYY-MM-DD: 
+#### Fixed
+-   **Checklist Duplication Bug**: Resolved a critical bug where duplicating a checklist section or a single checklist item would result in the new items sharing the same unique ID as the originals. This caused issues where adding a note or response to a duplicated item would incorrectly apply it to the original item as well. The duplication logic now performs a "deep copy," ensuring all new items receive their own unique IDs.
+-   **In-Place Checklist Item Editing**: Fixed a bug where the "Edit Item" context menu action would not work from the read-only "Task" view. Now, selecting "Edit Item" from the context menu will correctly switch just that single item into an editable text field, even while the rest of the task remains in view mode.
 
----
+#### Changed
+-   **Improved Layout & Interaction**:
+    -   **Full-Width Items**: The entire row for a checklist item is now a full-width, clickable area, providing a larger target for interaction.
+    -   **Enhanced Editing Experience**: The text input field for editing a checklist item is now significantly larger, expanding to the full width of the item with increased padding and font size for better readability.
 
-## [1.0.12] - YYYY-MM-DD: 
+#### Known Issues
+-   **Context Menu Quick Actions**: The "Set Due Date" submenu in the checklist item's context menu (with actions like "Today", "Tomorrow") is currently non-functional due to an error and has been disabled pending a future fix.
 
 ---
 

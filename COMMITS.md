@@ -8,7 +8,7 @@ A log of what was commited to git.
 
 - **[1.0.14] - YYYY-MM-DD**:
 - **[1.0.13] - YYYY-MM-DD**:
-- **[1.0.12] - YYYY-MM-DD**:
+- **[1.0.12] - 2025-09-23: Checklist Enhancements**: feat(checklist): Add due dates, fix duplication, and improve layout
 - **[1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish**: feat(checklist): Improve checklist UX and add delete note/response actions
 - **[1.0.10] - 2025-09-22: Alternating & Looping Tasks**: feat(tasks): Add alternating and looping task functionality
 - **[1.0.09] - 2025-09-22: Copy Checklist**: feat(checklist): Add copy to clipboard functionality
@@ -38,10 +38,26 @@ Future feature addtion here
 
 ---
 
-## [1.0.12] - YYYY-MM-DD: 
-**feat(): Feat Message Here**
+## [1.0.12] - 2025-09-23: Checklist Enhancements
+**feat(checklist): Add due dates, fix duplication, and improve layout**
 
-Future feature addtion here
+This commit introduces a significant set of enhancements to the checklist system, adding individual due dates, fixing a critical duplication bug, and improving the overall editing experience.
+
+#### Features & Fixes:
+-   **Individual Due Dates**: Implemented a feature to add an optional due date to each checklist item. This includes a date picker in the "Edit" view and a clean display in the "Task" view with visual cues for urgency (red for overdue, yellow for due today).
+-   **Bulk Deletion**: Added a "Delete Checked" button to both section headers and the main checklist header, allowing for efficient bulk removal of completed items.
+-   **In-Place Editing Fix**: Resolved a major bug where the "Edit Item" context menu action would not work from the read-only "Task" view. Now, selecting "Edit Item" correctly switches the specific item into an editable text field, allowing for quick edits without changing the entire task view.
+-   **Duplication Bug Fix**: Fixed a critical bug where duplicating a checklist section or item resulted in shared unique IDs, causing updates to a duplicated item to incorrectly affect the original. The duplication logic now performs a "deep copy," ensuring all new items receive their own unique IDs.
+-   **Improved Layout & Editing**:
+    -   The entire row for a checklist item is now a full-width clickable area, improving interaction.
+    -   The text input field for editing an item is now significantly larger, expanding to the full width of the item for a much better editing experience.
+-   **Documentation**:
+    -   Added `Rule 54.0` to `GEMINI.md` to document the state management pattern for in-place editing.
+    -   Added a log of the "shallow copy" vs. "deep copy" lesson learned from the duplication bug.
+    -   Updated `DEFINITIONS.md` with new state variables and handlers related to these features.
+
+#### Summary:
+These changes make the checklist feature more powerful and robust, adding key functionality for time management and resolving critical bugs related to state management and user interaction.
 
 ---
 

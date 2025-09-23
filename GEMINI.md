@@ -285,6 +285,12 @@ Please keep this consistent to keep the maintainer from having to make frequent 
 
 ### Log of Issues and Lessons
 
+#### [1.0.12] - State Management for Duplication
+-   **Issue**: When duplicating a checklist section or item, the new items were created with the same unique IDs as the originals. This caused a critical bug where updating a duplicated item (e.g., adding a note) would incorrectly apply the change to the original item as well.
+-   **Lesson**: This was a classic "shallow copy" vs. "deep copy" problem. Simply spreading an object (`{...itemToCopy}`) only copies the top-level properties. For nested data like checklist items, we must perform a "deep copy" to ensure that all nested items also receive new, unique IDs. The fix was to explicitly map over the nested `items` array and generate a new `id` for each one during the duplication process.
+
+---
+
 #### [1.0.12] - Gemini State Caching and Inaccurate Diffs
 - **Issue**: Gemini will frequently suggest code changes based on a cached or outdated version of the project files. This leads to suggested diffs that cannot be applied, or that cause errors because they don't match the current state of the code. The diff shown in the chat may not accurately represent the changes being applied.
 - **Lesson**: This is a limitation of the tool's context window. To mitigate this, it's crucial to be vigilant. Always carefully examine the code changes suggested by Gemini before accepting them. If a change fails to apply or seems incorrect, it's best to manually copy the code blocks. Restarting the VS Code session or the chat can sometimes help refresh the context, but manual verification is the most reliable safeguard.
@@ -448,6 +454,7 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 51.0: Formatting Text for Clipboard
   - Rule 52.0: Atomic State Updates for Looping Tasks
   - Rule 53.0: Understanding Event Propagation (Bubbling)
+  - Rule 54.0: State Management for In-Place Editing
 
 ---
 
@@ -2438,4 +2445,53 @@ onContextMenu={(e) => {
 ```
 By using `stopPropagation()`, we ensure that only the most specific event handler is executed, creating predictable and bug-free user interactions.
 
+### Developer Guide - Rule 54.0: State Management for In-Place Editing
 
+This guide explains the standard pattern for allowing a user to edit a single item directly within a list, without switching the entire view to an "edit mode." We implemented this for checklist items.
+
+#### The Problem: How to Edit One Item in a Read-Only View?
+
+We needed to allow users to edit a checklist item's text directly from the read-only "Task" view. This required a way to switch just one specific item into an editable `<input>` field while the rest of the list remained as static text.
+
+#### The Solution: Dedicated State for Editing Context
+
+The solution is to use dedicated state variables in the component to track the "editing context."
+
+1.  **`editingItemId: number | null`**: This state variable stores the `id` of the item currently being edited. If it's `null`, no item is in edit mode.
+2.  **`editingItemText: string`**: This state variable holds the current text value for the input field. This prevents the main data source from being updated on every single keystroke, which would be inefficient.
+
+When a user triggers the "Edit Item" action (e.g., from a context menu), we set `editingItemId` to that item's ID and populate `editingItemText` with its current text. This causes React to re-render and display the input field for just that one item.
+
+```jsx
+// File: src/renderer.tsx (inside the Checklist component)
+
+// 1. State to track the editing context
+const [editingItemId, setEditingItemId] = useState<number | null>(null);
+const [editingItemText, setEditingItemText] = useState('');
+
+// ... inside the component's return ...
+{section.items.map(item => (
+  <div key={item.id}>
+    {/* 2. Conditional rendering based on the editing context */}
+    {editingItemId === item.id ? (
+      // If this is the item being edited, render an input
+      <input
+        type="text"
+        value={editingItemText}
+        onChange={(e) => setEditingItemText(e.target.value)}
+        onBlur={() => {
+          // 3. On blur or Enter, call the main update handler
+          handleUpdateItemText(section.id, item.id, editingItemText);
+          // 4. Clear the editing context to switch back to view mode
+          setEditingItemId(null);
+        }}
+        autoFocus
+      />
+    ) : (
+      // Otherwise, render the static text view
+      <span>{item.text}</span>
+    )}
+  </div>
+))}
+
+```

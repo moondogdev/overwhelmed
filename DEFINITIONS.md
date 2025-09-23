@@ -47,6 +47,15 @@ This document should be updated whenever new declarative logic is implemented.
 -   **Description**: A state object that holds the context for the checklist item currently being edited via the `PromptModal`. It stores the `sectionId`, `itemId`, the `field` being edited ('response' or 'note'), and the `currentText`. It is `null` when the modal is closed.
 
 ---
+### `editingItemId: number | null`
+-   **Description**: A state variable that holds the `id` of the checklist item currently being edited directly in the list. This enables the in-place editing feature in both "Task" and "Edit" views.
+
+### `editingItemText: string`
+-   **Description**: A state variable that holds the text content for the checklist item identified by `editingItemId`.
+
+### `focusChecklistItemId: number | null`
+-   **Description**: A state variable used to programmatically set focus on a specific checklist item's input field, typically after it has been newly created.
+---
 
 ## Interfaces
 
@@ -93,6 +102,7 @@ interface ChecklistItem {
   isCompleted: boolean;
   response?: string;
   note?: string;
+  dueDate?: number;
 
 }
 ```
@@ -318,6 +328,17 @@ interface Word {
 
 ### `formatChecklistForCopy(sections: ChecklistSection[]): string`
 -   **Description**: A helper function that takes an array of checklist sections and formats them into a clean, plain-text string suitable for copying to the clipboard. It follows the rules in `Rule 51.0`, including completion status (`[✔]`) and public `response` fields, while excluding private `note` fields.
+
+### `handleDeleteChecked(sectionId?: number)`
+-   **Description**: Deletes all completed (`isCompleted: true`) checklist items. If a `sectionId` is provided, it only deletes checked items within that specific section. If no `sectionId` is provided, it deletes all checked items across the entire checklist.
+
+### `handleUpdateItemDueDate(sectionId: number, itemId: number, newDueDate: number | undefined)`
+-   **Description**: Updates the `dueDate` for a specific checklist item. Setting `newDueDate` to `undefined` clears the date.
+
+### `handleUpdateItemText(sectionId: number, itemId: number, newText: string)`
+-   **Description**: Updates the `text` for a specific checklist item. This is used by the in-place editing input field.
+
+---
 
 ---
 

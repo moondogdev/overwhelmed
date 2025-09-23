@@ -51,6 +51,7 @@ interface ChecklistItem {
   isCompleted: boolean;
   response?: string;
   note?: string;
+  dueDate?: number; // Timestamp for individual due date
 }
 
 interface ChecklistSection {
@@ -200,6 +201,8 @@ interface TabbedViewProps {
   className?: string;
   wordId: number;
   checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>;
+  focusChecklistItemId: number | null;
+  setFocusChecklistItemId: (id: number | null) => void;
 }
 
 interface FullTaskViewProps {
@@ -216,6 +219,8 @@ interface FullTaskViewProps {
   onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
   onTabChange: (wordId: number, tab: 'ticket' | 'edit') => void;
   onDescriptionChange: (html: string) => void; // Add the missing prop
+  focusChecklistItemId: number | null;
+  setFocusChecklistItemId: (id: number | null) => void;
 }
 
 function FullTaskView({ task, onClose, setCopyStatus, ...props }: FullTaskViewProps) {
@@ -234,6 +239,8 @@ function FullTaskView({ task, onClose, setCopyStatus, ...props }: FullTaskViewPr
           {...props}
           // These are already in props, but being explicit for clarity
           onUpdate={props.onUpdate}
+          focusChecklistItemId={props.focusChecklistItemId}
+          setFocusChecklistItemId={props.setFocusChecklistItemId}
           onDescriptionChange={props.onDescriptionChange} // Pass it down
         />
       </div>
@@ -356,7 +363,7 @@ function PromptModal({ isOpen, title, onClose, onConfirm, placeholder, initialVa
   );
 }
 
-function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange, onSettingsChange, words, setInboxMessages, onComplete, wordId, checklistRef, ...rest }: TabbedViewProps) {
+function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange, onSettingsChange, words, setInboxMessages, onComplete, wordId, checklistRef, focusChecklistItemId, setFocusChecklistItemId, ...rest }: TabbedViewProps) {
   const initialTab = settings.activeTaskTabs[word.id] || (word.completedDuration ? 'ticket' : 'ticket');
   const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(initialTab);
 
@@ -551,7 +558,10 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
                 wordId={wordId}
                 checklistRef={checklistRef}
                 setCopyStatus={setCopyStatus}
-                isEditable={false} />
+                isEditable={false}
+                focusItemId={focusChecklistItemId} 
+                onFocusHandled={() => setFocusChecklistItemId(null)} 
+              />
               <DescriptionEditor 
                 description={word.description || ''} 
                 onDescriptionChange={(html) => handleFieldChange('description', html)} 
@@ -700,6 +710,8 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
               checklistRef={checklistRef}
               wordId={wordId}
               setCopyStatus={setCopyStatus}
+              focusItemId={focusChecklistItemId} 
+              onFocusHandled={() => setFocusChecklistItemId(null)}
               />
             <DescriptionEditor 
               description={word.description || ''} 
@@ -922,17 +934,19 @@ function DescriptionEditor({ description, onDescriptionChange, settings, onSetti
   );
 }
 
-function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInboxMessages, wordId, checklistRef, setCopyStatus }: { sections: ChecklistSection[] | ChecklistItem[], onUpdate: (newSections: ChecklistSection[]) => void, isEditable: boolean, onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void, words: Word[], setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>, wordId: number, checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>, setCopyStatus: (message: string) => void }) {
+function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInboxMessages, wordId, checklistRef, setCopyStatus, focusItemId, onFocusHandled }: { sections: ChecklistSection[] | ChecklistItem[], onUpdate: (newSections: ChecklistSection[]) => void, isEditable: boolean, onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void, words: Word[], setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>, wordId: number, checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>, setCopyStatus: (message: string) => void, focusItemId: number | null, onFocusHandled: () => void }) {
   const [newItemTexts, setNewItemTexts] = useState<{ [key: number]: string }>({});
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
   const [editingSectionTitle, setEditingSectionTitle] = useState('');
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editingItemText, setEditingItemText] = useState('');
+  const addItemInputRef = useRef<{ [key: number]: HTMLTextAreaElement }>({});
 
   // State for local undo/redo history of checklist changes
   const [history, setHistory] = useState<ChecklistSection[][]>([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const isUndoingRedoing = useRef(false); // Ref to prevent feedback loops
+  const editingItemInputRef = useRef<HTMLInputElement | null>(null);
 
 
   // Data Migration: Handle old format (ChecklistItem[]) and convert to new format (ChecklistSection[])
@@ -976,11 +990,30 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     return cleanup;
   }, [normalizedSections]); // Re-bind if the sections change
 
+  useEffect(() => {
+    if (focusItemId && editingItemId === focusItemId && editingItemInputRef.current) {
+      editingItemInputRef.current.focus();
+      // Once focused, notify the parent to clear the focus request
+      onFocusHandled();
+    }
+  }, [editingItemId, focusItemId, onFocusHandled]);
+
+
   const handleUpdateItemText = (sectionId: number, itemId: number, newText: string) => {
     const newSections = normalizedSections.map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, text: newText } : item) } : sec);
     if (!isUndoingRedoing.current) {
       updateHistory(newSections);
     }
+    onUpdate(newSections);
+  };
+
+  const handleUpdateItemDueDate = (sectionId: number, itemId: number, newDueDate: number | undefined) => {
+    const newSections = normalizedSections.map(sec =>
+      sec.id === sectionId
+        ? { ...sec, items: sec.items.map(item => (item.id === itemId ? { ...item, dueDate: newDueDate } : item)) }
+        : sec
+    );
+    updateHistory(newSections);
     onUpdate(newSections);
   };
 
@@ -1035,6 +1068,11 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     }
     onUpdate(newSections);
     setNewItemTexts(prev => ({ ...prev, [sectionId]: '' })); // Clear only this section's input
+
+    // Focus the input after adding items
+    setTimeout(() => {
+      addItemInputRef.current[sectionId]?.focus();
+    }, 0);
   };
 
   const handleToggleItem = (sectionId: number, itemId: number) => {
@@ -1124,7 +1162,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     }
     onUpdate(newSections);
   };
-
+  
   const handleToggleAllSections = () => {
     const allItems = normalizedSections.flatMap(sec => sec.items);
     if (allItems.length === 0) return;
@@ -1145,6 +1183,19 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
       updateHistory(newSections);
     }
     onUpdate(newSections);
+  };
+
+  const handleDeleteChecked = (sectionId?: number) => {
+    const message = sectionId ? 'Are you sure you want to delete all checked items in this section?' : 'Are you sure you want to delete all checked items in this checklist?';
+    if (window.confirm(message)) {
+      const newSections = normalizedSections.map(sec => 
+        (sectionId === undefined || sec.id === sectionId) 
+          ? { ...sec, items: sec.items.filter(item => !item.isCompleted) } 
+          : sec
+      );
+      updateHistory(newSections);
+      onUpdate(newSections);
+    }
   };
 
   const handleDeleteItem = (sectionId: number, itemId: number) => {
@@ -1199,6 +1250,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
           const allItems = normalizedSections.flatMap(sec => sec.items);
           if (allItems.length === 0) return null;
           const areAllItemsComplete = allItems.every(item => item.isCompleted);
+          const anyItemsCompleted = allItems.some(item => item.isCompleted);
           return (
             <div className="checklist-section-actions">
               <button 
@@ -1208,7 +1260,13 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
               >
                 <i className={`fas ${areAllItemsComplete ? 'fa-undo' : 'fa-check-square'}`}></i>
               </button>
-              {/* Move Undo/Redo buttons here */}
+              {isEditable && anyItemsCompleted && (
+                <>
+                  <button className="checklist-action-btn delete-btn" onClick={() => handleDeleteChecked()} title="Delete All Checked Items">
+                    <i className="fas fa-trash-alt"></i>
+                  </button>
+                </>
+              )}
               <button className="checklist-action-btn" onClick={handleUndo} disabled={historyIndex === 0} title="Undo Last Checklist Action">
                 <i className="fas fa-undo-alt"></i>
               </button>
@@ -1285,6 +1343,11 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                     <i className="fas fa-broom"></i>
                   </button>
                 )}
+                {isEditable && completedCount > 0 && (
+                  <button className="checklist-action-btn delete-btn" onClick={() => handleDeleteChecked(section.id)} title="Delete Checked Items">
+                    <i className="fas fa-trash-alt"></i>
+                  </button>
+                )}
                 <button className="checklist-action-btn" onClick={() => {
                   const sectionToCopy = normalizedSections.find(s => s.id === section.id);
                   if (sectionToCopy) {
@@ -1318,7 +1381,11 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                   e.stopPropagation(); // Stop the event from bubbling up to the section's context menu
                   window.electronAPI.showChecklistItemContextMenu({ sectionId: section.id, itemId: item.id, isCompleted: item.isCompleted, hasNote: !!item.note, hasResponse: !!item.response, x: e.clientX, y: e.clientY });
                 }}>
-                  {editingItemId === item.id && isEditable ? (
+                  {/*
+                    * This is the key change. We check if a specific item is being edited FIRST.
+                    * This allows the "Edit Item" context menu action to work even when `isEditable` is false.
+                  */}
+                  {editingItemId === item.id ? (
                     <input
                       type="text"
                       value={editingItemText}
@@ -1336,18 +1403,42 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                         }
                       }}
                       autoFocus
+                      ref={editingItemInputRef}
                       className="checklist-item-text-input"
                     />
-                  ) : (
+                  ) : ( // This is the "view" mode for a single item
                     <>
                       <label className="checklist-item-label flexed-column">
-                        <div className="checklist-item-checkbox">
-                          <input
-                            type="checkbox"
-                            checked={item.isCompleted}
-                            onChange={() => handleToggleItem(section.id, item.id)}
-                          />
-                          <span className="checklist-item-text">{item.text}</span>
+                        <div className="checklist-item-main-content">
+                          <div className="checklist-item-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={item.isCompleted}
+                              onChange={() => handleToggleItem(section.id, item.id)}
+                            />
+                            <span className="checklist-item-text">{item.text}</span>
+                          </div>
+                          {item.dueDate && (
+                            <span
+                              className={`checklist-item-due-date ${(() => {
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const tomorrow = new Date(today);
+                                tomorrow.setDate(tomorrow.getDate() + 1);
+
+                                if (item.dueDate < today.getTime()) {
+                                  return 'overdue';
+                                }
+                                if (item.dueDate < tomorrow.getTime()) {
+                                  return 'due-today';
+                                }
+                                return '';
+                              })()}`}
+                            >
+                              <i className="fas fa-calendar-alt"></i>
+                              {formatDate(item.dueDate)}
+                            </span>
+                          )}
                         </div>
                       </label>
                       {item.response && (
@@ -1355,6 +1446,18 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                       )}
                       {item.note && (
                         <div className="checklist-item-note"><strong><i className="fas fa-sticky-note"></i> Note:</strong> {item.note}</div>
+                      )}
+                      {isEditable && (
+                        <div className="checklist-item-actions">
+                          <input
+                            type="date"
+                            className="checklist-item-datepicker"
+                            value={item.dueDate ? new Date(item.dueDate).toISOString().split('T')[0] : ''}
+                            onChange={(e) => handleUpdateItemDueDate(section.id, item.id, e.target.value ? new Date(e.target.value).getTime() : undefined)}
+                            title="Set Due Date"
+                          />
+                          <button className="icon-button" onClick={() => handleUpdateItemDueDate(section.id, item.id, undefined)} title="Clear Due Date"><i className="fas fa-times"></i></button>
+                        </div>
                       )}
                     </>
                   )}
@@ -1364,6 +1467,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
             {isEditable && (
               <div className="checklist-add-item">
                 <textarea
+                  ref={el => (addItemInputRef.current[section.id] = el)}
                   value={newItemTexts[section.id] || ''}
                   onChange={(e) => setNewItemTexts(prev => ({ ...prev, [section.id]: e.target.value }))}
                   onKeyDown={(e) => {
@@ -2181,6 +2285,7 @@ function App() {
   // State for the checklist item response/note editing modal
   const [isChecklistPromptOpen, setIsChecklistPromptOpen] = useState(false);
   const [editingChecklistItem, setEditingChecklistItem] = useState<{ sectionId: number; itemId: number; field: 'response' | 'note'; currentText: string; } | null>(null);
+  const [focusChecklistItemId, setFocusChecklistItemId] = useState<number | null>(null);
 
 
   const handleToggleImportant = (messageId: number) => {
@@ -2643,6 +2748,263 @@ function App() {
     return cleanup;
   }, [words, completedWords]); // Dependency on words ensures the handler has the latest list
 
+  const handleSaveProject = React.useCallback(async () => {
+    // Prevent any save operations while the app is still loading its initial data.
+    if (isLoading) return;
+
+    // --- FIX FOR BUG #2 ---
+    // Before saving, check for any words that were added in list view and don't have positions.
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext('2d');
+    let wordsToSave = [...words];
+
+    if (canvas && context) {
+      wordsToSave = words.map((word, index) => {
+        if (word.x === 0 && word.y === 0) {
+          // This word needs a position.
+          const fontSize = getFontSize(index, words.length);
+          context.font = `${fontSize}px ${settings.fontFamily}`;
+          const metrics = context.measureText(word.text);
+          const newWordMetrics = { width: metrics.width, height: fontSize };
+          const { x, y } = getNewWordPosition(canvas.width, canvas.height, newWordMetrics);
+          return { ...word, x, y, width: newWordMetrics.width, height: newWordMetrics.height };
+        }
+        return word;
+      });
+    }
+
+    // Explicitly save all parts of the state to the store. This is the single source of truth for a manual save.
+    await window.electronAPI.setStoreValue('overwhelmed-words', wordsToSave);
+    await window.electronAPI.setStoreValue('overwhelmed-completed-words', completedWords);
+    await window.electronAPI.setStoreValue('overwhelmed-settings', settings);
+    await window.electronAPI.setStoreValue('overwhelmed-inbox-messages', inboxMessagesRef.current);
+    await window.electronAPI.setStoreValue('overwhelmed-archived-messages', archivedMessagesRef.current);
+    await window.electronAPI.setStoreValue('overwhelmed-trashed-messages', trashedMessagesRef.current);
+    
+    setIsDirty(false); // Mark the state as clean/saved
+    setLastSaveTime(Date.now());
+    setAutoSaveCountdown(AUTO_SAVE_INTERVAL_SECONDS); // Reset countdown on manual save
+
+    setCopyStatus('Project saved!');
+    setTimeout(() => setCopyStatus(''), 2000); // Clear message after 2 seconds
+  }, [isLoading, words, completedWords, settings, inboxMessages, archivedMessages, trashedMessages]);
+  
+  const navigateToView = (view: 'meme' | 'list' | 'reports' | 'inbox') => {
+    // If we are navigating to a new view from the current point in history
+    const newHistory = viewHistory.slice(0, historyIndex + 1);
+    newHistory.push(view);
+    setViewHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+    setSettings(prev => ({ ...prev, currentView: view }));
+  };
+  const handleChecklistCompletion = React.useCallback((item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => {
+    // This handler is now ONLY for individual item completions.
+    const parentWord = words.find(w => w.checklist?.some(s => 'items' in s && s.id === sectionId));
+    if (parentWord) {
+      setInboxMessages(prev => [{
+        id: Date.now() + Math.random(), type: 'completed', text: `Checklist item completed: "${item.text}" in task "${parentWord.text}"`,
+        timestamp: Date.now(), wordId: parentWord.id, sectionId: sectionId
+      }, ...prev]);
+    }
+  }, [words]); // Dependency on `words` ensures it has the latest task list
+  const handleInboxItemClick = (message: InboxMessage) => {
+    if (!message || !message.wordId) return;
+
+    const { wordId, sectionId } = message;
+
+    // Find the word to determine its category
+    const word = words.find(w => w.id === wordId);
+    if (!word || !word.categoryId) return;
+
+    const category = settings.categories.find(c => c.id === word.categoryId); 
+    if (!category) return;
+
+    // Determine the parent and sub-category to activate
+    const parentId = category.parentId || category.id;
+    const subId = category.parentId ? category.id : 'all';
+
+    // Switch to the list view and set the correct category/sub-category filters
+    setSettings(prev => ({
+      ...prev,
+      currentView: 'list',
+      activeCategoryId: parentId,
+      activeSubCategoryId: subId,
+      openAccordionIds: [...new Set([...prev.openAccordionIds, wordId])]
+    }));
+
+    // Use a timeout to ensure the list view has rendered before we try to scroll
+    setTimeout(() => {
+      const element = document.querySelector(`[data-word-id='${wordId}']`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // If a sectionId is provided, scroll to and highlight the checklist section
+        if (message.sectionId) {
+          setTimeout(() => {
+            const sectionElement = element.querySelector(`[data-section-id='${sectionId}']`);
+            if (sectionElement) {
+              sectionElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              sectionElement.classList.add('highlight-section');
+              setTimeout(() => sectionElement.classList.remove('highlight-section'), 2500); // Highlight for 2.5s
+            }
+          }, 300); // Wait for accordion to open
+        }
+      }
+    }, 100);
+  };
+  const handleCompleteWord = React.useCallback((wordToComplete: Word) => {
+    // Calculate final duration
+    const finalDuration = wordToComplete.isPaused
+      ? wordToComplete.pausedDuration
+      : (wordToComplete.pausedDuration || 0) + (Date.now() - wordToComplete.createdAt);
+
+    const completedWord = { ...wordToComplete, completedDuration: finalDuration };
+
+    // Add to completed list and remove from active list
+    setCompletedWords(prev => [completedWord, ...prev]);
+    setWords(words.filter(word => word.id !== wordToComplete.id));
+    setInboxMessages(prev => [{ 
+      id: Date.now() + Math.random(),
+      type: 'completed',
+      text: `Task completed: "${completedWord.text}"`,
+      timestamp: Date.now(),
+      wordId: completedWord.id,
+    }, ...prev]);
+    setCopyStatus('Task completed!');
+
+    setTimeout(() => setCopyStatus(''), 2000);
+
+    // --- Refactored Recurring and Alternating Task Logic ---
+
+    let newRecurringTask: Word | null = null;
+
+    // Determine if a new recurring task should be created
+    if (wordToComplete.isRecurring || wordToComplete.isDailyRecurring || wordToComplete.isWeeklyRecurring || wordToComplete.isMonthlyRecurring || wordToComplete.isYearlyRecurring) {
+      let newOpenDate = Date.now();
+      let newCompleteBy: number | undefined = undefined;
+
+      if (wordToComplete.isDailyRecurring) {
+        newOpenDate += 24 * 60 * 60 * 1000;
+        if (wordToComplete.completeBy) newCompleteBy = wordToComplete.completeBy + 24 * 60 * 60 * 1000;
+      } else if (wordToComplete.isWeeklyRecurring) {
+        newOpenDate += 7 * 24 * 60 * 60 * 1000;
+        if (wordToComplete.completeBy) newCompleteBy = wordToComplete.completeBy + 7 * 24 * 60 * 60 * 1000;
+      } else if (wordToComplete.isMonthlyRecurring) {
+        const d = new Date(newOpenDate);
+        d.setMonth(d.getMonth() + 1);
+        newOpenDate = d.getTime();
+        if (wordToComplete.completeBy) {
+          const cbd = new Date(wordToComplete.completeBy);
+          cbd.setMonth(cbd.getMonth() + 1);
+          newCompleteBy = cbd.getTime();
+        }
+      } else if (wordToComplete.isYearlyRecurring) {
+        const d = new Date(newOpenDate);
+        d.setFullYear(d.getFullYear() + 1);
+        newOpenDate = d.getTime();
+        if (wordToComplete.completeBy) {
+          const cbd = new Date(wordToComplete.completeBy);
+          cbd.setFullYear(cbd.getFullYear() + 1);
+          newCompleteBy = cbd.getTime();
+        }
+      } else if (wordToComplete.isRecurring && wordToComplete.completeBy && wordToComplete.createdAt) {
+        const originalDuration = wordToComplete.completeBy - wordToComplete.createdAt;
+        newCompleteBy = Date.now() + originalDuration;
+      }
+
+      newRecurringTask = {
+        ...wordToComplete,
+        id: Date.now() + Math.random(),
+        createdAt: newOpenDate,
+        openDate: newOpenDate,
+        completedDuration: undefined,
+        completeBy: newCompleteBy,
+        startsTaskIdOnComplete: wordToComplete.startsTaskIdOnComplete,
+      };
+    }
+
+    // --- Alternating Task & Loop Logic ---
+    if (wordToComplete.startsTaskIdOnComplete) {
+      const successorTaskId = wordToComplete.startsTaskIdOnComplete;
+      setWords(prevWords => {
+        let newWords = prevWords.map(w => {
+          if (w.id !== successorTaskId) return w;
+          
+          // This is the successor task. Activate it.
+          const updatedSuccessor = { ...w, openDate: Date.now(), completeBy: Date.now() };
+          
+          // If the successor was part of a loop, we need to update its link.
+          if (w.startsTaskIdOnComplete === wordToComplete.id && newRecurringTask) {
+            updatedSuccessor.startsTaskIdOnComplete = newRecurringTask.id;
+          }
+          return updatedSuccessor;
+        });
+
+        // Add the new recurring task if it was created
+        if (newRecurringTask) {
+          newWords = [newRecurringTask, ...newWords];
+        }
+
+        return newWords;
+      });
+    } else if (newRecurringTask) {
+      // If there's no successor but there is a recurring task, just add it.
+      setWords(prev => [newRecurringTask, ...prev]);
+    }
+  }, [words]);
+
+  const handleSnooze = React.useCallback((wordToSnooze: Word, duration?: 'low' | 'medium' | 'high') => {
+    const snoozeDurations = {
+      low: 1 * 60 * 1000,     // 1 minute
+      medium: 5 * 60 * 1000,  // 5 minutes
+      high: 10 * 60 * 1000,   // 10 minutes
+    };
+    const snoozeDurationMs = snoozeDurations[duration || settings.snoozeTime];
+    const snoozedUntil = Date.now() + snoozeDurationMs;
+
+    // Update the word's `lastNotified` property to act as the "snoozed until" timestamp
+    setWords(prevWords => prevWords.map(w => 
+      w.id === wordToSnooze.id ? { ...w, lastNotified: snoozedUntil, snoozeCount: (w.snoozeCount || 0) + 1, snoozedAt: Date.now() } : w
+    ));
+
+    // Remove the notification from the screen
+    setOverdueNotifications(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(wordToSnooze.id);
+      return newSet;
+    });
+  }, [settings.snoozeTime, setWords, setOverdueNotifications]);
+
+  const handleWordUpdate = React.useCallback((updatedWord: Word) => {
+    // Clear any existing timer for this word to debounce
+    if (updateTimers[updatedWord.id]) {
+      clearTimeout(updateTimers[updatedWord.id]);
+    }
+
+    // Set a new timer
+    const newTimer = setTimeout(() => {
+      // Check if the word still exists before adding to inbox
+      if (wordsRefForDebounce.current.some(w => w.id === updatedWord.id)) { 
+        setInboxMessages(prev => [{
+          id: Date.now() + Math.random(),
+          type: 'updated',
+          text: `Task updated: "${updatedWord.text}"`,
+          timestamp: Date.now(),
+          wordId: updatedWord.id,
+        }, ...prev]);
+      }
+      // Clean up the timer from state
+      setUpdateTimers(prev => {
+        const newTimers = { ...prev };
+        delete newTimers[updatedWord.id];
+        return newTimers;
+      });
+    }, 5000); // 5-second debounce window
+
+    setUpdateTimers(prev => ({ ...prev, [updatedWord.id]: newTimer }));
+    setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w));
+  }, [words, updateTimers, wordsRefForDebounce]);
+
   // Effect to handle commands from the toast context menu
   useEffect(() => {
     const handleMenuCommand = (payload: { command: string, wordId?: number }) => {
@@ -2680,7 +3042,7 @@ function App() {
     };
     const cleanup = window.electronAPI.on('toast-context-menu-command', handleMenuCommand);
     return cleanup;
-  }, [words]); // Dependency on words ensures the handler has the latest list
+  }, [words, handleCompleteWord, handleSnooze, handleInboxItemClick, navigateToView]);
 
   // Effect to handle commands from the inbox context menu
   useEffect(() => {
@@ -2705,7 +3067,7 @@ function App() {
     };
     const cleanup = window.electronAPI.on('inbox-context-menu-command', handleMenuCommand);
     return cleanup;
-  }, [words]); // Dependency on words ensures the handler has the latest list
+  }, [words, handleCompleteWord, handleSnooze, handleInboxItemClick]);
 
   // Effect to handle commands from the navigation context menu
   useEffect(() => {
@@ -2739,37 +3101,7 @@ function App() {
     };
     const cleanup = window.electronAPI.on('save-context-menu-command', handleMenuCommand); // eslint-disable-line
     return cleanup;
-  }, [words, completedWords, settings, inboxMessages]); // Re-bind if state changes to save the latest version
-
-  const handleWordUpdate = (updatedWord: Word) => {
-    // Clear any existing timer for this word to debounce
-    if (updateTimers[updatedWord.id]) {
-      clearTimeout(updateTimers[updatedWord.id]);
-    }
-
-    // Set a new timer
-    const newTimer = setTimeout(() => {
-      // Check if the word still exists before adding to inbox
-      if (wordsRefForDebounce.current.some(w => w.id === updatedWord.id)) { 
-        setInboxMessages(prev => [{
-          id: Date.now() + Math.random(),
-          type: 'updated',
-          text: `Task updated: "${updatedWord.text}"`,
-          timestamp: Date.now(),
-          wordId: updatedWord.id,
-        }, ...prev]);
-      }
-      // Clean up the timer from state
-      setUpdateTimers(prev => {
-        const newTimers = { ...prev };
-        delete newTimers[updatedWord.id];
-        return newTimers;
-      });
-    }, 5000); // 5-second debounce window
-
-    setUpdateTimers(prev => ({ ...prev, [updatedWord.id]: newTimer }));
-    setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w));
-  };
+  }, [handleSaveProject]);
 
   // Effect to handle commands from the new checklist item context menu
   useEffect(() => {
@@ -2780,7 +3112,8 @@ function App() {
       // Find the word that contains this checklist
       const wordContainingChecklist = words.find(w => w.checklist?.some(sec => 'items' in sec && sec.items.some(item => item.id === itemId)));
       if (!wordContainingChecklist || !wordContainingChecklist.checklist) return;
-
+      
+      let newFocusId: number | null = null;
       if (command === 'edit') {
         // The actual state change will be handled inside the Checklist component itself
         // We just need to trigger a re-render of the parent to pass down the editing state.
@@ -2821,6 +3154,12 @@ function App() {
             setCopyStatus('Checklist item copied!');
             setTimeout(() => setCopyStatus(''), 2000);
             break;
+          case 'duplicate':
+            // This is effectively the same as 'add_after' but with a deep copy of the item
+            const itemToDuplicate = { ...newItems[itemIndex] };
+            const duplicatedItem = { ...itemToDuplicate, id: Date.now() + Math.random(), text: `${itemToDuplicate.text} (Copy)` };
+            newItems.splice(itemIndex + 1, 0, duplicatedItem);
+            break;
           case 'add_before':
             newItems.splice(itemIndex, 0, newItemTemplate);
             break;
@@ -2840,7 +3179,7 @@ function App() {
               newItems[itemIndex] = newItems[itemIndex + 1];
               newItems[itemIndex + 1] = temp;
             }
-            break;
+            return;
         }
         return { ...sec, items: newItems };
       });
@@ -2878,12 +3217,17 @@ function App() {
         setTimeout(() => setCopyStatus(''), 2000);
       }
 
+      if (newFocusId) {
+        setFocusChecklistItemId(newFocusId);
+        setEditingViaContext(newFocusId); // Also trigger edit mode for the new item
+      }
+
       handleWordUpdate({ ...wordContainingChecklist, checklist: newSections });
     };
 
     const cleanup = window.electronAPI.on('checklist-item-command', handleMenuCommand);
     return cleanup;
-  }, [words, handleWordUpdate]); // Re-bind if words state changes
+  }, [words, handleChecklistCompletion]); // Re-bind if words state changes
 
   // Effect to handle commands from the new checklist section context menu
   useEffect(() => {
@@ -2913,8 +3257,15 @@ function App() {
           return; // Don't update state, just copy
         }
         case 'duplicate_section':
-          const newSection = { ...newSections[sectionIndex], id: Date.now(), title: `${newSections[sectionIndex].title} (Copy)` };
-          newSections.splice(sectionIndex + 1, 0, newSection);
+          const sectionToDuplicate = newSections[sectionIndex];
+          const newDuplicatedSection: ChecklistSection = {
+            ...sectionToDuplicate,
+            id: Date.now(),
+            title: `${sectionToDuplicate.title} (Copy)`,
+            // CRITICAL FIX: Give all duplicated items new, unique IDs
+            items: sectionToDuplicate.items.map(item => ({ ...item, id: Date.now() + Math.random() })),
+          };
+          newSections.splice(sectionIndex + 1, 0, newDuplicatedSection);
           break;
         case 'toggle_all_in_section':
           // Find the correct Checklist instance and call its handler
@@ -2952,17 +3303,6 @@ function App() {
     const cleanup = window.electronAPI.on('checklist-section-command', handleMenuCommand);
     return cleanup;
   }, [words, handleWordUpdate]);
-
-  const handleChecklistCompletion = (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => {
-    // This handler is now ONLY for individual item completions.
-    const parentWord = words.find(w => w.checklist?.some(s => 'items' in s && s.id === sectionId));
-    if (parentWord) {
-      setInboxMessages(prev => [{
-        id: Date.now() + Math.random(), type: 'completed', text: `Checklist item completed: "${item.text}" in task "${parentWord.text}"`,
-        timestamp: Date.now(), wordId: parentWord.id, sectionId: sectionId
-      }, ...prev]);
-    }
-  };
 
   // Effect to reset the context menu editing state after it has been applied
   useEffect(() => {
@@ -3349,107 +3689,6 @@ function App() {
     setSettings(prev => ({ ...prev, ...scales[scale] }));
   };
 
-  const handleCompleteWord = (wordToComplete: Word) => {
-    // Calculate final duration
-    const finalDuration = wordToComplete.isPaused
-      ? wordToComplete.pausedDuration
-      : (wordToComplete.pausedDuration || 0) + (Date.now() - wordToComplete.createdAt);
-
-    const completedWord = { ...wordToComplete, completedDuration: finalDuration };
-
-    // Add to completed list and remove from active list
-    setCompletedWords(prev => [completedWord, ...prev]);
-    setWords(words.filter(word => word.id !== wordToComplete.id));
-    setInboxMessages(prev => [{ 
-      id: Date.now() + Math.random(),
-      type: 'completed',
-      text: `Task completed: "${completedWord.text}"`,
-      timestamp: Date.now(),
-      wordId: completedWord.id,
-    }, ...prev]);
-    setCopyStatus('Task completed!');
-
-    setTimeout(() => setCopyStatus(''), 2000);
-
-    // --- Refactored Recurring and Alternating Task Logic ---
-
-    let newRecurringTask: Word | null = null;
-
-    // Determine if a new recurring task should be created
-    if (wordToComplete.isRecurring || wordToComplete.isDailyRecurring || wordToComplete.isWeeklyRecurring || wordToComplete.isMonthlyRecurring || wordToComplete.isYearlyRecurring) {
-      let newOpenDate = Date.now();
-      let newCompleteBy: number | undefined = undefined;
-
-      if (wordToComplete.isDailyRecurring) {
-        newOpenDate += 24 * 60 * 60 * 1000;
-        if (wordToComplete.completeBy) newCompleteBy = wordToComplete.completeBy + 24 * 60 * 60 * 1000;
-      } else if (wordToComplete.isWeeklyRecurring) {
-        newOpenDate += 7 * 24 * 60 * 60 * 1000;
-        if (wordToComplete.completeBy) newCompleteBy = wordToComplete.completeBy + 7 * 24 * 60 * 60 * 1000;
-      } else if (wordToComplete.isMonthlyRecurring) {
-        const d = new Date(newOpenDate);
-        d.setMonth(d.getMonth() + 1);
-        newOpenDate = d.getTime();
-        if (wordToComplete.completeBy) {
-          const cbd = new Date(wordToComplete.completeBy);
-          cbd.setMonth(cbd.getMonth() + 1);
-          newCompleteBy = cbd.getTime();
-        }
-      } else if (wordToComplete.isYearlyRecurring) {
-        const d = new Date(newOpenDate);
-        d.setFullYear(d.getFullYear() + 1);
-        newOpenDate = d.getTime();
-        if (wordToComplete.completeBy) {
-          const cbd = new Date(wordToComplete.completeBy);
-          cbd.setFullYear(cbd.getFullYear() + 1);
-          newCompleteBy = cbd.getTime();
-        }
-      } else if (wordToComplete.isRecurring && wordToComplete.completeBy && wordToComplete.createdAt) {
-        const originalDuration = wordToComplete.completeBy - wordToComplete.createdAt;
-        newCompleteBy = Date.now() + originalDuration;
-      }
-
-      newRecurringTask = {
-        ...wordToComplete,
-        id: Date.now() + Math.random(),
-        createdAt: newOpenDate,
-        openDate: newOpenDate,
-        completedDuration: undefined,
-        completeBy: newCompleteBy,
-        startsTaskIdOnComplete: wordToComplete.startsTaskIdOnComplete,
-      };
-    }
-
-    // --- Alternating Task & Loop Logic ---
-    if (wordToComplete.startsTaskIdOnComplete) {
-      const successorTaskId = wordToComplete.startsTaskIdOnComplete;
-      setWords(prevWords => {
-        let newWords = prevWords.map(w => {
-          if (w.id !== successorTaskId) return w;
-          
-          // This is the successor task. Activate it.
-          const updatedSuccessor = { ...w, openDate: Date.now(), completeBy: Date.now() };
-          
-          // If the successor was part of a loop, we need to update its link.
-          if (w.startsTaskIdOnComplete === wordToComplete.id && newRecurringTask) {
-            updatedSuccessor.startsTaskIdOnComplete = newRecurringTask.id;
-          }
-          return updatedSuccessor;
-        });
-
-        // Add the new recurring task if it was created
-        if (newRecurringTask) {
-          newWords = [newRecurringTask, ...newWords];
-        }
-
-        return newWords;
-      });
-    } else if (newRecurringTask) {
-      // If there's no successor but there is a recurring task, just add it.
-      setWords(prev => [newRecurringTask, ...prev]);
-    }
-  };
-
   const handleClearCompleted = () => {
     setCompletedWords([]);
     setCopyStatus('Completed list cleared!');
@@ -3652,47 +3891,6 @@ function App() {
     }
   };
 
-  const handleSaveProject = async () => {
-    // Prevent any save operations while the app is still loading its initial data.
-    if (isLoading) return;
-
-    // --- FIX FOR BUG #2 ---
-    // Before saving, check for any words that were added in list view and don't have positions.
-    const canvas = canvasRef.current;
-    const context = canvas?.getContext('2d');
-    let wordsToSave = [...words];
-
-    if (canvas && context) {
-      wordsToSave = words.map((word, index) => {
-        if (word.x === 0 && word.y === 0) {
-          // This word needs a position.
-          const fontSize = getFontSize(index, words.length);
-          context.font = `${fontSize}px ${settings.fontFamily}`;
-          const metrics = context.measureText(word.text);
-          const newWordMetrics = { width: metrics.width, height: fontSize };
-          const { x, y } = getNewWordPosition(canvas.width, canvas.height, newWordMetrics);
-          return { ...word, x, y, width: newWordMetrics.width, height: newWordMetrics.height };
-        }
-        return word;
-      });
-    }
-
-    // Explicitly save all parts of the state to the store. This is the single source of truth for a manual save.
-    await window.electronAPI.setStoreValue('overwhelmed-words', wordsToSave);
-    await window.electronAPI.setStoreValue('overwhelmed-completed-words', completedWords);
-    await window.electronAPI.setStoreValue('overwhelmed-settings', settings);
-    await window.electronAPI.setStoreValue('overwhelmed-inbox-messages', inboxMessagesRef.current);
-    await window.electronAPI.setStoreValue('overwhelmed-archived-messages', archivedMessagesRef.current);
-    await window.electronAPI.setStoreValue('overwhelmed-trashed-messages', trashedMessagesRef.current);
-    
-    setIsDirty(false); // Mark the state as clean/saved
-    setLastSaveTime(Date.now());
-    setAutoSaveCountdown(AUTO_SAVE_INTERVAL_SECONDS); // Reset countdown on manual save
-
-    setCopyStatus('Project saved!');
-    setTimeout(() => setCopyStatus(''), 2000); // Clear message after 2 seconds
-  };
-
   const moveWord = (wordIdToMove: number, targetWordId: number) => {
     const newWords = [...words];
     const indexToMove = newWords.findIndex(w => w.id === wordIdToMove);
@@ -3808,37 +4006,6 @@ function App() {
     }, 8000); // Keep on screen for 8 seconds
   };
 
-  const handleSnooze = (wordToSnooze: Word, duration?: 'low' | 'medium' | 'high') => {
-    const snoozeDurations = {
-      low: 1 * 60 * 1000,     // 1 minute
-      medium: 5 * 60 * 1000,  // 5 minutes
-      high: 10 * 60 * 1000,   // 10 minutes
-    };
-    const snoozeDurationMs = snoozeDurations[duration || settings.snoozeTime];
-    const snoozedUntil = Date.now() + snoozeDurationMs;
-
-    // Update the word's `lastNotified` property to act as the "snoozed until" timestamp
-    setWords(prevWords => prevWords.map(w => 
-      w.id === wordToSnooze.id ? { ...w, lastNotified: snoozedUntil, snoozeCount: (w.snoozeCount || 0) + 1, snoozedAt: Date.now() } : w
-    ));
-
-    // Remove the notification from the screen
-    setOverdueNotifications(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(wordToSnooze.id);
-      return newSet;
-    });
-  };
-
-  const navigateToView = (view: 'meme' | 'list' | 'reports' | 'inbox') => {
-    // If we are navigating to a new view from the current point in history
-    const newHistory = viewHistory.slice(0, historyIndex + 1);
-    newHistory.push(view);
-    setViewHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-    setSettings(prev => ({ ...prev, currentView: view }));
-  };
-
   const goBack = () => {
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
@@ -3889,52 +4056,6 @@ function App() {
       const wordToDelete = words.find(w => w.id === id);
       if (wordToDelete) removeWord(wordToDelete.id);
     });
-  };
-
-  const handleInboxItemClick = (message: InboxMessage) => {
-    if (!message || !message.wordId) return;
-
-    const { wordId, sectionId } = message;
-
-    // Find the word to determine its category
-    const word = words.find(w => w.id === wordId);
-    if (!word || !word.categoryId) return;
-
-    const category = settings.categories.find(c => c.id === word.categoryId); 
-    if (!category) return;
-
-    // Determine the parent and sub-category to activate
-    const parentId = category.parentId || category.id;
-    const subId = category.parentId ? category.id : 'all';
-
-    // Switch to the list view and set the correct category/sub-category filters
-    setSettings(prev => ({
-      ...prev,
-      currentView: 'list',
-      activeCategoryId: parentId,
-      activeSubCategoryId: subId,
-      openAccordionIds: [...new Set([...prev.openAccordionIds, wordId])]
-    }));
-
-    // Use a timeout to ensure the list view has rendered before we try to scroll
-    setTimeout(() => {
-      const element = document.querySelector(`[data-word-id='${wordId}']`);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-        // If a sectionId is provided, scroll to and highlight the checklist section
-        if (message.sectionId) {
-          setTimeout(() => {
-            const sectionElement = element.querySelector(`[data-section-id='${sectionId}']`);
-            if (sectionElement) {
-              sectionElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-              sectionElement.classList.add('highlight-section');
-              setTimeout(() => sectionElement.classList.remove('highlight-section'), 2500); // Highlight for 2.5s
-            }
-          }, 300); // Wait for accordion to open
-        }
-      }
-    }, 100);
   };
 
   const handleDismissInboxMessage = (messageId: number) => {
@@ -4003,6 +4124,8 @@ function App() {
           onComplete={handleChecklistCompletion}
           onTabChange={(wordId, tab) => setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: tab } }))}
           onDescriptionChange={(html) => handleWordUpdate({ ...taskToShow, description: html })}          
+          focusChecklistItemId={focusChecklistItemId}
+          setFocusChecklistItemId={setFocusChecklistItemId}
         />
       );
     }
@@ -4662,6 +4785,8 @@ function App() {
                                             onComplete={handleChecklistCompletion}
                                             wordId={word.id}
                                             checklistRef={activeChecklistRef}
+                                            focusChecklistItemId={focusChecklistItemId}
+                                            setFocusChecklistItemId={setFocusChecklistItemId}
                                           />
                                           <div className="word-item-display">
                                             <span className="stopwatch date-opened">
@@ -4779,6 +4904,8 @@ function App() {
                                     onComplete={handleChecklistCompletion}
                                     wordId={word.id}
                                     checklistRef={activeChecklistRef}
+                                    focusChecklistItemId={focusChecklistItemId}
+                                    setFocusChecklistItemId={setFocusChecklistItemId}
                                   />
                                   <div className="word-item-display">
                                     <span className="stopwatch date-opened">
@@ -4962,6 +5089,8 @@ function App() {
                             onComplete={handleChecklistCompletion}
                             checklistRef={activeChecklistRef}
                             wordId={word.id}
+                                    focusChecklistItemId={focusChecklistItemId}
+                                    setFocusChecklistItemId={setFocusChecklistItemId}
                                   setInboxMessages={setInboxMessages} 
                           />
                           {/* This second child is the 'headerActions' for the accordion */}
@@ -5083,7 +5212,9 @@ function App() {
               checklistRef={activeChecklistRef}
               wordId={Date.now()} // Use a temporary ID for the new task context
               setCopyStatus={setCopyStatus}
-                  />}
+              focusItemId={focusChecklistItemId} 
+              onFocusHandled={() => setFocusChecklistItemId(null)}
+              />}
                   {shouldShow('description') && <DescriptionEditor 
               description={newTask.description || ''} 
               onDescriptionChange={(html) => setNewTask({ ...newTask, description: html })} 

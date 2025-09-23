@@ -559,6 +559,10 @@ app.whenReady().then(() => {
       },
       { type: 'separator' },
       {
+        label: 'Duplicate Item',
+        click: () => webContents.send('checklist-item-command', { command: 'duplicate', sectionId, itemId }),
+      },
+      {
         label: 'Delete Item',
         click: () => webContents.send('checklist-item-command', { command: 'delete', sectionId, itemId }),
       },

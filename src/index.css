@@ -1729,22 +1729,46 @@ input[type="datetime-local"] + .button-group button {
   background-color: #4caf50; /* Green for 100% complete */
 }
 
+.checklist-item-text-input {
+  width: 100%; /* Make the input take the full width */
+  padding: 8px; /* Give it more vertical and horizontal space */
+  font-size: 1em; /* Make the font size match the display text */
+  box-sizing: border-box; /* Ensure padding is included in the width */
+  background-color: #3a3f4b;
+  border: 1px solid #61dafb; /* Highlight with accent color when editing */
+  color: white;
+}
+
 .checklist-item {
   display: flex;
-  flex-direction: column;  
+  flex-direction: row;  
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .checklist-item-label {
-  display: flex;
+  display: block; /* Change to block to allow full width */
+  width: 100%;    /* Make the label take full width */
   align-items: center;
   cursor: pointer; /* Indicate that the whole area is clickable */
-  flex-direction: row;
+}
+
+.checklist-item-main-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 
 .checklist-actions {
   margin-top: 10px;
 }
 .add-section-btn {
+  width: auto !important;
+}
+
+.checklist-main-actions .add-section-btn {
   width: auto !important;
 }
 
@@ -1757,6 +1781,10 @@ input[type="datetime-local"] + .button-group button {
 
 .checklist-main-actions .delete-btn {
   background-color: #c94a4a !important;
+}
+
+.checklist-section-actions .delete-btn {
+  color: #c94a4a !important;
 }
 
 .checklist-main-header {
@@ -1813,10 +1841,10 @@ input[type="datetime-local"] + .button-group button {
   cursor: pointer;
 }
 .checklist-item-interactive-area:hover {
-  
+    background: #212212;
 }
 .checklist-item-interactive-area {
-  
+    cursor: pointer;
 }
 
 
@@ -1903,6 +1931,61 @@ input[type="datetime-local"] + .button-group button {
 .checklist-item-response i,
 .checklist-item-note i {
   margin-right: 8px;
+}
+
+.checklist-item-due-date {
+  font-size: 0.8em;
+  color: #aaa;
+  background-color: #3a3f4b;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 10px;
+  white-space: nowrap;
+}
+
+.checklist-item-due-date i {
+  margin-right: 5px;
+  color: #61dafb;
+}
+
+.checklist-item-due-date.overdue {
+  background-color: #c94a4a; /* Red background */
+  color: white;
+  border: 1px solid #a93232;
+}
+
+.checklist-item-due-date.overdue i {
+  color: white; /* Make the icon white on the red background */
+}
+
+.checklist-item-due-date.due-today {
+  background-color: #f4d03f; /* Yellow background */
+  color: #333; /* Darker text for contrast */
+  border: 1px solid #c8a930;
+}
+
+.checklist-item-due-date.due-today i {
+  color: #333; /* Make the icon dark on the yellow background */
+}
+
+.checklist-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.checklist-item-datepicker {
+  background-color: #3a3f4b;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 3px;
+  padding: 2px;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.checklist-item-actions .icon-button {
+  color: #888;
 }
 .linked-task-display {
   font-size: 0.8em;
