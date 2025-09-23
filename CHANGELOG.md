@@ -117,6 +117,7 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
+- **[1.0.13] - 2025-09-23: Interactive Checklist Items**: feat(checklist): Implement fully interactive checklist item UI
 - **[1.0.12] - 2025-09-23: Checklist Enhancements**: feat(checklist): Add due dates, fix duplication, and improve layout
 - **[1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish**: feat(checklist): Improve checklist UX and add delete note/response actions
 - **[1.0.10] - 2025-09-22: Alternating & Looping Tasks**: feat(tasks): Add alternating and looping task functionality
@@ -126,13 +127,37 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.06] - 2025-09-21: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
 - **[1.0.05] - 2025-09-21: Task Types & Templated Forms**: feat(tasks): Implement Task Types and Templated Forms
 - **[1.0.04] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow**: feat(inbox): Implement full Archive and Trash system with UI polish 
-- **[1.0.03] - 2024-09-20: Inbox Protection & Full Task View**:
-- **[1.0.02] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation**:
-- **[1.0.01] - 2024-09-18: Notification System & Inbox View**:
-- **[1.0.00] - 2024-09-15: Core Task Management & Data Persistence**:
+- **[1.0.03] - 2025-09-20: Inbox Protection & Full Task View**:
+- **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
+- **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
+- **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
 
+---
 
-## [1.0.12] - 2025-09-24: Checklist Enhancements
+## [1.0.13] - 2025-09-23: Interactive Checklist Items
+
+#### Added
+-   **In-Place Editing in "Edit" Mode**: When a task is in "Edit" mode, all checklist items, including their notes and responses, are now rendered as editable `<input>` fields by default.
+-   **Quick Actions on Hover**: In the read-only "Task" view, hovering over a checklist item now reveals a set of quick-action icon buttons:
+    -   **Edit Item**: A pencil icon that allows for in-place editing of the main item text.
+    -   **Add/Remove Note**: A note icon that adds a note field. The icon becomes "active" (colored) to indicate it can be clicked again to remove the note.
+    -   **Add/Remove Response**: A reply icon that functions identically to the note button for responses.
+    -   **Delete Item**: A trash icon to delete the entire checklist item.
+
+#### Fixed
+-   **Autofocus Consistency**: When a note or response field is created in either "Task" or "Edit" view, it is now automatically focused so the user can begin typing immediately.
+-   **UI Stability**: The layout has been refactored to prevent the "quick actions" menu from shifting or disappearing when a note or response is added, creating a stable and non-frustrating user experience.
+
+#### Documentation
+-   **Developer Guide**: Added `Rule 55.0` to `GEMINI.md` to document the pattern for creating stable hover-action menus.
+-   **Project Glossary**: Updated `DEFINITIONS.md` with all new state variables (`editingResponseForItemId`, `focusSubInputKey`, etc.) and handlers (`handleDeleteItem`, `handleDeleteItemResponse`, etc.) related to these new features.
+
+#### Summary
+These changes transform the checklist from a static list into a fully interactive and dynamic component. Users can now manage all aspects of a checklist item—text, notes, and responses—directly from the list view with intuitive hover actions, significantly improving workflow speed and usability.
+
+---
+
+## [1.0.12] - 2025-09-23: Checklist Enhancements
 
 #### Added
 -   **Individual Due Dates**: Implemented a feature to add an optional due date to each individual checklist item.
@@ -351,7 +376,7 @@ Critical errors trying to implement a Gemini prompt again... this time with "Cop
 -   **"Ghost" Inbox Messages**: Resolved a race condition where "approaching deadline" and "overdue" notifications could fire simultaneously, creating duplicate, non-functional "ghost" messages in the inbox.
 -   **Overdue Toast UI**: Correctly positioned the "Notification sent to Inbox" link to appear inside the overdue task toast notification.
 
-### [1.0.0] - 2024-09-15
+### [1.0.0] - 2025-09-15
 
 #### Added
 -   **Initial Project Setup**: Configured project with Electron, React, and TypeScript using Electron Forge and Webpack.

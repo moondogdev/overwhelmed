@@ -56,6 +56,15 @@ This document should be updated whenever new declarative logic is implemented.
 ### `focusChecklistItemId: number | null`
 -   **Description**: A state variable used to programmatically set focus on a specific checklist item's input field, typically after it has been newly created.
 ---
+### `editingResponseForItemId: number | null` / `editingNoteForItemId: number | null`
+-   **Description**: State variables that hold the `id` of a checklist item for which a `response` or `note` is being edited in the read-only "Task" view. This enables the quick-add/edit feature without switching the entire task to "Edit" mode.
+
+### `focusSubInputKey: string | null`
+-   **Description**: A state variable that holds a unique key (e.g., `"response-123"`) for a checklist sub-input field (`response` or `note`). It is used in the "Edit" view to programmatically focus the correct input field immediately after it is created.
+
+### `subInputRefs: RefObject`
+-   **Description**: A React `ref` object that stores references to all the dynamically rendered `response` and `note` input fields in the checklist, keyed by a unique string (e.g., `"response-123"`). This allows for programmatic focusing of specific inputs.
+---
 
 ## Interfaces
 
@@ -337,6 +346,15 @@ interface Word {
 
 ### `handleUpdateItemText(sectionId: number, itemId: number, newText: string)`
 -   **Description**: Updates the `text` for a specific checklist item. This is used by the in-place editing input field.
+
+### `handleUpdateItemResponse(sectionId: number, itemId: number, newResponse: string)` / `handleUpdateItemNote(sectionId: number, itemId: number, newNote: string)`
+-   **Description**: Updates the `response` or `note` field for a specific checklist item. If the field does not exist, it is created.
+
+### `handleDeleteItemResponse(sectionId: number, itemId: number)` / `handleDeleteItemNote(sectionId: number, itemId: number)`
+-   **Description**: Deletes the `response` or `note` for a specific checklist item by setting its value to `undefined`.
+
+### `handleDeleteItem(sectionId: number, itemId: number)`
+-   **Description**: Deletes an entire checklist item from a specific section.
 
 ---
 

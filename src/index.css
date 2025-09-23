@@ -1738,6 +1738,23 @@ input[type="datetime-local"] + .button-group button {
   border: 1px solid #61dafb; /* Highlight with accent color when editing */
   color: white;
 }
+.checklist-item-sub-input {
+  width: 100%;
+  box-sizing: border-box;
+  background-color: transparent;
+  border: none;
+  border-bottom: 1px dashed #555;
+  color: #ccc;
+  padding: 4px 0;
+  margin-left: 5px;
+  font-size: 0.9em;
+}
+
+.checklist-item-sub-input:focus {
+  outline: none;
+  border-bottom: 1px solid #61dafb;
+}
+
 
 .checklist-item {
   display: flex;
@@ -1746,19 +1763,17 @@ input[type="datetime-local"] + .button-group button {
   align-items: center;
   flex-wrap: wrap;
 }
-
 .checklist-item-label {
-  display: block; /* Change to block to allow full width */
-  width: 100%;    /* Make the label take full width */
+  display: flex;
   align-items: center;
-  cursor: pointer; /* Indicate that the whole area is clickable */
 }
 
 .checklist-item-main-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 100%;
+  width: 100%; /* This is the stable row */
+  gap: 10px; /* Add some gap between text and actions */
 }
 
 .checklist-actions {
@@ -1987,6 +2002,35 @@ input[type="datetime-local"] + .button-group button {
 .checklist-item-actions .icon-button {
   color: #888;
 }
+.checklist-item-actions .icon-button:hover .fa-reply { color: #61dafb; }
+.checklist-item-actions .icon-button:hover .fa-sticky-note { color: #f4d03f; }
+.checklist-item-actions .icon-button:hover .fa-times { color: #c94a4a; }
+.checklist-item-actions .icon-button .active-icon.fa-reply,
+.checklist-item-quick-actions .icon-button .active-icon.fa-reply { color: #61dafb; }
+.checklist-item-actions .icon-button .active-icon.fa-sticky-note,
+.checklist-item-quick-actions .icon-button .active-icon.fa-sticky-note { color: #f4d03f; }
+
+.checklist-item-actions .icon-button:hover .delete-icon { color: #c94a4a; }
+.checklist-item-quick-actions {
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  margin-left: auto; /* Pushes it to the right */
+  padding-left: 10px;
+}
+
+.checklist-item-interactive-area:hover .checklist-item-quick-actions {
+  opacity: 1;
+}
+
+.checklist-item-quick-actions .icon-button {
+  color: #888;
+}
+.checklist-item-quick-actions .icon-button:hover .fa-reply { color: #61dafb; }
+.checklist-item-quick-actions .icon-button:hover .fa-sticky-note { color: #f4d03f; }
+.checklist-item-quick-actions .icon-button:hover .fa-pencil-alt { color: #f4d03f; }
+.checklist-item-quick-actions .icon-button:hover .delete-icon { color: #c94a4a; }
+
+
 .linked-task-display {
   font-size: 0.8em;
   color: #aaa;

@@ -940,6 +940,10 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
   const [editingSectionTitle, setEditingSectionTitle] = useState('');
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editingItemText, setEditingItemText] = useState('');
+  const [editingResponseForItemId, setEditingResponseForItemId] = useState<number | null>(null);
+  const [editingNoteForItemId, setEditingNoteForItemId] = useState<number | null>(null);
+  const [focusSubInputKey, setFocusSubInputKey] = useState<string | null>(null);
+  const subInputRefs = useRef<{ [key: string]: HTMLInputElement }>({});
   const addItemInputRef = useRef<{ [key: number]: HTMLTextAreaElement }>({});
 
   // State for local undo/redo history of checklist changes
@@ -967,6 +971,14 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     setHistoryIndex(0);
   }, [wordId]); // Re-initialize history only when the task itself changes
 
+  useEffect(() => {
+    // This effect now specifically focuses the input whose key is stored in `focusSubInputKey`.
+    if (isEditable && focusSubInputKey && subInputRefs.current[focusSubInputKey]) {
+      subInputRefs.current[focusSubInputKey].focus();
+      // Reset the focus request after it's been handled.
+      setFocusSubInputKey(null);
+    }
+  }, [isEditable, normalizedSections, focusSubInputKey]);
   const updateHistory = (newSections: ChecklistSection[]) => {
     const newHistory = history.slice(0, historyIndex + 1);
     setHistory([...newHistory, newSections]);
@@ -1006,6 +1018,31 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     }
     onUpdate(newSections);
   };
+
+  const handleUpdateItemResponse = (sectionId: number, itemId: number, newResponse: string) => {
+    const newSections = normalizedSections.map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, response: newResponse } : item) } : sec);
+    updateHistory(newSections);
+    onUpdate(newSections);
+  };
+
+  const handleUpdateItemNote = (sectionId: number, itemId: number, newNote: string) => {
+    const newSections = normalizedSections.map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, note: newNote } : item) } : sec);
+    updateHistory(newSections);
+    onUpdate(newSections);
+  };
+
+  const handleDeleteItemResponse = (sectionId: number, itemId: number) => {
+    const newSections = normalizedSections.map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, response: undefined } : item) } : sec);
+    updateHistory(newSections);
+    onUpdate(newSections);
+  };
+
+  const handleDeleteItemNote = (sectionId: number, itemId: number) => {
+    const newSections = normalizedSections.map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, note: undefined } : item) } : sec);
+    updateHistory(newSections);
+    onUpdate(newSections);
+  };
+
 
   const handleUpdateItemDueDate = (sectionId: number, itemId: number, newDueDate: number | undefined) => {
     const newSections = normalizedSections.map(sec =>
@@ -1384,7 +1421,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                   {/*
                     * This is the key change. We check if a specific item is being edited FIRST.
                     * This allows the "Edit Item" context menu action to work even when `isEditable` is false.
-                  */}
+                  */}                  
                   {editingItemId === item.id ? (
                     <input
                       type="text"
@@ -1408,44 +1445,123 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                     />
                   ) : ( // This is the "view" mode for a single item
                     <>
-                      <label className="checklist-item-label flexed-column">
-                        <div className="checklist-item-main-content">
-                          <div className="checklist-item-checkbox">
+                      <div className="checklist-item-main-content">
+                        <label className="checklist-item-label">
+                          <input
+                            type="checkbox"
+                            checked={item.isCompleted}
+                            onChange={() => handleToggleItem(section.id, item.id)}
+                          />
+                          {isEditable ? (
                             <input
-                              type="checkbox"
-                              checked={item.isCompleted}
-                              onChange={() => handleToggleItem(section.id, item.id)}
+                              type="text"
+                              value={item.text}
+                              onChange={(e) => handleUpdateItemText(section.id, item.id, e.target.value)}
+                              className="checklist-item-text-input"
                             />
+                          ) : (
                             <span className="checklist-item-text">{item.text}</span>
-                          </div>
-                          {item.dueDate && (
-                            <span
-                              className={`checklist-item-due-date ${(() => {
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
-                                const tomorrow = new Date(today);
-                                tomorrow.setDate(tomorrow.getDate() + 1);
-
-                                if (item.dueDate < today.getTime()) {
-                                  return 'overdue';
-                                }
-                                if (item.dueDate < tomorrow.getTime()) {
-                                  return 'due-today';
-                                }
-                                return '';
-                              })()}`}
-                            >
-                              <i className="fas fa-calendar-alt"></i>
-                              {formatDate(item.dueDate)}
-                            </span>
                           )}
-                        </div>
-                      </label>
-                      {item.response && (
-                        <div className="checklist-item-response"><strong><i className="fas fa-reply"></i> Response:</strong> {item.response}</div>
-                      )}
-                      {item.note && (
-                        <div className="checklist-item-note"><strong><i className="fas fa-sticky-note"></i> Note:</strong> {item.note}</div>
+                        </label>
+                        {item.dueDate && !isEditable && (
+                          <span
+                            className={`checklist-item-due-date ${(() => {
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0);
+                              const tomorrow = new Date(today);
+                              tomorrow.setDate(tomorrow.getDate() + 1);
+                              if (item.dueDate < today.getTime()) return 'overdue';
+                              if (item.dueDate < tomorrow.getTime()) return 'due-today';
+                              return '';
+                            })()}`}
+                          >
+                            <i className="fas fa-calendar-alt"></i>
+                            {formatDate(item.dueDate)}
+                          </span>
+                        )}
+                        {!isEditable && (
+                          <div className="checklist-item-quick-actions">
+                            <button className="icon-button" onClick={() => setEditingItemId(item.id)} title="Edit Item"><i className="fas fa-pencil-alt"></i></button>
+                            {item.response === undefined ? (
+                              <button className="icon-button" onClick={() => { handleUpdateItemResponse(section.id, item.id, ''); setEditingResponseForItemId(item.id); }} title="Add Response"><i className="fas fa-reply"></i></button>
+                            ) : (
+                              <button className="icon-button" onClick={() => handleDeleteItemResponse(section.id, item.id)} title="Delete Response"><i className="fas fa-reply active-icon"></i></button>
+                            )}
+                            {item.note === undefined ? (
+                              <button className="icon-button" onClick={() => { handleUpdateItemNote(section.id, item.id, ''); setEditingNoteForItemId(item.id); }} title="Add Note"><i className="fas fa-sticky-note"></i></button>
+                            ) : (
+                              <button className="icon-button" onClick={() => handleDeleteItemNote(section.id, item.id)} title="Delete Note"><i className="fas fa-sticky-note active-icon"></i></button>
+                            )}
+                            <button className="icon-button" onClick={() => handleDeleteItem(section.id, item.id)} title="Delete Item"><i className="fas fa-trash-alt delete-icon"></i></button>
+                          </div>
+                        )}
+                      </div>
+                      {isEditable ? (
+                        // In EDIT mode, only show the inputs if they have content or if the user just added them.
+                        // The `handleUpdate...` function with an empty string creates the property, making it non-undefined.
+                        <>
+                          {(item.response !== undefined) && (
+                            <div className="checklist-item-response">
+                              <strong><i className="fas fa-reply"></i> Response:</strong>
+                              <input
+                                type="text"
+                                value={item.response || ''}
+                                onChange={(e) => handleUpdateItemResponse(section.id, item.id, e.target.value)}
+                                placeholder="Add a response..."
+                                ref={el => subInputRefs.current[`response-${item.id}`] = el}
+                                className="checklist-item-sub-input"
+                              />
+                            </div>
+                          )}
+                          {(item.note !== undefined) && (
+                            <div className="checklist-item-note">
+                              <strong><i className="fas fa-sticky-note"></i> Note:</strong>
+                              <input
+                                type="text"
+                                value={item.note || ''}
+                                onChange={(e) => handleUpdateItemNote(section.id, item.id, e.target.value)}
+                                placeholder="Add a private note..."
+                                ref={el => subInputRefs.current[`note-${item.id}`] = el}
+                                className="checklist-item-sub-input"
+                              />
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {item.response !== undefined && (
+                            <div className="checklist-item-response">
+                              <strong><i className="fas fa-reply"></i> Response:</strong>
+                              <input
+                                type="text"
+                                value={item.response || ''}
+                                // When the input loses focus, clear the temporary "editing" state
+                                onBlur={() => setEditingResponseForItemId(null)}
+                                onChange={(e) => handleUpdateItemResponse(section.id, item.id, e.target.value)}
+                                placeholder="Add a response..."
+                                className="checklist-item-sub-input"
+                                // Autofocus if this is the item we just added a response for
+                                autoFocus={editingResponseForItemId === item.id}
+                              />
+                            </div>
+                          )}
+                          {item.note !== undefined && (
+                            <div className="checklist-item-note">
+                              <strong><i className="fas fa-sticky-note"></i> Note:</strong>
+                              <input
+                                type="text"
+                                value={item.note || ''}
+                                // When the input loses focus, clear the temporary "editing" state
+                                onBlur={() => setEditingNoteForItemId(null)}
+                                onChange={(e) => handleUpdateItemNote(section.id, item.id, e.target.value)}
+                                placeholder="Add a private note..."
+                                className="checklist-item-sub-input"
+                                // Autofocus if this is the item we just added a note for
+                                autoFocus={editingNoteForItemId === item.id}
+                              />
+                            </div>
+                          )}
+                        </>
                       )}
                       {isEditable && (
                         <div className="checklist-item-actions">
@@ -1456,9 +1572,15 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                             onChange={(e) => handleUpdateItemDueDate(section.id, item.id, e.target.value ? new Date(e.target.value).getTime() : undefined)}
                             title="Set Due Date"
                           />
+                          {item.response === undefined ? (
+                            <button className="icon-button" onClick={() => { handleUpdateItemResponse(section.id, item.id, ''); setFocusSubInputKey(`response-${item.id}`); }} title="Add Response"><i className="fas fa-reply"></i></button>
+                          ) : ( <button className="icon-button" onClick={() => handleDeleteItemResponse(section.id, item.id)} title="Delete Response"><i className="fas fa-reply active-icon"></i></button> )}
+                          {item.note === undefined ? (
+                            <button className="icon-button" onClick={() => { handleUpdateItemNote(section.id, item.id, ''); setFocusSubInputKey(`note-${item.id}`); }} title="Add Note"><i className="fas fa-sticky-note"></i></button>
+                          ) : ( <button className="icon-button" onClick={() => handleDeleteItemNote(section.id, item.id)} title="Delete Note"><i className="fas fa-sticky-note active-icon"></i></button> )}
                           <button className="icon-button" onClick={() => handleUpdateItemDueDate(section.id, item.id, undefined)} title="Clear Due Date"><i className="fas fa-times"></i></button>
                         </div>
-                      )}
+                      )}                      
                     </>
                   )}
                 </div>

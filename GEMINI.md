@@ -100,8 +100,10 @@ See `CHANGELOG.md` for a list of future features to implement. Strickly follow `
 
 ### Log of Changes
 
-All notable changes to this project will be documented in this file @CHANGELOG.md. Please update the separate changelog as development progresses.
+All notable changes to this project will be documented in this file @CHANGELOG.md. Please update the separate changelog as development progresses. 
 
+- **[1.0.13] - 2025-09-23: Interactive Checklist Items**: feat(checklist): Implement fully interactive checklist item UI
+- **[1.0.12] - 2025-09-23: Checklist Enhancements**: feat(checklist): Add due dates, fix duplication, and improve layout
 - **[1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish**: feat(checklist): Improve checklist UX and add delete note/response actions
 - **[1.0.10] - 2025-09-22: Alternating & Looping Tasks**: feat(tasks): Add alternating and looping task functionality
 - **[1.0.09] - 2025-09-22: Copy Checklist**: feat(checklist): Add copy to clipboard functionality
@@ -110,10 +112,10 @@ All notable changes to this project will be documented in this file @CHANGELOG.m
 - **[1.0.06] - 2025-09-21: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
 - **[1.0.05] - 2025-09-21: Task Types & Templated Forms**: feat(tasks): Implement Task Types and Templated Forms
 - **[1.0.04] - 2025-09-21: Inbox Archive & Trash + Documentation**: feat(inbox): Implement full Archive and Trash system with UI polish 
-- **[1.0.03] - 2024-09-20: Inbox Protection & Full Task View**:
-- **[1.0.02] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation**:
-- **[1.0.01] - 2024-09-18: Notification System & Inbox View**:
-- **[1.0.00] - 2024-09-15: Core Task Management & Data Persistence**:
+- **[1.0.03] - 2025-09-20: Inbox Protection & Full Task View**:
+- **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
+- **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
+- **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
 
 ---
 
@@ -138,13 +140,6 @@ Hello `@Gemini Code Assist`, if you can read this, please, before we make large 
 
 ### Prompts for Gemini
 These are a collection of prompts we use for coding with Gemini:
-
----
-
-#### Response Bugged Out
-Your reponse bugged out.
-
-Please send the text explaining the rule in an individual copy plain text block. Then, provide the relative code examples separate in its own copy code block.
 
 ---
 
@@ -190,6 +185,10 @@ These files can be understood better in the `# Developer Guide Index` section.
 
 ---
 
+@renderer.tsx @preload.ts @index.ts @index.html @index.css @CHANGELOG.md @GEMINI.md @DEFINITIONS.md @COMMITS.md
+
+---
+
 #### Implement New Feature from @CHANGELOG.md
 We're ready to add a new feature. Can you check our @CHANGELOG.md and suggest something from the list of `## Future Features`?
 
@@ -221,9 +220,50 @@ With one final pass at the changes we made before commit, could you please verif
 
 ---
 
+#### Response Bugged Out
+Your reponse bugged out.
+
+Please send the text explaining the rule in an individual copy plain text block. Then, provide the relative code examples separate in its own copy code block.
+
+#### New Rule Update
+Everything sent over except the new rule's content. It tends to bug out when we mix code examples in the .md file once it renders to chat. Could you please send just the rule content again but:
+- separate the content and the code examples of the rule, and;
+- send all the content text copy in its own .md copy block, then;
+- provide the relative code examples in their own code copy block. 
+
+Don't worry about changing the code, I'll just paste it to the bottom of the @GEMINI.md file.
+
+The example should look like this 
+
+```
+markdown [copy] [+ insert]
+
+---
+
+### Developer Guide - Rule ...
+
+This guide...
+
+####
+---
+
+---
+Code Examples:
+
+jsx [copy] [+ insert]
+```jsx
+// some code here
+```
+---
+```
+
+Please excuse my rough drawing but I tried to illustrate the proper response. I hope this helps.
+
+---
+
 ## Gemini Guidelines (GGl)
 Other Guidelines for Gemini Code Assist to follow:
-  - **GGl 1.00: Gemini Thinks its 2024**: The current year is 2025 and the current month is September. Gemini frequently forgets the date based on its training data and will source 2024 examples, documents, and use those dates erroneously. @Gemini, please before we implement anything with dates, we check the current year date as of TODAY. We don't need to source the most relevant information but it would be nice, and most certainly we should always use the current year when including it anywhere in this codebase.
+  - **GGl 1.00: Gemini Thinks its 2024**: The current year is `2025` and the current month is September. Gemini frequently forgets the date based on its training data and will source 2024 examples, documents, and use those dates erroneously. @Gemini, please before we implement anything with dates, we check the current year date as of TODAY. We don't need to source the most relevant information but it would be nice, and most certainly we should always use the current year when including it anywhere in this codebase.
   - **GGl 1.01.00: Gemini should take microsteps**: Implement code in microsteps rather than large code changes so the user can understand whats changing and make it easier for them to see what exactly is happening with the changes.  
   - **GGl 1.02.00: Level User Knowledge of Code on a Scale: 1 out of 10**: Assume the user has a very low knowledge of the code being used and help explain what is going on with each change we are making. 
   - **GGl 1.03.00: Gemini should prompt to update CHANGELOG.md & GEMINI.md frequently**: Frequently suggest changelog and GEMINI.md (this file) changes so we can keep a log of what exactly is occuring during development.
@@ -455,6 +495,7 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 52.0: Atomic State Updates for Looping Tasks
   - Rule 53.0: Understanding Event Propagation (Bubbling)
   - Rule 54.0: State Management for In-Place Editing
+  - Rule 55.0: Creating Stable Hover-Action Menus
 
 ---
 
@@ -2445,6 +2486,8 @@ onContextMenu={(e) => {
 ```
 By using `stopPropagation()`, we ensure that only the most specific event handler is executed, creating predictable and bug-free user interactions.
 
+---
+
 ### Developer Guide - Rule 54.0: State Management for In-Place Editing
 
 This guide explains the standard pattern for allowing a user to edit a single item directly within a list, without switching the entire view to an "edit mode." We implemented this for checklist items.
@@ -2495,3 +2538,48 @@ const [editingItemText, setEditingItemText] = useState('');
 ))}
 
 ```
+
+---
+
+### Developer Guide - Rule 55.0: Creating Stable Hover-Action Menus
+
+This guide explains how to create a common UI pattern: a set of action buttons that appear on hover over a list item, without causing the layout to shift when the actions add new content.
+
+#### The Problem: Layout Shift on Hover Actions
+
+We implemented a "quick actions" menu for checklist items that appears on hover. However, when an action (like "Add Note") added a new element to the DOM, it would increase the height of the main item container. This pushed the action buttons down, moving them out from under the user's cursor and causing them to disappear, which is a frustrating user experience.
+
+#### The Solution: Separate the Stable and Growing Content
+
+The solution is to structure the JSX so that the main interactive row (which contains the hover-triggered actions) is in a separate container from the content that can grow or shrink.
+
+#### Why This Works
+
+-   The `checklist-item-main-content` `div` has a stable height. The `checklist-item-quick-actions` are part of this stable row, so their position is never affected by content changes.
+-   When a note or response is added, it appears *below* the main row. This pushes the *next* checklist item in the list down, but it does not change the layout of the current item's action buttons, which remain fixed under the user's cursor.
+
+```jsx
+// File: src/renderer.tsx
+// Inside the .map() loop for each checklist item
+
+<div className="checklist-item">
+  {/* 1. The Main, Stable Row */}
+  <div className="checklist-item-main-content">
+    {/* Checkbox, item text, due date, etc. go here */}
+    <label>...</label>
+
+    {/* The hover menu is INSIDE the stable row */}
+    <div className="checklist-item-quick-actions">
+      <button>Edit</button>
+      <button>Add Note</button>
+    </div>
+  </div>
+
+  {/* 2. The Dynamic, Growing Content */}
+  {/* The note and response fields are OUTSIDE the main row */}
+  {item.note && <div className="checklist-item-note">...</div>}
+  {item.response && <div className="checklist-item-response">...</div>}
+</div>
+```
+
+---
