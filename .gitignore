@@ -93,3 +93,4 @@ out/
 
 # Ignore specific markdown files, not all of them
 GEMINILOOP.md
+Overwhelmed.code-workspace

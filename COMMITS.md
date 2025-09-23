@@ -9,14 +9,14 @@ A log of what was commited to git.
 - **[1.0.14] - YYYY-MM-DD**:
 - **[1.0.13] - YYYY-MM-DD**:
 - **[1.0.12] - YYYY-MM-DD**:
-- **[1.0.11] - YYYY-MM-DD**:
+- **[1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish**: feat(checklist): Improve checklist UX and add delete note/response actions
 - **[1.0.10] - 2025-09-22: Alternating & Looping Tasks**: feat(tasks): Add alternating and looping task functionality
 - **[1.0.09] - 2025-09-22: Copy Checklist**: feat(checklist): Add copy to clipboard functionality
 - **[1.0.08] - 2025-09-22: Checklist Responses & Notes**: feat(checklist): Add response and note fields to items. Doc edits
 - **[1.0.07] - 2025-09-21: UI Polish & Category Color-Coding**: feat(ui): Add category colors and refactor task header/actions
 - **[1.0.06] - 2025-09-21: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
 - **[1.0.05] - 2025-09-21: Task Types & Templated Forms**: feat(tasks): Implement Task Types and Templated Forms
-- **[1.0.04] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow**: feat(inbox): Implement full Archive and Trash system with UI polish 
+- **[1.0.04] - 2025-09-21: Inbox Archive & Trash + Documentation**: feat(inbox): Implement full Archive and Trash system with UI polish 
 - **[1.0.03] - 2024-09-20: Inbox Protection & Full Task View**:
 - **[1.0.02] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2024-09-18: Notification System & Inbox View**:
@@ -24,31 +24,49 @@ A log of what was commited to git.
 
 ---
 
-## [1.0.14] - 2025-09-22: 
+## [1.0.14] - YYYY-MM-DD: 
 **feat(): Feat Message Here**
 
 Future feature addtion here
 
 ---
 
-## [1.0.13] - 2025-09-22: 
+## [1.0.13] - YYYY-MM-DD: 
 **feat(): Feat Message Here**
 
 Future feature addtion here
 
 ---
 
-## [1.0.12] - 2025-09-22: 
+## [1.0.12] - YYYY-MM-DD: 
 **feat(): Feat Message Here**
 
 Future feature addtion here
 
 ---
 
-## [1.0.11] - 2025-09-22: 
-**feat(): Feat Message Here**
+## [1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish
+**feat(checklist): Improve checklist UX and add delete note/response actions**
 
-Future feature addtion here
+This commit introduces a series of quality-of-life improvements to the checklist system, focusing on fixing annoying UI behaviors and expanding context menu functionality.
+
+#### Features & Fixes:
+-   **Click-Through Fix**: Refactored the `ChecklistItem` component to move the `note` and `response` divs outside of the `<label>` element. This prevents the checkbox from being toggled when a user clicks on the note or response text.
+-   **Hover & Context Menu Polish**:
+    -   Added a `checklist-item-interactive-area` class and a corresponding hover style in CSS to provide clear visual feedback when the mouse is over any part of a checklist item.
+    -   Moved the `onContextMenu` handler to the parent `div` of the checklist item, making the entire item area (text, note, response) right-clickable.
+    -   Fixed a context menu "flickering" bug by adding `event.stopPropagation()` to the item's context menu handler, preventing it from conflicting with the parent section's menu.
+-   **Delete Note/Response**:
+    -   The checklist item context menu now includes "Delete Note" and "Delete Response" options.
+    -   These menu items are dynamically enabled/disabled based on whether a note or response exists for the item.
+    -   The `showChecklistItemContextMenu` IPC call was updated to pass `hasNote` and `hasResponse` booleans to the main process.
+    -   Added logic in the renderer to handle the new `delete_note` and `delete_response` commands.
+-   **Documentation**:
+    -   Added `Rule 53.0` to `GEMINI.md` to document the concept of event propagation (bubbling) and the `stopPropagation()` solution.
+    -   Added a corresponding entry to `DEFINITIONS.md`.
+
+#### Summary:
+These changes make the checklist feature more robust, intuitive, and user-friendly by fixing key interaction bugs and adding essential management functions.
 
 ---
 

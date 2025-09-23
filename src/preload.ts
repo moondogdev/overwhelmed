@@ -23,10 +23,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showSelectionContextMenu: (payload: { selectionText: string, x: number, y: number }) => ipcRenderer.send('show-selection-context-menu', payload),
   showToastContextMenu: (payload: { wordId: number, x: number, y: number }) => ipcRenderer.send('show-toast-context-menu', payload),
   showInboxItemContextMenu: (payload: { message: any, x: number, y: number }) => ipcRenderer.send('show-inbox-item-context-menu', payload),
-  showNavButtonContextMenu: (payload: { x: number, y: number, canGoBack: boolean, canGoForward: boolean }) => ipcRenderer.send('show-nav-button-context-menu', payload),
-  showChecklistItemContextMenu: (payload: { sectionId: number, itemId: number, isCompleted: boolean, x: number, y: number }) => ipcRenderer.send('show-checklist-item-context-menu', payload),
+  showNavButtonContextMenu: (payload: { x: number, y: number, canGoBack: boolean, canGoForward: boolean }) => ipcRenderer.send('show-nav-button-context-menu', payload),  
   showSaveButtonContextMenu: (payload: { x: number, y: number }) => ipcRenderer.send('show-save-button-context-menu', payload),
   showChecklistSectionContextMenu: (payload: { wordId: number, sectionId: number, areAllComplete: boolean, x: number, y: number }) => ipcRenderer.send('show-checklist-section-context-menu', payload),
+  showChecklistItemContextMenu: (payload: { sectionId: number, itemId: number, isCompleted: boolean, hasNote: boolean, hasResponse: boolean, x: number, y: number }) => ipcRenderer.send('show-checklist-item-context-menu', payload),
   downloadImage: (url: string) => ipcRenderer.invoke('download-image', url),
   // It's good practice to define which channels are allowed for two-way communication
   on: (channel: string, callback: (...args: any[]) => void) => {

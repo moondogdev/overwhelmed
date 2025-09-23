@@ -33,8 +33,8 @@ declare global {
     showInboxItemContextMenu: (payload: { message: InboxMessage, x: number, y: number }) => void;
     showNavButtonContextMenu: (payload: { x: number, y: number, canGoBack: boolean, canGoForward: boolean }) => void;
     showSaveButtonContextMenu: (payload: { x: number, y: number }) => void;    
-    showChecklistItemContextMenu: (payload: { sectionId: number, itemId: number, isCompleted: boolean, x: number, y: number }) => void;
     showChecklistSectionContextMenu: (payload: { wordId: number, sectionId: number, areAllComplete: boolean, x: number, y: number }) => void;
+    showChecklistItemContextMenu: (payload: { sectionId: number, itemId: number, isCompleted: boolean, hasNote: boolean, hasResponse: boolean, x: number, y: number }) => void;
     notifyDirtyState: (isDirty: boolean) => void;
   } }
 }
@@ -1313,7 +1313,11 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
             </div>
             <div className="checklist-items">
               {section.items.map(item => (
-                <div key={item.id} className={`checklist-item ${item.isCompleted ? 'completed' : ''}`}>
+                <div key={item.id} className={`checklist-item ${item.isCompleted ? 'completed' : ''} checklist-item-interactive-area`} onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation(); // Stop the event from bubbling up to the section's context menu
+                  window.electronAPI.showChecklistItemContextMenu({ sectionId: section.id, itemId: item.id, isCompleted: item.isCompleted, hasNote: !!item.note, hasResponse: !!item.response, x: e.clientX, y: e.clientY });
+                }}>
                   {editingItemId === item.id && isEditable ? (
                     <input
                       type="text"
@@ -1335,26 +1339,24 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                       className="checklist-item-text-input"
                     />
                   ) : (
-                    <label className="checklist-item-label flexed-column">
-                      <div className="checklist-item-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={item.isCompleted}
-                          onChange={() => handleToggleItem(section.id, item.id)}
-                        />
-                        <span className="checklist-item-text" onContextMenu={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation(); // Stop the event from bubbling up to the parent task
-                          window.electronAPI.showChecklistItemContextMenu({ sectionId: section.id, itemId: item.id, isCompleted: item.isCompleted, x: e.clientX, y: e.clientY });
-                        }}>{item.text}</span>
-                      </div>
+                    <>
+                      <label className="checklist-item-label flexed-column">
+                        <div className="checklist-item-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={item.isCompleted}
+                            onChange={() => handleToggleItem(section.id, item.id)}
+                          />
+                          <span className="checklist-item-text">{item.text}</span>
+                        </div>
+                      </label>
                       {item.response && (
                         <div className="checklist-item-response"><strong><i className="fas fa-reply"></i> Response:</strong> {item.response}</div>
                       )}
                       {item.note && (
                         <div className="checklist-item-note"><strong><i className="fas fa-sticky-note"></i> Note:</strong> {item.note}</div>
                       )}
-                    </label>
+                    </>
                   )}
                 </div>
               ))}
@@ -2862,6 +2864,18 @@ function App() {
           setCopyStatus('Response copied!');
           setTimeout(() => setCopyStatus(''), 2000);
         }
+      }
+      
+      if (command === 'delete_note' || command === 'delete_response') {
+        const fieldToClear = command === 'delete_note' ? 'note' : 'response';
+        newSections = newSections.map(sec => ({
+          ...sec,
+          items: sec.items.map(item =>
+            item.id === itemId ? { ...item, [fieldToClear]: undefined } : item
+          )
+        }));
+        setCopyStatus(`${fieldToClear.charAt(0).toUpperCase() + fieldToClear.slice(1)} deleted.`);
+        setTimeout(() => setCopyStatus(''), 2000);
       }
 
       handleWordUpdate({ ...wordContainingChecklist, checklist: newSections });

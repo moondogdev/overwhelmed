@@ -945,7 +945,7 @@ input[type="datetime-local"] + .button-group button {
 .word-item-details-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 5px;
   padding: 10px 0;
   border-bottom: 1px solid #555;
   margin-bottom: 10px;
@@ -957,11 +957,15 @@ input[type="datetime-local"] + .button-group button {
   font-size: 0.9em;
 }
 
-.word-item-details-form .checklist-item-label {
+.checklist-container .checklist-item-label {
   flex-direction: row;
 }
 
-.word-item-details-form label h4,
+.checklist-container .checklist-item-label:hover {
+    background: #555;
+}
+
+.accordion-content label h4,
 .new-task-form label h4 {
   margin: 0 0 5px 0;
   font-weight: normal;
@@ -1727,7 +1731,7 @@ input[type="datetime-local"] + .button-group button {
 
 .checklist-item {
   display: flex;
-  align-items: center;  
+  flex-direction: column;  
 }
 
 .checklist-item-label {
@@ -1808,6 +1812,14 @@ input[type="datetime-local"] + .button-group button {
 .checklist-item:hover .checklist-item-text {
   cursor: pointer;
 }
+.checklist-item-interactive-area:hover {
+  
+}
+.checklist-item-interactive-area {
+  
+}
+
+
 
 .checklist-item-text-input {
   flex-grow: 1;

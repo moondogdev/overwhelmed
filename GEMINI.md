@@ -102,15 +102,18 @@ See `CHANGELOG.md` for a list of future features to implement. Strickly follow `
 
 All notable changes to this project will be documented in this file @CHANGELOG.md. Please update the separate changelog as development progresses.
 
-- **[1.0.8] - 2025-09-22: Checklist Responses & Notes**: feat(checklist): Add response and note fields to items. Doc edits
-- **[1.0.7] - 2025-09-21: UI Polish & Category Color-Coding**: feat(ui): Add category colors and refactor task header/actions
-- **[1.0.6] - 2025-09-21: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
-- **[1.0.5] - 2025-09-21: Task Types & Templated Forms**: feat(tasks): Implement Task Types and Templated Forms
-- **[1.0.4] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow**: feat(inbox): Implement full Archive and Trash system with UI polish 
-- **[1.0.3] - 2024-09-20: Inbox Protection & Full Task View**:
-- **[1.0.2] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation**:
-- **[1.0.1] - 2024-09-18: Notification System & Inbox View**:
-- **[1.0.0] - 2024-09-15: Core Task Management & Data Persistence**:
+- **[1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish**: feat(checklist): Improve checklist UX and add delete note/response actions
+- **[1.0.10] - 2025-09-22: Alternating & Looping Tasks**: feat(tasks): Add alternating and looping task functionality
+- **[1.0.09] - 2025-09-22: Copy Checklist**: feat(checklist): Add copy to clipboard functionality
+- **[1.0.08] - 2025-09-22: Checklist Responses & Notes**: feat(checklist): Add response and note fields to items. Doc edits
+- **[1.0.07] - 2025-09-21: UI Polish & Category Color-Coding**: feat(ui): Add category colors and refactor task header/actions
+- **[1.0.06] - 2025-09-21: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
+- **[1.0.05] - 2025-09-21: Task Types & Templated Forms**: feat(tasks): Implement Task Types and Templated Forms
+- **[1.0.04] - 2025-09-21: Inbox Archive & Trash + Documentation**: feat(inbox): Implement full Archive and Trash system with UI polish 
+- **[1.0.03] - 2024-09-20: Inbox Protection & Full Task View**:
+- **[1.0.02] - 2024-09-19: Advanced Checklists, UI Polish, & Documentation**:
+- **[1.0.01] - 2024-09-18: Notification System & Inbox View**:
+- **[1.0.00] - 2024-09-15: Core Task Management & Data Persistence**:
 
 ---
 
@@ -135,6 +138,15 @@ Hello `@Gemini Code Assist`, if you can read this, please, before we make large 
 
 ### Prompts for Gemini
 These are a collection of prompts we use for coding with Gemini:
+
+---
+
+#### Response Bugged Out
+Your reponse bugged out.
+
+Please send the text explaining the rule in an individual copy plain text block. Then, provide the relative code examples separate in its own copy code block.
+
+---
 
 #### Start Feature Implementation
 We've committed to git and ready to begin working on implementing new features from our @CHANGELOG.md from the list in `## Future Features`. 
@@ -177,6 +189,12 @@ Documentation:
 These files can be understood better in the `# Developer Guide Index` section.
 
 ---
+
+#### Implement New Feature from @CHANGELOG.md
+We're ready to add a new feature. Can you check our @CHANGELOG.md and suggest something from the list of `## Future Features`?
+
+---
+
 
 #### Detailed Documentation Prompt
 Now that this last change is complete and all documentation is updated, is there anything we can add to `### Other Guidelines for Gemini Code Assist to follow`, `### Log of Issues and Lessons`, and `## Developer Guide Index` in our @GEMINI.md file.
@@ -429,6 +447,7 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 50.0: State Management for Modals Editing Nested Data
   - Rule 51.0: Formatting Text for Clipboard
   - Rule 52.0: Atomic State Updates for Looping Tasks
+  - Rule 53.0: Understanding Event Propagation (Bubbling)
 
 ---
 
@@ -2376,3 +2395,47 @@ setWords(prevWords => {
 
 ```
 ---
+
+### Developer Guide - Rule 53.0: Understanding Event Propagation (Bubbling)
+
+This guide explains the concept of "event bubbling" and how to control it, which is critical for handling events on nested elements.
+
+#### The Problem: Unexpected Parent Handlers Firing
+
+We encountered a bug where right-clicking a `ChecklistItem` (which has its own context menu) was also trying to trigger the context menu of the parent `ChecklistSection`. This happened because of a browser behavior called **event bubbling**.
+
+When an event (like a click or right-click) occurs on an element, the browser doesn't just fire the event on that specific element. It then "bubbles up" to the element's parent, then to the parent's parent, and so on, all the way up to the `document` root. If any of those parent elements also have a listener for the same event, they will fire too.
+
+**Example Scenario:**
+```html
+<div onContextMenu={handleSectionMenu}> <!-- Parent: Checklist Section -->
+  <div onContextMenu={handleItemMenu}>   <!-- Child: Checklist Item -->
+    Click Me
+  </div>
+</div>
+```
+When you right-click "Click Me", the browser does the following:
+1.  Fires `handleItemMenu` on the child `div`.
+2.  **Bubbles up** to the parent `div`.
+3.  Fires `handleSectionMenu` on the parent `div`.
+
+This caused the "flickering" we saw, as both menus were trying to open and were canceling each other out.
+
+#### The Solution: `event.stopPropagation()`
+
+To fix this, you can call `event.stopPropagation()` inside the child's event handler. This tells the browser to handle the event on the specific element that was clicked and to **stop the bubbling process**, preventing the event from ever reaching the parent elements.
+
+**Correct Implementation:**
+```jsx
+// In the child element's event handler (e.g., the Checklist Item)
+onContextMenu={(e) => {
+  e.preventDefault(); // Always prevent the default browser menu
+  e.stopPropagation(); // CRITICAL: Stop the event from bubbling up.
+  
+  // Now, only this element's logic will run.
+  window.electronAPI.showChecklistItemContextMenu(...);
+}}
+```
+By using `stopPropagation()`, we ensure that only the most specific event handler is executed, creating predictable and bug-free user interactions.
+
+

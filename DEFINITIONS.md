@@ -37,6 +37,9 @@ This document should be updated whenever new declarative logic is implemented.
 ### `settings.taskTypes: TaskType[]`
 -   **Description**: An array within the `settings` object that stores the user-defined task types, including their name and the list of fields they display.
 
+### `settings.openChecklistSectionIds: number[]`
+-   **Description**: An array within the `settings` object that stores the IDs of checklist sections that are currently expanded. This allows the UI to remember which sections are open or collapsed.
+
 ### `isChecklistPromptOpen: boolean`
 -   **Description**: A boolean flag that controls the visibility of the `PromptModal` used for editing a checklist item's `response` or `note` field.
 
@@ -221,6 +224,7 @@ interface Settings {
   inboxSort?: 'date-desc' | 'date-asc' | 'type';
   openInboxGroupTypes?: string[];
   taskTypes?: TaskType[];
+  openChecklistSectionIds?: number[];
   allCategoryColor?: string;
 }
 ```
@@ -414,6 +418,14 @@ This pattern explains why we use separate state arrays for different views (e.g.
     const [archivedMessages, setArchivedMessages] = useState<InboxMessage[]>([]);
     ```
     Moving an item is a one-time operation (removing from one array, adding to another). This makes rendering each tab view extremely fast, as no filtering is required. This is the standard pattern for features like the Inbox Archive and Trash.
+
+---
+
+### Event Propagation (Bubbling)
+
+-   **Description**: The process where an event fired on a nested element "bubbles up" to its parent elements, potentially triggering their event handlers as well.
+-   **Usage**: We must often stop this behavior to prevent unintended side effects, like multiple context menus trying to open at once.
+-   **See Also**: `Rule 53.0: Understanding Event Propagation (Bubbling)` in `GEMINI.md` for a detailed explanation and solution using `event.stopPropagation()`.
 
 ---
 

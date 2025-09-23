@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file. See `## Log
 ---
 
 ## Future Features 
+-   ### **Checklists**":
+    - Checklist Item: Individual Due Date for Checklist Items    
+    - Checklists Duplicate issue: It seems like when we duplicate a section OR checklist item and try to add a note, it doesn't have unique enough IDs so the checklist items share the same notes/responses
+    - Checklists Item Copy: Copy the raw content of a section without any checkboxes or header to clipboard
+    - Checklists Items Delete: Use the "checked" to "delete selected" and another option to "delete checklists" to clear bulk items faster
+    - Checklist Item: Make it full width so we can edit the area easier
+    - Checklist Context Menu: If in Edit task mode, allow to "View Task" in place of the "Edit Task" to toggle back to it. Try to maintain scroll page length so we can dont need to find where we were.
+    - Checklist Item Context Menu: Edit Item doesn't work when in Task view, it should allow editing of that checklist item while staying in Task View
+    - Checklist Item Context Menu: Make the "Add Item" options autofocus the input field so we can start typing as soon as we choose the option
+    - Checklists Notes/Responses Context Menus: notes/responses currently receive right click context menus associated with their checklist item. Do we want to add context menus just for notes/responses? or is the current implementation fine?
+    - Checklists Notes/Responses Buttons: Add Note/Response buttons to the checklist item ui to make it easier to add
+    - Checklists Item Highlight: Need to add a context menu option to highlight a list item; maybe make a key like priority list, doesn't concern me, etc
+    - Checklists Item Fields in Edit state: checklist fields and active response/notes, should all have their fields in a editable state as an <input> rather than display rendered when in Edit mode
+    - Checklists Item Bulk Note Add: Need a "Add Notes to All Checklist (in Section)" and "Add Notes to All Checklists"
+    - Checklists Item Bulk Response Add: Need a "Add Responses to All Checklist (in Section)" and "Add Notes to All Checklists"
+    - Checklists Item Links : Add "Open Link" to context menu if the item has a url?    
+    - Time Tracker per Checklist item in a Task: Checkbox option on a checklist section that makes the checklist function where, as we add a checklist item, it starts a timer next to that item:
+        #### Time Tracker (Example):
+        Checklist
+
+        My Checklist Section: 0:48 [x] Time Tracker? (show clock icon here maybe? if toggled on, show total timer in header
+        - Item with only 14s showing a resume record icon: 0:14 [•] < (Resume Recording Time) 
+        - Item that is currently being recorded: 0:34 [=] < (Pause Timer)
+        - [input placeholder="Add item to start timer"/][+]
+    - Checklist Item: Individual Time Trackers for Checklist Items - like the ability to track time on a singular checklist item with no additional logic attached
+
+- ### Linked / Looped Tasks:
+    - Task Series Loop: Need to implement a series of tasks that are using the new linked task loop logic
+    - Linked Task Offset: Add offset to the Linked task so the deadline of the link task starts + the value input
+
+- ### Accordion Task
+    - Accordion Task Header UI: Re-Occurring dropdown menu doesn't really indicate when an item is selected
+    - Accordion Task Header Context Menu Add Category: Lets add a faster way to add a category to a task with context menu Add Category > ??? whats best way to handle providing a choice
+    - Accordion Task Content: Look into the links where the Description: section is. Some of them don't work after adding the checklists.
+    - Accordion Task Content Response Section: Add "Responses" section similar to the Notes: section where we add content intended to reply to a ticket
+    - Accordion Task Content: Goto Next in Context Menu / Collapse Current
+    - Sort by Due Date Issue: in the new Sort by Due Date logic that groups the tasks by days, when a task is completed and re-occuring, it sends tasks that are due for today's date to the "tomorrow section". Maybe issue with the "Tomorrow" logic.    
+    - Select Tasks for Bulk Edits: Add/Update/Delete All Category - maybe like select amount and dropdown to change category for all?
+
+-   ### Text Editors Issues
+    - Text Editors: Text Editor issue with Pasting Link/Control+K: Errors with `Control+K` link apply to text: goes to the top of the content and applies a fresh link to that area, leaving the original 
+    - Rich Text editor Tab: add tab support to list items 
+    - Rich Text editor Undo/Redo: Need to keep a history and control z / control Y should undo / redo the history actions in the text editors when we tab away they lose their history
+    - Rich Text editor Links: Linked items are aggressively default blue in the "View" tab of the "Edit" view of the task content for Description and Notes
+
+- ### Bulk Add: 
+    - Lets expand the Bulk Add sidebar option:
+        - Bulk Add: Dropdown for Choose category: but update Category field to default to current sub/category view
+        - Bulk Add: Choose due date/time     
+
+- ### Overdue Toast Additions: 
+    - Overdue Toast: Dismiss message? Not sure how this would be handled? Silent?
+    - Overdue Toast: Long Snooze? 1hr?
+    - Overdue Toast: Reveal Snoozes, Dismisses/Silenced?: Would this be a good way to handle undoing a silent 
+    - Overdue Toast: Maybe in the Overdue: {} count section as it expands this will be where we add the Reveal Snooze/Dismiss could be revealed when clicked on a button within this container
 
 -   ### **Templated Tasks**: 
     Save a task to use when creating a new task & predefined Templates to choose from:
@@ -62,7 +117,7 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.14] - YYYY-MM-DD**:
 - **[1.0.13] - YYYY-MM-DD**:
 - **[1.0.12] - YYYY-MM-DD**:
-- **[1.0.11] - YYYY-MM-DD**:
+- **[1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish**: feat(checklist): Improve checklist UX and add delete note/response actions
 - **[1.0.10] - 2025-09-22: Alternating & Looping Tasks**: feat(tasks): Add alternating and looping task functionality
 - **[1.0.09] - 2025-09-22: Copy Checklist**: feat(checklist): Add copy to clipboard functionality
 - **[1.0.08] - 2025-09-22: Checklist Responses & Notes**: feat(checklist): Add response and note fields to items. Doc edits
@@ -77,19 +132,34 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
-## [1.0.14] - 2025-09-22: 
+## [1.0.14] - YYYY-MM-DD: 
 
 ---
 
-## [1.0.13] - 2025-09-22: 
+## [1.0.13] - YYYY-MM-DD: 
 
 ---
 
-## [1.0.12] - 2025-09-22: 
+## [1.0.12] - YYYY-MM-DD: 
 
 ---
 
-## [1.0.11] - 2025-09-22: 
+## [1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish
+
+#### Changed
+-   **Checklist Item Click Behavior**: Fixed a bug where clicking on a checklist item's note or response would incorrectly toggle the item's completion status. The note and response are now outside the main label.
+-   **Checklist Item Hover Effect**: The entire area for a checklist item (including its text, note, and response) now has a subtle background hover effect, making it clear that the entire block is interactive.
+-   **Checklist Item Context Menu**: The right-click context menu can now be triggered from anywhere on the checklist item (text, note, or response area), not just the item text, creating a more intuitive user experience.
+
+#### Added
+-   **Delete Note/Response**: Added "Delete Note" and "Delete Response" options to the checklist item context menu. These options are dynamically enabled only if a note or response exists.
+
+#### Fixed
+-   **Context Menu Flickering**: Resolved a bug where right-clicking a checklist item would cause the UI to flicker. This was due to an event propagation conflict between the item's context menu and the parent section's context menu, which was fixed by adding `event.stopPropagation()`.
+
+#### Documentation
+-   **Event Propagation Guide**: Added a new developer guide (`Rule 53.0`) to `GEMINI.md` explaining the concept of event bubbling and the use of `event.stopPropagation()` to prevent it.
+-   **Project Glossary**: Updated `DEFINITIONS.md` with an entry for "Event Propagation (Bubbling)" that links to the new developer guide.
 
 ---
 

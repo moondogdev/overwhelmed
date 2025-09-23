@@ -500,7 +500,7 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
   ipcMain.on('show-checklist-item-context-menu', (event, payload) => {
-    const { sectionId, itemId, isCompleted, x, y } = payload;
+    const { sectionId, itemId, isCompleted, hasNote, hasResponse, x, y } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
       {
@@ -519,6 +519,17 @@ app.whenReady().then(() => {
       {
         label: 'Copy Response',
         click: () => webContents.send('checklist-item-command', { command: 'copy_response', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Delete Note',
+        enabled: hasNote,
+        click: () => webContents.send('checklist-item-command', { command: 'delete_note', sectionId, itemId }),
+      },
+      {
+        label: 'Delete Response',
+        enabled: hasResponse,
+        click: () => webContents.send('checklist-item-command', { command: 'delete_response', sectionId, itemId }),
       },
       {
         label: 'Edit Item',
