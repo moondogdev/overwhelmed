@@ -5,24 +5,18 @@ All notable changes to this project will be documented in this file. See `## Log
 ---
 
 ## Future Features 
--   ### **Checklists**":
+-   ### **Checklists**:
+    - **Checklist Section**: 
+        - The checklists can get very long:
+            - Need to add "Collapse Checklist" and "Collapse All Checlists" to both the rightclick context menus and as buttons in the UI for the checklist sections        
+            - Add Toggle to Hide/Show all Responses
+            - Add Toggle to Hide/Show all Notes 
+        - Checklists Item Bulk Response/Note Add: Need a "Add Notes to All Checklist (in Section)" and "Add Notes to All Checklists"
+        - Autofocus section header for "Add Checklist Sections" should wipe the header content so we dont need to delete the placeholder
+        
     - **Checklist Items**:
-        - Checklists Item Context Menu (in development): Make the "Add Item" options autofocus the input field so we can start typing as soon as we choose the option
-            - **Attempt #1**: We've begun trying to add this but it doesn't seem fully supported. We fixed the issue of allowing checklist items to be editable when Edit Item is selected while in Task View in hopes to solve the underlining issue but its not working yet. We'll need to explore what can be done to string `Add Item Before/After` and `Edit Item` together so when a checklist item is added it starts in Edit Mode. The very next request is stating that all checklist items should be in an editable state and not require entering into Edit mode if we are on the Edit view so when we `Add Item Before/After` in the Edit view it should automatically work since the items added should be in Edit mode based on the next request. Maybe we should solve the next request first?
-        - Checklists Item Fields in Edit state: checklist fields and active response/notes, should all have their fields in a editable state as an <input> rather than display rendered when in Edit mode
-        - Checklists Item Copy: Copy the raw content of a section without any checkboxes or header to clipboard
         - Checklists Context Menu: If in Edit task mode, allow to "View Task" in place of the "Edit Task" to toggle back to it. Try to maintain scroll page length so we can dont need to find where we were between toggles.
-        - Checklists Item Highlight: Need to add a context menu option to highlight a list item; maybe make a key like priority list, doesn't concern me, etc
-        - Checklists Item Links : Add "Open Link" to context menu if the item has a url?
-    - **Checkist Notes/Responses**:
-        - Checklists Notes/Responses Context Menus: notes/responses currently receive right click context menus associated with their checklist item. Do we want to add context menus just for notes/responses? or is the current implementation fine?
-        - Checklists Notes/Responses Buttons: Add Note/Response buttons to the checklist item UI to make it easier to add
-        - Checklists Notes/Responses UI: Make the icon a hover submenu that allows options like: 
-            - copy the content of the note or response to the clipboard 
-            - edit the note/response
-            - delete the note/response
-        - Checklists Item Bulk Note Add: Need a "Add Notes to All Checklist (in Section)" and "Add Notes to All Checklists"
-        - Checklists Item Bulk Response Add: Need a "Add Responses to All Checklist (in Section)" and "Add Notes to All Checklists"
+        - Checklists Item Copy: Copy the raw content of a section without any checkboxes or header to clipboard for cases when we want to paste the content without any additional data
     - **Time Tracker**:
         - Time Tracker per Checklist item in a Task: 
             - Checkbox option on a checklist section that makes the checklist function where, as we add a checklist item, it starts a timer next to that item:
@@ -38,12 +32,15 @@ All notable changes to this project will be documented in this file. See `## Log
     - Task Series Loop: Need to implement a series of tasks that are using the new linked task loop logic
     - Linked Task Offset: Add offset to the Linked task so the deadline of the link task starts + the value input
 
+- ### Tasks
+    - **Complete Task**: Add a new "Complete Task" option that functions like a "move task to Completed so all the connective logic triggers but set its status to a "Not Completed/Skipped" for tasks that become annoying that weren't actually Completed. Maybe a new Completed grouping that indicates which tasks were 'Skipped' so the user can dismiss certain reoccurring tasks without them coming back.
+
 - ### Accordion Task
     - Accordion Task Header UI: Re-Occurring dropdown menu doesn't really indicate when an item is selected
     - Accordion Task Header Context Menu Add Category: Lets add a faster way to add a category to a task with context menu Add Category > ??? whats best way to handle providing a choice
     - Accordion Task Content: Look into the links where the Description: section is. Some of them don't work after adding the checklists.
     - Accordion Task Content Response Section: Add "Responses" section similar to the Notes: section where we add content intended to reply to a ticket
-    - Accordion Task Content: Goto Next in Context Menu / Collapse Current
+    - Accordion Task Content: Goto Next in Context Menu / Collapse Current Task
     - Sort by Due Date Issue: in the new Sort by Due Date logic that groups the tasks by days, when a task is completed and re-occuring, it sends tasks that are due for today's date to the "tomorrow section". Maybe issue with the "Tomorrow" logic.    
     - Select Tasks for Bulk Edits: Add/Update/Delete All Category - maybe like select amount and dropdown to change category for all?
 
@@ -74,9 +71,11 @@ All notable changes to this project will be documented in this file. See `## Log
     -   **Template: Work**:
     -   **Template: Shopping**:
     -   **Template: Home & Car Maintenance**:
-    -   **Template: Billing**:    
+    -   **Template: Billing**: 
+
 -   ### **Copy to Sheets**: 
     Explore how we could copy a task to sheets possibly or what we'd use this for
+
 -   ### **Inbox Expansion**:
     The Inbox will need further expansion to support options, context menus, and sorting
     -   **Inbox Options**: Expand the inbox options to choose which message are received/displayed
@@ -86,18 +85,28 @@ All notable changes to this project will be documented in this file. See `## Log
     
 -   ### **Standalone Application**: 
     Package the application into a distributable and installable format for major operating systems (Windows, macOS, Linux).
+
 -   ### **Users**: Add a feature to create users and assign tickets to them, with the ability to filter the list to view tickets assigned to a specific user.
+
 -   ### **Themes**: Different style layouts
+
 -   ### **Settings**: Missing a few settings options and probably want to build a full settings view soon
+
 -   ### **Calendar**: Task view in Calendar form. Can start new task on a specific due date by using the calendar
+
 -   ### **Achievements**: Fun goal tracking system
+
 -   ### **Score**: Add score to tasks
+
 -   ### **Response to Ticket**: Like a comment but we want this to be a field where we would draft a response to a task acting as a ticket. Ideally we would be able to grab data from the task to help construct the response.
+
 -   ### **Filtered search of Scripted responses**: Similar to above and likely used for the Response to Ticket but also allowing the user to user from a variety of responses and oneliners for Tasks functioning as Tickets. 
+
 -   ### **Send Notifications externally**: Attempts to hook the various toast alerts to external sources
     -   **Send to Desktop Notifications**: See whats possible with Electron
     -   **Send to Email Notifications**: See whats possible with Electron
     -   **Send to SMS Notifications**: See whats possible with Electron
+
 -   ### **Advanced Checklist System**:  This system is already in place but we're still expanding it out.
     -   Checklist Template Management
         -   Implemented a full template system to save, load, and manage reusable checklists:
@@ -105,6 +114,7 @@ All notable changes to this project will be documented in this file. See `## Log
             -   Phase 2: UI/UX Implementation
             -   Phase 3: State Management & Logic
         -   Add a "Manage Templates" button to open a modal for renaming/deleting templates.
+
 -   ### **Total Refactoring**:  The codebase's individual files are getting rather large and likely need to start compartmentalizing structure into individual files to reduce strain on both the developer and code assist tools.
     - **Change "Word" to "Task"**: When the application was first created, its only purpose was to display a "word cloud," so the main data object was fittingly named Word. As we added more and more features, we transformed that simple Word object into a complex Task manager, but the original variable names like Word, words, handleCompleteWord, etc., remained. See "Rule 08.0: Codebase Naming Conventions (Word vs. Task)" for more details.
       - We need to update this handling to avoid confusion moving forward as the application grows from its original intention. The App started as a simple "word cloud" generator on a meme, which still functions as both a Meme Generator and links the tasks to a google search result when clicked. 
@@ -117,6 +127,7 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
+- **[1.0.14] - 2025-09-23: Interactive Checklists & Link Handling**: feat(checklist): Overhaul checklist interactivity, add link handling, and fix bugs
 - **[1.0.13] - 2025-09-23: Interactive Checklist Items**: feat(checklist): Implement fully interactive checklist item UI
 - **[1.0.12] - 2025-09-23: Checklist Enhancements**: feat(checklist): Add due dates, fix duplication, and improve layout
 - **[1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish**: feat(checklist): Improve checklist UX and add delete note/response actions
@@ -131,6 +142,31 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.14] - 2025-09-23: Interactive Checklists & Link Handling
+
+#### Added
+-   **Interactive Items**: Implemented full in-place editing for checklist items, notes, and responses. Added a hover-activated quick-action menu for editing, deleting, and adding notes/responses.
+-   **Clickable Links**: URLs in the text of a checklist item, note, or response are now automatically rendered as clickable `<a>` links in the "Task" view.
+-   **Link Context Menus**: Right-clicking an item, note, or response containing a URL now shows "Open Link" and "Copy Link" options.
+-   **Checklist Item Highlighting**: Added a "Highlight" submenu to the item context menu to apply a colored border, with a "Clear All Highlights" action in the section menu.
+-   **Dedicated Context Menus**: Added focused context menus for notes and responses, including "Edit" actions for quick modifications from the "Task" view.
+
+#### Fixed
+-   **Checklist Item "Move Down"**: Fixed a critical bug where using the "Move Down" action would cause a crash due to a missing `break;` statement.
+-   **Checklist Item Edit Button**: Fixed a bug where the "Edit Item" quick-action button would incorrectly clear the item's text field.
+-   **Context Menu State**: Fixed multiple bugs where "Copy Note" and "Copy Response" options were incorrectly enabled in context menus even when the fields were empty.
+-   **Checklist Due Date Picker**: Fixed a timezone-related bug where selecting a date would sometimes save it as the previous day.
+-   **Footer Component Performance**: Fixed a performance issue where the `Footer` component was re-rendering on every state change by moving its definition outside the main `App` component.
+-   **TypeScript Errors**: Resolved various TypeScript errors related to prop drilling and mismatched type definitions during feature implementation.
+
+#### Documentation
+-   **Developer Guides**: Added new rules to `GEMINI.md` for Prop Drilling (`58.0`) and Switch Statement Fall-Through (`59.0`).
+-   **Project Glossary**: Updated `DEFINITIONS.md` to include all new context menu commands and helper functions related to the new features.
+
+
 
 ---
 
@@ -151,6 +187,9 @@ All notable changes to this project will be documented in this file. See `## Log
 #### Documentation
 -   **Developer Guide**: Added `Rule 55.0` to `GEMINI.md` to document the pattern for creating stable hover-action menus.
 -   **Project Glossary**: Updated `DEFINITIONS.md` with all new state variables (`editingResponseForItemId`, `focusSubInputKey`, etc.) and handlers (`handleDeleteItem`, `handleDeleteItemResponse`, etc.) related to these new features.
+
+#### Known Issues
+-   **Checklist Item Autofocus**: The context menu actions "Add Item Before" and "Add Item After" do not automatically focus the newly created item for immediate editing. While the new UI makes editing easy, this specific autofocus-on-create feature remains an unresolved technical challenge.
 
 #### Summary
 These changes transform the checklist from a static list into a fully interactive and dynamic component. Users can now manage all aspects of a checklist item—text, notes, and responses—directly from the list view with intuitive hover actions, significantly improving workflow speed and usability.
@@ -199,7 +238,7 @@ These changes transform the checklist from a static list into a fully interactiv
 
 ---
 
-## [1.0.10] - 2025-09-23: Alternating Tasks
+## [1.0.10] - 2025-09-22: Alternating Tasks
 #### Added
 -   **Alternating Tasks**: Implemented a system to link tasks together. A new "Starts Task on Complete" dropdown in the "Edit Task" view allows a user to select a successor task. When the predecessor is completed, the successor task is automatically activated.
 -   **Task Loops**: The system now visually detects and indicates when two tasks are linked to each other, forming a loop. A spinning `fa-sync-alt` icon is displayed instead of the standard link icon.

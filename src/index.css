@@ -1763,6 +1763,12 @@ input[type="datetime-local"] + .button-group button {
   align-items: center;
   flex-wrap: wrap;
 }
+.checklist-item.highlighted {
+  border-left-width: 4px;
+  border-left-style: solid;
+  padding-left: 8px; /* Adjust padding to compensate for border */
+}
+
 .checklist-item-label {
   display: flex;
   align-items: center;
@@ -1927,13 +1933,13 @@ input[type="datetime-local"] + .button-group button {
 .checklist-delete-btn:hover {
   color: #c94a4a !important;
 }
-.checklist-item-response,
-.checklist-item-note {
-  font-size: 0.9em;
-  margin-left: 30px; /* Indent under the checkbox */
-  margin-top: 5px;
-  padding: 5px 8px;
-  border-radius: 3px;
+
+.checklist-item-response, .checklist-item-note {
+    font-size: 0.9em;
+    margin: 5px 5px;
+    padding: 5px 8px;
+    border-radius: 3px;
+    width: 100%;
 }
 
 .checklist-item-response {

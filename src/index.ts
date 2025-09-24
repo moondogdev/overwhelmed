@@ -500,36 +500,12 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
   ipcMain.on('show-checklist-item-context-menu', (event, payload) => {
-    const { sectionId, itemId, isCompleted, hasNote, hasResponse, x, y } = payload;
+    const { sectionId, itemId, isCompleted, hasNote, hasResponse, hasUrl, x, y } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
       {
         label: isCompleted ? 'Re-Open Item' : 'Complete Item',
         click: () => webContents.send('checklist-item-command', { command: 'toggle_complete', sectionId, itemId }),
-      },
-      { type: 'separator' },
-      {
-        label: 'Add/Edit Response',
-        click: () => webContents.send('checklist-item-command', { command: 'edit_response', sectionId, itemId }),
-      },
-      {
-        label: 'Add/Edit Note',
-        click: () => webContents.send('checklist-item-command', { command: 'edit_note', sectionId, itemId }),
-      },
-      {
-        label: 'Copy Response',
-        click: () => webContents.send('checklist-item-command', { command: 'copy_response', sectionId, itemId }),
-      },
-      { type: 'separator' },
-      {
-        label: 'Delete Note',
-        enabled: hasNote,
-        click: () => webContents.send('checklist-item-command', { command: 'delete_note', sectionId, itemId }),
-      },
-      {
-        label: 'Delete Response',
-        enabled: hasResponse,
-        click: () => webContents.send('checklist-item-command', { command: 'delete_response', sectionId, itemId }),
       },
       {
         label: 'Edit Item',
@@ -539,6 +515,67 @@ app.whenReady().then(() => {
         label: 'Copy Item Text',
         click: () => webContents.send('checklist-item-command', { command: 'copy', sectionId, itemId }),
       },
+      {
+        label: 'Duplicate Item',
+        click: () => webContents.send('checklist-item-command', { command: 'duplicate', sectionId, itemId }),
+      },
+      {
+        label: 'Delete Item',
+        click: () => webContents.send('checklist-item-command', { command: 'delete', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Open Link',
+        enabled: hasUrl,
+        click: () => webContents.send('checklist-item-command', { command: 'open_link', sectionId, itemId }),
+      },
+      {
+        label: 'Copy Link',
+        enabled: hasUrl,
+        click: () => webContents.send('checklist-item-command', { command: 'copy_link', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Highlight',
+        submenu: [
+          { label: 'Yellow', click: () => webContents.send('checklist-item-command', { command: 'highlight', sectionId, itemId, color: '#f4d03f' }) },
+          { label: 'Red', click: () => webContents.send('checklist-item-command', { command: 'highlight', sectionId, itemId, color: '#c94a4a' }) },
+          { label: 'Blue', click: () => webContents.send('checklist-item-command', { command: 'highlight', sectionId, itemId, color: '#61dafb' }) },
+          { type: 'separator' },
+          {
+            label: 'Remove Highlight',
+            click: () => webContents.send('checklist-item-command', { command: 'highlight', sectionId, itemId, color: undefined }),
+          },
+        ],
+      },
+      { type: 'separator' },
+      {
+        label: 'Add/Edit Response',
+        click: () => webContents.send('checklist-item-command', { command: 'edit_response', sectionId, itemId }),
+      },      
+      {
+        label: 'Copy Response',
+        enabled: hasResponse,
+        click: () => webContents.send('checklist-item-command', { command: 'copy_response', sectionId, itemId }),
+      },
+      {
+        label: 'Delete Response',        
+        click: () => webContents.send('checklist-item-command', { command: 'delete_response', sectionId, itemId }),
+      },
+      { type: 'separator' },      
+      {
+        label: 'Add/Edit Note',
+        click: () => webContents.send('checklist-item-command', { command: 'edit_note', sectionId, itemId }),
+      },
+      {
+        label: 'Copy Note',
+        enabled: hasNote,
+        click: () => webContents.send('checklist-item-command', { command: 'copy_note', sectionId, itemId }),
+      },
+      {
+        label: 'Delete Note',        
+        click: () => webContents.send('checklist-item-command', { command: 'delete_note', sectionId, itemId }),
+      },      
       { type: 'separator' },
       {
         label: 'Add Item Before',
@@ -556,16 +593,7 @@ app.whenReady().then(() => {
       {
         label: 'Move Down',
         click: () => webContents.send('checklist-item-command', { command: 'move_down', sectionId, itemId }),
-      },
-      { type: 'separator' },
-      {
-        label: 'Duplicate Item',
-        click: () => webContents.send('checklist-item-command', { command: 'duplicate', sectionId, itemId }),
-      },
-      {
-        label: 'Delete Item',
-        click: () => webContents.send('checklist-item-command', { command: 'delete', sectionId, itemId }),
-      },
+      },      
     ];
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
@@ -578,14 +606,18 @@ app.whenReady().then(() => {
         click: () => webContents.send('checklist-section-command', { command: 'toggle_all_in_section', sectionId }),
       },
       {
+        label: 'Clear All Highlights',
+        click: () => webContents.send('checklist-section-command', { command: 'clear_all_highlights', sectionId }),
+      },
+      { type: 'separator' },
+      {
         label: 'Copy Section',
         click: () => webContents.send('checklist-section-command', { command: 'copy_section', sectionId }),
       },
       {
         label: 'Copy All Sections',
         click: () => webContents.send('checklist-section-command', { command: 'copy_all_sections', sectionId }),
-      },
-      { type: 'separator' },
+      },      
       { type: 'separator' },
       {
         label: 'Duplicate Section',
@@ -626,6 +658,70 @@ app.whenReady().then(() => {
       },
     ];
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
+  });
+  ipcMain.on('show-checklist-note-context-menu', (event, payload) => {    
+    const { sectionId, itemId, hasNote, hasUrl, x, y } = payload;
+    const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+      {
+        label: 'Open Link',
+        enabled: hasUrl,
+        click: () => webContents.send('checklist-item-command', { command: 'open_note_link', sectionId, itemId }),
+      },
+      {
+        label: 'Copy Link',
+        enabled: hasUrl,
+        click: () => webContents.send('checklist-item-command', { command: 'copy_note_link', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Edit Note',
+        click: () => webContents.send('checklist-item-command', { command: 'edit_note', sectionId, itemId }),
+      },
+      {
+        label: 'Copy Note',
+        enabled: hasNote,
+        click: () => webContents.send('checklist-item-command', { command: 'copy_note', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Delete Note',
+        click: () => webContents.send('checklist-item-command', { command: 'delete_note', sectionId, itemId }),
+      },
+    ];
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });
+  });
+  ipcMain.on('show-checklist-response-context-menu', (event, payload) => {
+    const { sectionId, itemId, hasUrl, hasResponse, x, y } = payload;
+    const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+      {
+        label: 'Open Link',
+        enabled: hasUrl,
+        click: () => webContents.send('checklist-item-command', { command: 'open_response_link', sectionId, itemId }),
+      },
+      {
+        label: 'Copy Link',
+        enabled: hasUrl,
+        click: () => webContents.send('checklist-item-command', { command: 'copy_response_link', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Edit Response',
+        click: () => webContents.send('checklist-item-command', { command: 'edit_response', sectionId, itemId }),
+      },
+      {
+        label: 'Copy Response',
+        enabled: hasResponse,
+        click: () => webContents.send('checklist-item-command', { command: 'copy_response', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Delete Response',
+        click: () => webContents.send('checklist-item-command', { command: 'delete_response', sectionId, itemId }),
+      },
+    ];
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });
   });
   ipcMain.on('show-selection-context-menu', (event, payload) => {
     const webContents = event.sender;
@@ -670,7 +766,6 @@ app.whenReady().then(() => {
       if (filePath) fs.writeFileSync(filePath, imageBuffer);
     } catch (error) { console.error('Failed to download image:', error); }
   });
-
   ipcMain.handle('save-csv', async (event, csvData: string) => {
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: 'Export Report to CSV',
@@ -687,7 +782,6 @@ app.whenReady().then(() => {
       }
     }
   });
-
   ipcMain.handle('manage-file', async (event, { action, filePath, fileName }) => {
     switch (action) {
       case 'select': {
@@ -722,10 +816,8 @@ app.whenReady().then(() => {
       // 'remove' action will be handled client-side by updating the task data. We could add a server-side file deletion here for cleanup if desired.
     }
   });
-
   createWindow();
 });
-
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
@@ -734,7 +826,6 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
-
 app.on('activate', () => {
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.

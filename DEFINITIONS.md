@@ -112,6 +112,7 @@ interface ChecklistItem {
   response?: string;
   note?: string;
   dueDate?: number;
+  highlightColor?: string;
 
 }
 ```
@@ -307,6 +308,12 @@ interface Word {
 -   **`response?: string`**: An optional public response or comment related to the checklist item. This field is intended to be visible when copying or exporting the checklist.
 -   **`note?: string`**: An optional private note for the checklist item. This field is for internal use and should not be included in copied or exported content.
 
+### `ChecklistItem.highlightColor`
+-   **Description**: An optional string that stores a hex color code (e.g., `#f4d03f`). If present, the UI will apply a visual highlight of this color to the checklist item.
+
+### `extractUrlFromText(text: string): string | null`
+-   **Description**: A helper function that takes a string and uses a regular expression to find and return the first `http` or `https` URL it contains. Returns `null` if no URL is found.
+
 ---
 
 ## Handlers (Functions)
@@ -356,6 +363,18 @@ interface Word {
 ### `handleDeleteItem(sectionId: number, itemId: number)`
 -   **Description**: Deletes an entire checklist item from a specific section.
 
+### `handleUpdateItemDueDateFromPicker(sectionId: number, itemId: number, dateString: string)`
+-   **Description**: A dedicated handler for the checklist item's date picker input. It correctly parses the `YYYY-MM-DD` string to a local timezone timestamp to prevent off-by-one-day errors.
+
+### `checklist-item-command` Listener
+-   **Description**: A `useEffect` hook in `renderer.tsx` that listens for commands sent from the various checklist-related context menus. It acts as a central router to perform actions on checklist items, notes, and responses.
+-   **Commands Handled**:
+    -   `edit_note` / `edit_response`: Puts the note/response into an inline-editable state in the Task view.
+    -   `copy_note` / `copy_response`: Copies the text content of the note/response to the clipboard.
+    -   `delete_note` / `delete_response`: Deletes the note/response from the item.
+    -   `open_link` / `copy_link`: Opens or copies the first URL found in the main item text.
+    -   `open_note_link` / `copy_note_link`: Opens or copies the first URL found in a note.
+    -   `open_response_link` / `copy_response_link`: Opens or copies the first URL found in a response.
 ---
 
 ---
@@ -367,6 +386,9 @@ interface Word {
 
 ### `Dropdown`
 -   **Description**: A reusable component that displays a menu of items when a trigger element is hovered over. Used for the recurring task options in the task action controls.
+
+### `ClickableText`
+-   **Description**: A React component that takes a text string as a prop. It uses `extractUrlFromText` to find any URL within the text. If a URL is found, it renders the text with the URL as a clickable `<a>` tag that opens the link externally. Otherwise, it renders the text as a normal `<span>`.
 
 #### Inbox Handlers
 
@@ -426,11 +448,15 @@ These are the channels defined in `preload.ts` and handled in `index.ts` that al
 ### `show-*-context-menu`
 -   **Description**: A family of channels (`show-task-context-menu`, `show-inbox-item-context-menu`, etc.) used to request that the main process build and display a native right-click context menu.
 
+### `show-checklist-note-context-menu` / `show-checklist-response-context-menu`
+-   **Description**: Specific channels for showing a focused context menu when a user right-clicks directly on a checklist item's note or response field.
+
 ### `*-context-menu-command`
 -   **Description**: A corresponding family of channels (`context-menu-command`, `inbox-context-menu-command`, etc.) that the main process uses to send the selected menu action *back* to the renderer for it to execute.
 
 ### `get-data-for-quit` / `data-for-quit`
 -   **Description**: The channels used for the graceful shutdown sequence. The main process sends `get-data-for-quit` to the renderer, which then replies with its current state on the `data-for-quit` channel before the main process saves and quits. See Rule 09.0.
+
 
 ### `auto-save-data`
 -   **Description**: The channel used by the renderer's auto-save timer to send the current application state to the main process for a background save.

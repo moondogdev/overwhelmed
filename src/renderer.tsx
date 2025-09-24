@@ -34,7 +34,9 @@ declare global {
     showNavButtonContextMenu: (payload: { x: number, y: number, canGoBack: boolean, canGoForward: boolean }) => void;
     showSaveButtonContextMenu: (payload: { x: number, y: number }) => void;    
     showChecklistSectionContextMenu: (payload: { wordId: number, sectionId: number, areAllComplete: boolean, x: number, y: number }) => void;
-    showChecklistItemContextMenu: (payload: { sectionId: number, itemId: number, isCompleted: boolean, hasNote: boolean, hasResponse: boolean, x: number, y: number }) => void;
+    showChecklistItemContextMenu: (payload: { sectionId: number, itemId: number, isCompleted: boolean, hasNote: boolean, hasResponse: boolean, hasUrl: boolean, x: number, y: number }) => void;    
+    showChecklistNoteContextMenu: (payload: { sectionId: number, itemId: number, hasUrl: boolean, hasNote: boolean, x: number, y: number }) => void;
+    showChecklistResponseContextMenu: (payload: { sectionId: number, itemId: number, hasUrl: boolean, hasResponse: boolean, x: number, y: number }) => void;
     notifyDirtyState: (isDirty: boolean) => void;
   } }
 }
@@ -52,6 +54,7 @@ interface ChecklistItem {
   response?: string;
   note?: string;
   dueDate?: number; // Timestamp for individual due date
+  highlightColor?: string;
 }
 
 interface ChecklistSection {
@@ -561,6 +564,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
                 isEditable={false}
                 focusItemId={focusChecklistItemId} 
                 onFocusHandled={() => setFocusChecklistItemId(null)} 
+                settings={settings} 
               />
               <DescriptionEditor 
                 description={word.description || ''} 
@@ -712,6 +716,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
               setCopyStatus={setCopyStatus}
               focusItemId={focusChecklistItemId} 
               onFocusHandled={() => setFocusChecklistItemId(null)}
+              settings={settings} 
               />
             <DescriptionEditor 
               description={word.description || ''} 
@@ -934,7 +939,7 @@ function DescriptionEditor({ description, onDescriptionChange, settings, onSetti
   );
 }
 
-function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInboxMessages, wordId, checklistRef, setCopyStatus, focusItemId, onFocusHandled }: { sections: ChecklistSection[] | ChecklistItem[], onUpdate: (newSections: ChecklistSection[]) => void, isEditable: boolean, onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void, words: Word[], setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>, wordId: number, checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>, setCopyStatus: (message: string) => void, focusItemId: number | null, onFocusHandled: () => void }) {
+function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInboxMessages, wordId, checklistRef, setCopyStatus, focusItemId, onFocusHandled, settings }: { sections: ChecklistSection[] | ChecklistItem[], onUpdate: (newSections: ChecklistSection[]) => void, isEditable: boolean, onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void, words: Word[], setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>, wordId: number, checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>, setCopyStatus: (message: string) => void, focusItemId: number | null, onFocusHandled: () => void, settings: Settings }) {
   const [newItemTexts, setNewItemTexts] = useState<{ [key: number]: string }>({});
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
   const [editingSectionTitle, setEditingSectionTitle] = useState('');
@@ -1048,7 +1053,16 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     const newSections = normalizedSections.map(sec =>
       sec.id === sectionId
         ? { ...sec, items: sec.items.map(item => (item.id === itemId ? { ...item, dueDate: newDueDate } : item)) }
-        : sec
+        : sec,
+    );
+    updateHistory(newSections);
+    onUpdate(newSections);
+  };
+
+  const handleUpdateItemDueDateFromPicker = (sectionId: number, itemId: number, dateString: string) => {
+    const newDueDate = dateString ? new Date(dateString + 'T00:00:00').getTime() : undefined;
+    const newSections = normalizedSections.map(sec =>
+      sec.id === sectionId ? { ...sec, items: sec.items.map(item => (item.id === itemId ? { ...item, dueDate: newDueDate } : item)) } : sec
     );
     updateHistory(newSections);
     onUpdate(newSections);
@@ -1413,10 +1427,15 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
             </div>
             <div className="checklist-items">
               {section.items.map(item => (
-                <div key={item.id} className={`checklist-item ${item.isCompleted ? 'completed' : ''} checklist-item-interactive-area`} onContextMenu={(e) => {
+                <div 
+                  key={item.id} 
+                  className={`checklist-item ${item.isCompleted ? 'completed' : ''} ${item.highlightColor ? 'highlighted' : ''} checklist-item-interactive-area`} 
+                  style={{ borderLeftColor: item.highlightColor || 'transparent' }}
+                  onContextMenu={(e) => {
                   e.preventDefault();
-                  e.stopPropagation(); // Stop the event from bubbling up to the section's context menu
-                  window.electronAPI.showChecklistItemContextMenu({ sectionId: section.id, itemId: item.id, isCompleted: item.isCompleted, hasNote: !!item.note, hasResponse: !!item.response, x: e.clientX, y: e.clientY });
+                  e.stopPropagation();
+                  const url = extractUrlFromText(item.text);
+                  window.electronAPI.showChecklistItemContextMenu({ sectionId: section.id, itemId: item.id, isCompleted: item.isCompleted, hasNote: !!item.note, hasResponse: !!item.response, hasUrl: !!url, x: e.clientX, y: e.clientY });
                 }}>
                   {/*
                     * This is the key change. We check if a specific item is being edited FIRST.
@@ -1460,7 +1479,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                               className="checklist-item-text-input"
                             />
                           ) : (
-                            <span className="checklist-item-text">{item.text}</span>
+                            <ClickableText text={item.text} settings={settings} />
                           )}
                         </label>
                         {item.dueDate && !isEditable && (
@@ -1481,7 +1500,10 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                         )}
                         {!isEditable && (
                           <div className="checklist-item-quick-actions">
-                            <button className="icon-button" onClick={() => setEditingItemId(item.id)} title="Edit Item"><i className="fas fa-pencil-alt"></i></button>
+                            <button className="icon-button" onClick={() => {
+                              setEditingItemId(item.id);
+                              setEditingItemText(item.text); // Set the text for the input field
+                            }} title="Edit Item"><i className="fas fa-pencil-alt"></i></button>
                             {item.response === undefined ? (
                               <button className="icon-button" onClick={() => { handleUpdateItemResponse(section.id, item.id, ''); setEditingResponseForItemId(item.id); }} title="Add Response"><i className="fas fa-reply"></i></button>
                             ) : (
@@ -1501,7 +1523,12 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                         // The `handleUpdate...` function with an empty string creates the property, making it non-undefined.
                         <>
                           {(item.response !== undefined) && (
-                            <div className="checklist-item-response">
+                            <div className="checklist-item-response" onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const url = extractUrlFromText(item.response);
+                              window.electronAPI.showChecklistResponseContextMenu({ sectionId: section.id, itemId: item.id, hasUrl: !!url, hasResponse: !!item.response, x: e.clientX, y: e.clientY });
+                            }}>
                               <strong><i className="fas fa-reply"></i> Response:</strong>
                               <input
                                 type="text"
@@ -1514,7 +1541,12 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                             </div>
                           )}
                           {(item.note !== undefined) && (
-                            <div className="checklist-item-note">
+                            <div className="checklist-item-note" onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const url = extractUrlFromText(item.note);
+                              window.electronAPI.showChecklistNoteContextMenu({ sectionId: section.id, itemId: item.id, hasUrl: !!url, hasNote: !!item.note, x: e.clientX, y: e.clientY });
+                            }}>
                               <strong><i className="fas fa-sticky-note"></i> Note:</strong>
                               <input
                                 type="text"
@@ -1529,38 +1561,35 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                         </>
                       ) : (
                         <>
-                          {item.response !== undefined && (
-                            <div className="checklist-item-response">
-                              <strong><i className="fas fa-reply"></i> Response:</strong>
-                              <input
-                                type="text"
-                                value={item.response || ''}
-                                // When the input loses focus, clear the temporary "editing" state
-                                onBlur={() => setEditingResponseForItemId(null)}
-                                onChange={(e) => handleUpdateItemResponse(section.id, item.id, e.target.value)}
-                                placeholder="Add a response..."
-                                className="checklist-item-sub-input"
-                                // Autofocus if this is the item we just added a response for
-                                autoFocus={editingResponseForItemId === item.id}
-                              />
+                          {item.response !== undefined ? (
+                            <div className="checklist-item-response" onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const url = extractUrlFromText(item.response);
+                              window.electronAPI.showChecklistResponseContextMenu({ sectionId: section.id, itemId: item.id, hasUrl: !!url, hasResponse: !!item.response, x: e.clientX, y: e.clientY });
+                            }}>
+                              <strong><i className="fas fa-reply"></i> Response:</strong>{editingResponseForItemId === item.id ? (
+                                <input
+                                  type="text"
+                                  value={item.response || ''}
+                                  onBlur={() => setEditingResponseForItemId(null)}
+                                  onChange={(e) => handleUpdateItemResponse(section.id, item.id, e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setEditingResponseForItemId(null); }}
+                                  className="checklist-item-sub-input"
+                                  autoFocus
+                                />
+                              ) : (
+                                <ClickableText text={item.response} settings={settings} />
+                              )}
                             </div>
-                          )}
-                          {item.note !== undefined && (
-                            <div className="checklist-item-note">
-                              <strong><i className="fas fa-sticky-note"></i> Note:</strong>
-                              <input
-                                type="text"
-                                value={item.note || ''}
-                                // When the input loses focus, clear the temporary "editing" state
-                                onBlur={() => setEditingNoteForItemId(null)}
-                                onChange={(e) => handleUpdateItemNote(section.id, item.id, e.target.value)}
-                                placeholder="Add a private note..."
-                                className="checklist-item-sub-input"
-                                // Autofocus if this is the item we just added a note for
-                                autoFocus={editingNoteForItemId === item.id}
-                              />
+                          ) : null}
+                          {item.note !== undefined ? (
+                            <div className="checklist-item-note" onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); const url = extractUrlFromText(item.note); window.electronAPI.showChecklistNoteContextMenu({ sectionId: section.id, itemId: item.id, hasUrl: !!url, hasNote: !!item.note, x: e.clientX, y: e.clientY }); }}>
+                              <strong><i className="fas fa-sticky-note"></i> Note:</strong>{editingNoteForItemId === item.id ? (
+                                <input type="text" value={item.note || ''} onBlur={() => setEditingNoteForItemId(null)} onChange={(e) => handleUpdateItemNote(section.id, item.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setEditingNoteForItemId(null); }} className="checklist-item-sub-input" autoFocus />
+                              ) : ( <ClickableText text={item.note} settings={settings} /> )}
                             </div>
-                          )}
+                          ) : null}
                         </>
                       )}
                       {isEditable && (
@@ -1568,8 +1597,8 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                           <input
                             type="date"
                             className="checklist-item-datepicker"
-                            value={item.dueDate ? new Date(item.dueDate).toISOString().split('T')[0] : ''}
-                            onChange={(e) => handleUpdateItemDueDate(section.id, item.id, e.target.value ? new Date(e.target.value).getTime() : undefined)}
+                            value={item.dueDate ? new Date(item.dueDate).toLocaleDateString('en-CA') : ''}
+                            onChange={(e) => handleUpdateItemDueDateFromPicker(section.id, item.id, e.target.value)}
                             title="Set Due Date"
                           />
                           {item.response === undefined ? (
@@ -2206,6 +2235,33 @@ const formatChecklistForCopy = (sections: ChecklistSection[]): string => {
   }
   return output.trim();
 };
+const extractUrlFromText = (text: string): string | null => {
+  if (!text) return null;
+  // A simple regex to find the first http/https URL in a string.
+  const urlRegex = /(https?:\/\/[^\s]+)/;
+  const match = text.match(urlRegex);
+  return match ? match[0] : null;
+};
+const ClickableText = ({ text, settings }: { text: string, settings: Settings }) => {
+  const url = extractUrlFromText(text);
+
+  if (!url) {
+    return <span className="checklist-item-text">{text}</span>;
+  }
+
+  const parts = text.split(url);
+  return (
+    <span className="checklist-item-text">
+      {parts[0]}
+      <a href={url} onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation(); // Prevent toggling the checkbox
+        window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
+      }}>{url}</a>
+      {parts[1]}
+    </span>
+  );
+};
 
 
 function Dropdown({ trigger, children }: { trigger: React.ReactNode, children: React.ReactNode }) {
@@ -2316,8 +2372,33 @@ function TaskAccordionHeader({
   );
 }
 
+const Footer = React.memo(() => {
+  const currentYear = new Date().getFullYear();
+  const version = '1.0.0'; // You can update this manually or pull from package.json
+  const companyUrl = 'https://moondogdevelopment.com';
+  const githubUrl = 'https://github.com/moondogdev/overwhelmed';
+
+  return (
+  
+    <div className='footer-credit'>        
+      <div className='version'>
+        <a href="#" onClick={() => window.electronAPI.openExternalLink({ url: githubUrl, browserPath: undefined })}><span className='app-name'>Overwhelmed</span> • Version: {version}</a>
+      </div>
+      <div>
+        Copyright © {currentYear} • <a href="#" onClick={() => window.electronAPI.openExternalLink({ url: companyUrl, browserPath: undefined })}>Moondog Development, LLC</a>
+      </div>        
+    </div>
+  );
+});
+
 function App() {
-  // Create a ref to hold the canvas DOM element
+  // State for the new inbox
+  const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
+  const [archivedMessages, setArchivedMessages] = useState<InboxMessage[]>([]);
+  const [trashedMessages, setTrashedMessages] = useState<InboxMessage[]>([]);
+  // State for inline editing
+  const [activeInboxTab, setActiveInboxTab] = useState<'active' | 'archived' | 'trash'>('active');
+  // State for navigation history
   const [fullTaskViewId, setFullTaskViewId] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // A ref to hold the latest word data for the click handler
@@ -2333,13 +2414,6 @@ function App() {
   const [completedWords, setCompletedWords] = useState<Word[]>([]);
   // Consolidated settings state
   const [settings, setSettings] = useState<Settings>(defaultSettings);
-  // State for the new inbox
-  const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
-  const [archivedMessages, setArchivedMessages] = useState<InboxMessage[]>([]);
-  const [trashedMessages, setTrashedMessages] = useState<InboxMessage[]>([]);
-  // State for inline editing
-  const [activeInboxTab, setActiveInboxTab] = useState<'active' | 'archived' | 'trash'>('active');
-  // State for navigation history
   const [viewHistory, setViewHistory] = useState(['meme']);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [editingWordId, setEditingWordId] = useState<number | null>(null);
@@ -3228,7 +3302,7 @@ function App() {
   // Effect to handle commands from the new checklist item context menu
   useEffect(() => {
     let editingPayload: { sectionId: number, itemId: number } | null = null;
-    const handleMenuCommand = (payload: { command: string, sectionId: number, itemId: number }) => {
+    const handleMenuCommand = (payload: { command: string, sectionId: number, itemId: number, color?: string }) => {
       const { command, sectionId, itemId } = payload;
 
       // Find the word that contains this checklist
@@ -3301,7 +3375,7 @@ function App() {
               newItems[itemIndex] = newItems[itemIndex + 1];
               newItems[itemIndex + 1] = temp;
             }
-            return;
+            break;
         }
         return { ...sec, items: newItems };
       });
@@ -3316,7 +3390,91 @@ function App() {
           return; // Stop further processing, the modal will handle the update
         }
       }
+      if (command === 'highlight') {        
+        const { color } = payload; // color will be '#f4d03f', '#c94a4a', etc., or undefined
+        const updatedSections = (wordContainingChecklist.checklist as ChecklistSection[]).map(sec => ({
+            ...sec,
+            items: sec.items.map(item =>
+              item.id === itemId ? { ...item, highlightColor: color } : item
+            )
+        }));
+        // We need to call handleWordUpdate with the newly modified sections
+        handleWordUpdate({ ...wordContainingChecklist, checklist: updatedSections });
+        return; // Stop further processing for this command
+      }
 
+      if (command === 'open_link') {
+        const itemToOpen = newSections.flatMap(s => s.items).find(i => i.id === itemId);
+        if (itemToOpen) {
+          const url = extractUrlFromText(itemToOpen.text);
+          if (url) {
+            window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
+          }
+        }
+      }
+
+      if (command === 'open_link') {
+        const itemToOpen = newSections.flatMap(s => s.items).find(i => i.id === itemId);
+        if (itemToOpen) {
+          const url = extractUrlFromText(itemToOpen.text);
+          if (url) {
+            window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
+          }
+        }
+      }
+
+      if (command === 'copy_link') {
+        const itemToCopy = newSections.flatMap(s => s.items).find(i => i.id === itemId);
+        if (itemToCopy) {
+          const url = extractUrlFromText(itemToCopy.text);
+          if (url) {
+            navigator.clipboard.writeText(url);
+            setCopyStatus('Link copied!');
+            setTimeout(() => setCopyStatus(''), 2000);
+          }
+        }
+      }
+
+      if (command === 'open_note_link') {
+        const itemToOpen = newSections.flatMap(s => s.items).find(i => i.id === itemId);
+        if (itemToOpen?.note) {
+          const url = extractUrlFromText(itemToOpen.note);
+          if (url) {
+            window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
+          }
+        }
+      }
+
+      if (command === 'copy_note_link') {
+        const itemToCopy = newSections.flatMap(s => s.items).find(i => i.id === itemId);
+        if (itemToCopy?.note) {
+          const url = extractUrlFromText(itemToCopy.note);
+          if (url) {
+            navigator.clipboard.writeText(url);
+            setCopyStatus('Link copied from note!');
+            setTimeout(() => setCopyStatus(''), 2000);
+          }
+        }
+      }
+
+      if (command === 'open_response_link' || command === 'copy_response_link') {
+        const item = newSections.flatMap(s => s.items).find(i => i.id === itemId);
+        if (item?.response) {
+          const url = extractUrlFromText(item.response);
+          if (url) {
+            if (command === 'open_response_link') window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
+            else { navigator.clipboard.writeText(url); setCopyStatus('Link copied from response!'); setTimeout(() => setCopyStatus(''), 2000); }
+          }
+        }
+      }
+      if (command === 'copy_note') {
+        const itemToCopy = newSections.flatMap(s => s.items).find(i => i.id === itemId);
+        if (itemToCopy?.note) {
+          navigator.clipboard.writeText(itemToCopy.note);
+          setCopyStatus('Note copied!');
+          setTimeout(() => setCopyStatus(''), 2000);
+        }
+      }
 
       if (command === 'copy_response') {
         const itemToCopy = newSections.flatMap(s => s.items).find(i => i.id === itemId);
@@ -3359,6 +3517,15 @@ function App() {
       if (!wordContainingChecklist || !wordContainingChecklist.checklist) return;
 
       let newSections = [...(wordContainingChecklist.checklist as ChecklistSection[])];
+
+      if (command === 'clear_all_highlights') {
+        newSections = newSections.map(sec => ({
+          ...sec,
+          items: sec.items.map(item => ({ ...item, highlightColor: undefined } as ChecklistItem))
+        }));
+        handleWordUpdate({ ...wordContainingChecklist, checklist: newSections });
+        return;
+      }
       const sectionIndex = newSections.findIndex(s => s.id === sectionId);
       if (sectionIndex === -1) return;
 
@@ -4207,24 +4374,6 @@ function App() {
     setCopyStatus(`Moved ${messagesToTrash.length} non-important message(s) to trash.`);
     setTimeout(() => setCopyStatus(''), 2000);
     setIsDirty(true);
-  };
-  const Footer = () => {
-    const currentYear = new Date().getFullYear();
-    const version = '1.0.0'; // You can update this manually or pull from package.json
-    const companyUrl = 'https://moondogdevelopment.com';
-    const githubUrl = 'https://github.com/moondogdev/overwhelmed';
-
-    return (
-    
-      <div className='footer-credit'>        
-        <div className='version'>
-          <a href="#" onClick={() => window.electronAPI.openExternalLink({ url: githubUrl, browserPath: undefined })}><span className='app-name'>Overwhelmed</span> • Version: {version}</a>
-        </div>
-        <div>
-          Copyright © {currentYear} • <a href="#" onClick={() => window.electronAPI.openExternalLink({ url: companyUrl, browserPath: undefined })}>Moondog Development, LLC</a>
-        </div>        
-      </div>
-    );
   };
 
   // --- Full Task View Logic ---
@@ -5336,6 +5485,7 @@ function App() {
               setCopyStatus={setCopyStatus}
               focusItemId={focusChecklistItemId} 
               onFocusHandled={() => setFocusChecklistItemId(null)}
+              settings={settings} 
               />}
                   {shouldShow('description') && <DescriptionEditor 
               description={newTask.description || ''} 

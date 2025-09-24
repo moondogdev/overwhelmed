@@ -235,7 +235,7 @@ Don't worry about changing the code, I'll just paste it to the bottom of the @GE
 
 The example should look like this 
 
-```
+```markdown
 markdown [copy] [+ insert]
 
 ---
@@ -244,17 +244,12 @@ markdown [copy] [+ insert]
 
 This guide...
 
-####
----
+#### Featured
+
+etc...
 
 ---
-Code Examples:
 
-jsx [copy] [+ insert]
-```jsx
-// some code here
-```
----
 ```
 
 Please excuse my rough drawing but I tried to illustrate the proper response. I hope this helps.
@@ -288,6 +283,7 @@ Other Guidelines for Gemini Code Assist to follow:
     - **GGl 1.16.01**: Gemini should update `DEFINITIONS.md`**: As new handlers, state variables, or other key declaratives are created, they should be added to the `DEFINITIONS.md` file to maintain a project glossary.
     - **GGl 1.16.02**: Example Workflow**: Implement change > Update `Other Guidelines for Gemini Code Assist to follow`, `Log of Issues and Lessons`, and `Developer Guide Index` sections > update `GEMINI.md`, `DEFINITIONS.md`, and `CHANGELOG.md` sections to reflect the implemented feature AND the documentation updates.
 
+  - **GGl 1.17.00: Prop Drilling Awareness**: When a child component needs access to state from a high-level parent (like `settings` from `App`), explicitly trace the component tree and add the prop to each intermediate component's props interface and call site.
 ---
 
 ### Follow GGl 1.15.01 & GGl 1.15.02
@@ -305,6 +301,18 @@ New content for rule to add to `### Developer Guide - Rule `
 `##### Nested Title for New Rule`: Uses h5 #####
 
 Please keep this consistent to keep the maintainer from having to make frequent edits.
+
+---
+
+#### [1.0.17] - `switch` Statement Fall-Through
+-   **Issue**: The "Move Down" action for checklist items was crashing the app.
+-   **Lesson**: The `case 'move_down'` block in the `switch` statement was missing a `break;`. This caused execution to "fall through" into the next `case`, running unintended code. Always ensure every `case` in a `switch` statement that is not intentionally falling through is terminated with a `break;` or `return;`.
+
+---
+
+#### [1.0.16] - Type Definition Mismatches
+-   **Issue**: We encountered numerous TypeScript errors like `Cannot find name 'X'` and `Property 'Y' does not exist on type 'Z'`.
+-   **Lesson**: These errors consistently occurred when we changed a function's signature or an object's shape in one part of the application (e.g., adding a `color` property to a payload in `index.ts`) but forgot to update the corresponding type definitions or function calls in other files (`renderer.tsx`, `preload.ts`). The lesson is to be meticulous and update all related parts of the "contract" between components or processes: the interface/type, the function signature, and all call sites.
 
 ---
 
@@ -496,6 +504,10 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 53.0: Understanding Event Propagation (Bubbling)
   - Rule 54.0: State Management for In-Place Editing
   - Rule 55.0: Creating Stable Hover-Action Menus
+  - Rule 56.0: Component Definition and Re-Renders
+  - Rule 57.0: Creating Focused Context Menus for Nested Elements
+  - Rule 58.0: Prop Drilling
+  - Rule 59.0: Switch Statement Fall-Through
 
 ---
 
@@ -2583,3 +2595,148 @@ The solution is to structure the JSX so that the main interactive row (which con
 ```
 
 ---
+
+### Developer Guide - Rule 56.0: Component Definition and Re-Renders
+
+This guide explains a critical React performance principle: **never define a component inside the render function of another component.**
+
+#### The Problem: Constant Re-Renders and State Loss
+
+We observed that our `Footer` component was flickering in the React DevTools, indicating it was re-rendering on every single state change in the main `App` component (e.g., every second from the clock update).
+
+This was happening because the `Footer` component was defined *inside* the `App` function. Every time `App` re-renders due to a state change, the `Footer` function is re-declared from scratch. From React's perspective, this "new" `Footer` is a completely different component type than the previous one. This forces React to unmount the old `Footer` and mount a new one, which is inefficient and can cause issues like losing internal state or triggering unnecessary effects.
+
+#### The Solution: Define Components at the Top Level
+
+The solution is to move the component definition outside of the parent component. This makes it a stable, reusable component that React recognizes as the same entity across renders.
+
+For stateless components or components that only re-render when their props change, we can also wrap them in `React.memo` for an additional performance optimization. By following this pattern, the `Footer` component is only defined once. It will no longer re-render unnecessarily when the `App` component's state changes, fixing the performance issue.
+
+```jsx
+// The correct pattern
+
+// 1. Define the component at the top level, outside of App.
+// 2. Wrap it in React.memo to prevent re-renders if props don't change.
+const Footer = React.memo(() => {
+  // ... footer JSX ...
+});
+
+
+function App() {
+  // ... all the App's state and logic ...
+
+  return (
+    <div>
+      {/* ... other components ... */}
+      <Footer />
+    </div>
+  );
+}
+```
+---
+
+### Developer Guide - Rule 57.0: Creating Focused Context Menus for Nested Elements
+
+This guide explains how to create a specific context menu for a child element that is different from its parent's context menu. This is an application of `Rule 53.0: Understanding Event Propagation (Bubbling)`.
+
+#### The Problem: Inheriting the Wrong Context Menu
+
+We have a `ChecklistItem` component that has a context menu for managing the entire item. Inside this item, we have `note` and `response` fields. When a user right-clicked on the note, it would incorrectly show the context menu for the whole item, which was confusing. We wanted a smaller, more focused menu with only "Copy Note" and "Delete Note" actions.
+
+#### The Solution: A Specific Handler with `stopPropagation`
+
+The solution is to add a new, dedicated `onContextMenu` handler to the specific child element (the `note` or `response` `div`). This handler will:
+1.  Call a new, dedicated IPC channel (e.g., `show-checklist-note-context-menu`).
+2.  Crucially, call `event.stopPropagation()` to prevent the event from "bubbling up" to the parent `ChecklistItem` and triggering its context menu as well.
+
+```jsx
+// File: src/renderer.tsx
+
+// The parent element has its own context menu
+<div className="checklist-item-interactive-area" onContextMenu={handleItemMenu}>
+
+  {/* ... other item content ... */}
+
+  {/* The child element gets its OWN context menu handler */}
+  <div className="checklist-item-note" onContextMenu={(e) => {
+    e.preventDefault();
+    // CRITICAL: This stops the parent's `handleItemMenu` from firing.
+    e.stopPropagation(); 
+    // Call the new, specific channel for the note menu.
+    window.electronAPI.showChecklistNoteContextMenu(...);
+  }}>
+    <strong>Note:</strong> {item.note}
+  </div>
+
+</div>
+```
+---
+
+### Developer Guide - Rule 58.0: Prop Drilling
+
+This guide explains the concept of "prop drilling" and the standard pattern for resolving it in our application.
+
+#### The Problem: `Cannot find name 'settings'`
+
+We encountered an error, `Cannot find name 'settings'`, when we tried to use the `settings` object inside our new `ClickableText` component. This happened because:
+1.  The `settings` state lives in the top-level `App` component.
+2.  The `ClickableText` component is rendered deep inside the component tree (`App` -> `TabbedView` -> `Checklist` -> `ClickableText`).
+3.  The intermediate components (`TabbedView` and `Checklist`) did not receive the `settings` object as a prop, so they could not pass it down.
+
+This process of passing props down through multiple layers of components is known as **prop drilling**.
+
+#### The Solution: Pass Props Through the Component Tree
+
+The solution is to explicitly pass the required prop through each intermediate component in the chain.
+
+1.  **Identify the Path**: Trace the component hierarchy from the parent that owns the state (`App`) to the child that needs it (`ClickableText`).
+2.  **Update Each Component**: For each component in the path (`TabbedView`, `Checklist`), add the prop to its props interface and pass it along.
+
+This ensures that the data is available where it's needed and resolves the "Cannot find name" error. While more advanced state management libraries can mitigate prop drilling, for our current architecture, this is the standard and correct pattern to follow.
+
+---
+
+### Developer Guide - Rule 59.0: Switch Statement Fall-Through
+
+This guide explains a common and critical bug in JavaScript `switch` statements known as "fall-through" and how to prevent it.
+
+#### The Problem: Missing `break` Statement
+
+We had a bug where using the "Move Down" action on a checklist item would crash the application, even though the logic for moving the item was correct.
+
+The issue was in our `checklist-item-command` handler's `switch` statement:
+```javascript
+// The incorrect pattern
+switch (command) {
+  case 'move_up':
+    // ... logic to move item up ...
+    break; // This case correctly exits.
+  
+  case 'move_down':
+    // ... logic to move item down ...
+    // !!! BUG: Missing break statement !!!
+  
+  case 'edit_response':
+    // ... logic to handle editing a response ...
+    break;
+}
+```
+
+In JavaScript, if a case block does not end with a break or return statement, execution will fall through to the next case block and execute its code as well. In our bug, after successfully moving the item down, the code would fall through and incorrectly try to run the logic for edit_response, causing a crash.
+
+#### The Solution: Always Terminate a case
+
+The solution is to ensure that every case block that is not intentionally designed to fall through is explicitly terminated.
+
+```javascript
+// The correct pattern
+switch (command) {
+  // ...
+  case 'move_down':
+    // ... logic to move item down ...
+    break; // CORRECT: This now exits the switch statement.
+  // ...
+}
+```
+---
+

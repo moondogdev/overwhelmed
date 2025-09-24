@@ -6,7 +6,7 @@ A log of what was commited to git.
 
 ## Log of Changes
 
-- **[1.0.14] - YYYY-MM-DD**:
+- **[1.0.14] - 2025-09-23: Interactive Checklists & Link Handling**: feat(checklist): Overhaul checklist interactivity, add link handling, and fix bugs
 - **[1.0.13] - 2025-09-23: Interactive Checklist Items**: feat(checklist): Implement fully interactive checklist item UI
 - **[1.0.12] - 2025-09-23: Checklist Enhancements**: feat(checklist): Add due dates, fix duplication, and improve layout
 - **[1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish**: feat(checklist): Improve checklist UX and add delete note/response actions
@@ -24,10 +24,25 @@ A log of what was commited to git.
 
 ---
 
-## [1.0.14] - YYYY-MM-DD: 
-**feat(): Feat Message Here**
+## [1.0.14] - 2025-09-23: Interactive Checklists & Link Handling
+**feat(checklist): Overhaul checklist interactivity, add link handling, and fix bugs**
 
-Future feature addtion here
+This commit rolls up a significant number of features and fixes for the checklist system, dramatically improving its interactivity, stability, and usability.
+
+#### Features & Fixes:
+-   **Interactive Items**: Implemented full in-place editing for checklist items, notes, and responses. Added a hover-activated quick-action menu for editing, deleting, and adding notes/responses.
+-   **Link Handling**: URLs in checklist items, notes, and responses are now automatically clickable. Context menus have been added to "Open Link" and "Copy Link".
+-   **Item Highlighting**: Added a "Highlight" submenu to the item context menu to apply a colored border, with a "Clear All Highlights" bulk action.
+-   **Dedicated Context Menus**: Added focused context menus for notes and responses, including "Edit" actions for quick modifications.
+-   **Bug Fixes**:
+    -   Resolved a crash caused by a missing `break;` statement in the "Move Down" action.
+    -   Fixed a bug where the "Edit Item" button would clear the item's content.
+    -   Corrected multiple issues where context menu items were enabled when they should have been disabled.
+    -   Fixed a timezone bug in the checklist item date picker.
+    -   Resolved a performance issue causing the footer to re-render constantly.
+-   **Documentation**: Updated `GEMINI.md` and `DEFINITIONS.md` with new developer guides and definitions for all new features and patterns.
+
+---
 
 ---
 
