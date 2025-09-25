@@ -4,19 +4,39 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
+## Current Timeline
+
+### Broken Implementation
+- **Open Link**: seems to open twice
+- **Delete Section**: It works to delete the section but we need to swap views to update it;
+- **Copy Section**: Same as above.
+- **setCopyStatus**: 
+ - this notification seems to occur twice and linger? 
+ - it requires some sort of timeout and a clear but lets add that to the actual function logic 
+- **`case 'toggle_all_in_section'`**: This was never implemented in the context menu
+
+### To do
+- Organize context menus groupings better by category and separate the All and Individual action
+- **Checklist Section Context Menu**: 
+ - **Delete All Notes / Responses**: Implement with a non-blocking, two-click confirmation pattern.
+ - Add `Delete All Sections` to Context Menu
+
+- **Checklist Section Main Header**:
+ - Checklist main header should receive right click context menu handling actions associated with the "All" options
+ - Add `Delete All Sections` UI Button in the Checklist Main Header
+
+- **Replace Native Prompts**:
+    - All destructive actions (`Delete Section`, `Delete All Checked Items`, etc.) need to be refactored to use a two-click confirmation pattern instead of `window.confirm()`.
+
+- **Bulk Deletion**: Add the 'Delete Checked' handling we already have into the Task View
+
+- **Checklist Section Header**: `checklist-section-actions` 
+ - Hook up the "Hide/Show Notes/Responses in Section" toggle buttons to the existing context menu logic.
+
+---
+
 ## Future Features 
 -   ### **Checklists**:
-    - **Checklist Section**: 
-        - The checklists can get very long:
-            - Need to add "Collapse Checklist" and "Collapse All Checlists" to both the rightclick context menus and as buttons in the UI for the checklist sections        
-            - Add Toggle to Hide/Show all Responses
-            - Add Toggle to Hide/Show all Notes 
-        - Checklists Item Bulk Response/Note Add: Need a "Add Notes to All Checklist (in Section)" and "Add Notes to All Checklists"
-        - Autofocus section header for "Add Checklist Sections" should wipe the header content so we dont need to delete the placeholder
-        
-    - **Checklist Items**:
-        - Checklists Context Menu: If in Edit task mode, allow to "View Task" in place of the "Edit Task" to toggle back to it. Try to maintain scroll page length so we can dont need to find where we were between toggles.
-        - Checklists Item Copy: Copy the raw content of a section without any checkboxes or header to clipboard for cases when we want to paste the content without any additional data
     - **Time Tracker**:
         - Time Tracker per Checklist item in a Task: 
             - Checkbox option on a checklist section that makes the checklist function where, as we add a checklist item, it starts a timer next to that item:
@@ -33,7 +53,12 @@ All notable changes to this project will be documented in this file. See `## Log
     - Linked Task Offset: Add offset to the Linked task so the deadline of the link task starts + the value input
 
 - ### Tasks
-    - **Complete Task**: Add a new "Complete Task" option that functions like a "move task to Completed so all the connective logic triggers but set its status to a "Not Completed/Skipped" for tasks that become annoying that weren't actually Completed. Maybe a new Completed grouping that indicates which tasks were 'Skipped' so the user can dismiss certain reoccurring tasks without them coming back.
+    - **Complete Task**: 
+        - Add a new "Complete Task" option that functions like a "move task to Completed so all the connective logic triggers but set its status to a "Not Completed/Skipped" for tasks that become annoying that weren't actually Completed. 
+        - if the Task was reoccurring, or linked etc, it would still all trigger those events like our normal 'Completed' does. 
+        - Maybe add a new Completed grouping that indicates which tasks were 'Skipped' so the user can dismiss certain reoccurring tasks without them coming back but have an area to check. 
+        - This would be useful for tasks that are scheduled that get misssed but still want to trigger their connective logic.
+
 
 - ### Accordion Task
     - Accordion Task Header UI: Re-Occurring dropdown menu doesn't really indicate when an item is selected
@@ -127,6 +152,7 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
+- **[1.0.15] - 2025-09-25: Checklist Usability & Collapsible Sections**: feat(checklist): Add collapsible sections, in-line editing, and remove native prompts
 - **[1.0.14] - 2025-09-23: Interactive Checklists & Link Handling**: feat(checklist): Overhaul checklist interactivity, add link handling, and fix bugs
 - **[1.0.13] - 2025-09-23: Interactive Checklist Items**: feat(checklist): Implement fully interactive checklist item UI
 - **[1.0.12] - 2025-09-23: Checklist Enhancements**: feat(checklist): Add due dates, fix duplication, and improve layout
@@ -142,6 +168,36 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.15] - 2025-09-24: Checklist Usability & Collapsible Sections
+
+#### Added
+-   **Collapsible Sections**:
+    -   Implemented expand/collapse functionality for individual checklist sections via a new arrow icon in the section header.
+    -   Added "Expand All Sections" and "Collapse All Sections" buttons and context menu actions to the main checklist header for global control.
+-   **In-Line Section Title Editing**: Checklist section titles can now be edited directly in both "Task" and "Edit" views by double-clicking the title text.
+-   **Enhanced Copy/Paste**: Added "Copy Section Raw" and "Copy All Sections Raw" options to the UI and context menus to copy checklist content as plain text without any formatting or checkboxes.
+-   **Bulk Note Creation**: Added "Add Note to All Items" (global) and "Add Note to All Items in Section" (per-section) to the UI and context menus.
+
+#### Changed
+-   **Context Menu Overhaul**: Refactored the context menu actions for adding/editing notes and responses to use the same non-blocking, in-place editing UI as the quick-action buttons, removing the reliance on disruptive native `prompt()` dialogs.
+-   **UI/UX Polish**:
+    -   Refactored the main checklist header and section header buttons for a more uniform and consistent appearance.
+    -   Added "Hide/Show Notes" and "Hide/Show Responses" toggles to section context menus and as global buttons in the main checklist header.
+    -   When adding a new section, the "New Section" placeholder text is now automatically selected for immediate renaming.
+-   **Context Menu State**: The "View Task" / "Edit Task" option in context menus now correctly toggles based on the current view mode.
+
+#### Fixed
+-   **Native Prompt Issues**: Began the process of replacing native, blocking `window.prompt()` and `window.confirm()` dialogs with custom, non-blocking UI elements to prevent UI freezes and improve user experience. The "Add/Edit Note/Response" context menu actions are the first to be fully refactored.
+
+#### Documentation
+-   **Developer Guides**: Added `Rule 60.0` (Synchronizing Checklist State) and `Rule 61.0` (Avoiding Native Modals) to `GEMINI.md`.
+-   **Project Glossary**: Updated `DEFINITIONS.md` with new handlers and state related to collapsible sections and improved context menus.
+
+#### Summary
+This commit introduces major usability enhancements to the checklist system, including collapsible sections, in-line editing for section titles, and a move away from disruptive native prompts for context menu actions, creating a smoother and more intuitive workflow.
 
 ---
 

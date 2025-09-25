@@ -1,6 +1,21 @@
 /* Import Font Awesome */
 @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css');
 
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #282c34;
+  color: white;
+}
+a {
+  cursor: pointer;
+}
+.ticket-display-view a {
+    color: #61dafb;
+    cursor: pointer;
+}
 .icon-button {
   background: none;
   border: none;
@@ -9,13 +24,6 @@
   padding: 2px 6px;
   vertical-align: middle; /* Better alignment with text */
   transition: color 0.2s ease;
-}body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
-    Arial, sans-serif;
-  margin: 0;
-  padding: 0;
-  background-color: #282c34;
-  color: white;
 }
 .clickable,
 button {
@@ -958,6 +966,7 @@ input[type="datetime-local"] + .button-group button {
 }
 
 .checklist-container .checklist-item-label {
+  width: 100%;
   flex-direction: row;
 }
 
@@ -996,6 +1005,9 @@ input[type="datetime-local"] + .button-group button {
 }
 .description-editor-container .rich-text-editor label:has(input[type="checkbox"]) {
     display: block;
+}
+.description-editor-container .html-editor {
+  min-height: 400px;
 }
 
 .description-editor-tabs {
@@ -1780,6 +1792,7 @@ input[type="datetime-local"] + .button-group button {
   align-items: center;
   width: 100%; /* This is the stable row */
   gap: 10px; /* Add some gap between text and actions */
+  position: relative;
 }
 
 .checklist-actions {
@@ -1800,6 +1813,9 @@ input[type="datetime-local"] + .button-group button {
   gap: 5px;
 }
 
+.checklist-section-actions button.checklist-action-btn { 
+  padding: 8px;
+}
 .checklist-main-actions .delete-btn {
   background-color: #c94a4a !important;
 }
@@ -1868,8 +1884,6 @@ input[type="datetime-local"] + .button-group button {
     cursor: pointer;
 }
 
-
-
 .checklist-item-text-input {
   flex-grow: 1;
   margin: 0 5px;
@@ -1896,6 +1910,23 @@ input[type="datetime-local"] + .button-group button {
 }
 .checklist-action-btn:hover .fa-broom {
   color: #f4d03f !important;
+}
+.checklist-action-btn:hover .fa-sticky-note {
+  color: #f4d03f !important;
+}
+
+.checklist-action-btn .disabled-icon {
+  opacity: 0.4;
+  color: #888 !important;
+}
+.checklist-action-btn .fa-stack .delete-icon {
+  color: #c94a4a;
+  opacity: 0.7;
+}
+.checklist-action-btn.confirm-delete {
+  background-color: #c94a4a !important;
+  color: white !important;
+  font-weight: bold;
 }
 .date-group-container {
   margin-top: 20px; /* Add space above each new date group */
@@ -1933,7 +1964,34 @@ input[type="datetime-local"] + .button-group button {
 .checklist-delete-btn:hover {
   color: #c94a4a !important;
 }
-
+header.checklist-section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+header.checklist-section-header .checklist-header {
+  width: 100%;
+    margin: 0;
+}
+.checklist-action-btn,
+.checklist-collapse-btn {
+  background-color: transparent;
+  color: #eee;
+  box-shadow: none; 
+  border: 0px solid transparent;
+  border-radius: 0;
+  display: block;
+  line-height: 1;
+  font-size: 1rem;
+  padding: 8px 12px;
+}
+.checklist-action-btn:hover,
+.checklist-collapse-btn:hover {
+  outline: 1px solid #fff;  
+}
+:focus {
+  outline: 1px solid #fff;
+}
 .checklist-item-response, .checklist-item-note {
     font-size: 0.9em;
     margin: 5px 5px;
@@ -1995,6 +2053,14 @@ input[type="datetime-local"] + .button-group button {
   gap: 5px;
 }
 
+.checklist-action-group {
+  display: inline-flex;
+  border: 1px solid #555;
+  border-radius: 5px;
+  overflow: hidden; /* Ensures the border-radius clips the children */
+  margin: 0 2px;
+}
+
 .checklist-item-datepicker {
   background-color: #3a3f4b;
   color: #fff;
@@ -2018,10 +2084,14 @@ input[type="datetime-local"] + .button-group button {
 
 .checklist-item-actions .icon-button:hover .delete-icon { color: #c94a4a; }
 .checklist-item-quick-actions {
+  min-width: 100px;
   opacity: 0;
   transition: opacity 0.2s ease-in-out;
   margin-left: auto; /* Pushes it to the right */
   padding-left: 10px;
+  position: absolute;
+  top: 0;
+  right: 0;
 }
 
 .checklist-item-interactive-area:hover .checklist-item-quick-actions {

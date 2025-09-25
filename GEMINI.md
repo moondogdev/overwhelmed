@@ -508,6 +508,8 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 57.0: Creating Focused Context Menus for Nested Elements
   - Rule 58.0: Prop Drilling
   - Rule 59.0: Switch Statement Fall-Through
+  - Rule 60.0: Synchronizing `Checklist` State with `updateHistory`
+  - Rule 61.0: Avoiding Native Modals for Confirmations and Actions
 
 ---
 
@@ -2345,48 +2347,39 @@ By changing the hover effect from `background-color` to a subtle `outline`, we p
 
 This guide explains the standard pattern for handling modals that need to modify a specific, deeply nested piece of data.
 
-#### The Problem: Where Should Modal State Live?
+#### The Problem: Where Should Modal/Editing State Live?
 
 We needed a modal (`PromptModal`) to edit the `response` or `note` of a `ChecklistItem`. The challenge is that the `ChecklistItem` is deeply nested: `words` -> `Word` -> `checklist` -> `ChecklistSection` -> `ChecklistItem`.
 
-If the modal's state (e.g., `isOpen`) were managed by a low-level component, it would be very difficult to pass the final edited data all the way back up to the root `App` component, which is the single source of truth for the `words` array.
+If the modal's state (e.g., `isOpen`) were managed by a low-level component, it would be very difficult to pass the final edited data all the way back up to the root `App` component, which is the single source of truth for the `words` array. This same principle applies to non-modal, in-place editing state.
 
-#### The Solution: Lift State Up
+#### The Solution: Lift State Up (Even for In-Place Editing)
 
-The correct pattern is to "lift" the state required to manage the modal up to the nearest common ancestor component that owns the data being modified. In our case, the `App` component owns the `words` state, so it must also own the state for the modal that edits items within it.
+The correct pattern is to "lift" the state required to manage the editing context up to the nearest common ancestor component that owns the data being modified.
+
+Initially, we used a `PromptModal` for editing notes/responses, and the state for that modal (`isChecklistPromptOpen`, `editingChecklistItem`) lived in the main `App` component. We have since refactored this to a much better user experience: **in-place editing**.
+
+The state for this in-place editing (`editingNoteForItemId`, `editingResponseForItemId`) still follows the "lift state up" pattern, but it lives in the `Checklist` component itself. This is the ideal location because the `Checklist` component is the "nearest common ancestor" that manages all its items and can efficiently handle the re-render for a single item switching into an editable state.
 
 ```ts
-// In the App component (src/renderer.tsx)
+// In the Checklist component (src/renderer.tsx)
 
-// 1. State for the modal is defined at the top level.
-const [isChecklistPromptOpen, setIsChecklistPromptOpen] = useState(false);
-const [editingChecklistItem, setEditingChecklistItem] = useState<{...} | null>(null);
+// 1. State for the in-place editing is defined in the component that owns the list.
+const [editingResponseForItemId, setEditingResponseForItemId] = useState<number | null>(null);
+const [editingNoteForItemId, setEditingNoteForItemId] = useState<number | null>(null);
 
-// 2. The event to open the modal is triggered from a deep child (context menu),
-//    but it calls a handler that sets the state in the top-level App.
-const handleOpenEditModal = (itemToEdit) => {
-  setEditingChecklistItem(itemToEdit);
-  setIsChecklistPromptOpen(true);
+// 2. The event to start editing is triggered from a deep child (context menu or button).
+//    It calls a handler that sets the state in the `Checklist` component.
+const handleEditNote = (itemId) => {
+  setEditingNoteForItemId(itemId);
 };
 
-// 3. The Modal is rendered at the top level and receives the state and handlers.
-return (
-  <div className="app-container">
-    {/* ... other components ... */}
-    
-    {isChecklistPromptOpen && (
-      <PromptModal
-        isOpen={isChecklistPromptOpen}
-        onClose={() => setIsChecklistPromptOpen(false)}
-        onConfirm={(newText) => {
-          // The confirmation logic here has direct access to `setWords`.
-          handleWordUpdate(...);
-          setIsChecklistPromptOpen(false);
-        }}
-      />
-    )}
-  </div>
-);
+// 3. The component uses conditional rendering to show an <input> for the specific item.
+items.map(item => (
+  editingNoteForItemId === item.id 
+    ? <input autoFocus onBlur={() => setEditingNoteForItemId(null)} /> 
+    : <span>{item.note}</span>
+))
 ```
 ---
 
@@ -2740,3 +2733,111 @@ switch (command) {
 ```
 ---
 
+### Developer Guide - Rule 60.0: Synchronizing `Checklist` State with `updateHistory`
+
+This guide explains a critical state management pattern within the `Checklist` component that is necessary to prevent infinite re-render loops.
+
+#### The Problem: Stale Local History vs. New Props
+
+The `Checklist` component maintains its own internal `history` state array to manage its local Undo/Redo functionality. When a handler function inside the `Checklist` component modifies the checklist data (e.g., `handleDeleteAllNotes`), it does two things:
+
+1.  It calculates the new state of the checklist (`newSections`).
+2.  It calls `onUpdate(newSections)` to pass this new state up to the parent `App` component.
+
+The `App` component then updates its master `words` state, which flows back down to the `Checklist` component as new props.
+
+The bug occurs if the handler **only** calls `onUpdate` without also updating its own internal `history` state. When the `Checklist` component re-renders with the new props, its internal `history` is now out of sync with the data it's receiving. This discrepancy can trigger other `useEffect` hooks within the component that try to reconcile the state, leading to an infinite re-render loop that freezes the UI.
+
+#### The Solution: Always Call `updateHistory` with `onUpdate`
+
+The rule is simple: **Any function inside the `Checklist` component that modifies the checklist data and calls `onUpdate` MUST also call `updateHistory` with the exact same new data.**
+
+This ensures that the component's internal state and its incoming props are always synchronized, preventing the re-render loop.
+
+#### Example
+
+```tsx
+// Incorrect (Buggy):
+const handleDeleteAllNotes = () => {
+  // ... confirmation logic ...
+  const newSections = ...;
+  onUpdate(newSections); // BUG: The local history is now stale.
+};
+
+// Correct:
+const handleDeleteAllNotes = () => {
+  // ... confirmation logic ...
+  const newSections = ...;
+  updateHistory(newSections); // CORRECT: The local history is updated first.
+  onUpdate(newSections);
+};
+
+```
+---
+
+### Developer Guide - Rule 61.0: Avoiding Native Modals for Confirmations and Actions
+
+This guide explains why we must avoid using native, blocking browser modals (`window.confirm()`, `window.alert()`, `window.prompt()`) and instead use custom, in-app UI components for user confirmations.
+
+#### The Problem: Focus-Stealing and UI Freezes
+
+Native modals are problematic in an Electron/React application for a critical reason: **they steal focus from the application window**.
+
+1.  **Blocking Execution**: When `window.confirm()` is called, it pauses all JavaScript execution in the renderer process and hands control over to the operating system to display the dialog.
+2.  **Focus Hijacking**: The OS dialog becomes the focused element. When the user clicks "OK" or "Cancel," focus is returned to the application's top-level window, not to any specific element within it.
+3.  **The Race Condition**: If a significant React state update and re-render is triggered in the same synchronous block of code immediately after the dialog closes, a race condition occurs. The browser's rendering engine can get "stuck" trying to process the re-render while also handling the return of window focus. This results in the UI becoming unresponsive to clicks and focus events, requiring a window focus reset (like alt-tabbing) to fix.
+
+While we have used `setTimeout(..., 0)` as a patch for this in the past, it is a workaround, not a robust solution.
+
+#### The Solution: In-App, State-Driven Confirmations
+
+The standard pattern is to build the confirmation flow directly into the UI using React state. This keeps the entire interaction within our application's control, providing a seamless user experience and completely avoiding focus-related bugs.
+
+The "two-click delete" pattern is our primary implementation of this:
+1.  A component maintains a local state, e.g., `const [isConfirming, setIsConfirming] = useState(false);`.
+2.  The first click on a button sets `isConfirming` to `true`.
+3.  The UI conditionally renders a different button style or text (e.g., "Are you sure?") based on the `isConfirming` state.
+4.  A second click on the button (while in the confirming state) executes the destructive action.
+5.  A `setTimeout` is used to automatically revert the button to its normal state if the user doesn't confirm within a few seconds.
+
+This approach is safer, more reliable, and provides a better user experience.
+
+#### Example
+```tsx
+// --- INCORRECT: Avoid this pattern ---
+const handleDelete = () => {
+  if (window.confirm('Are you sure?')) {
+    // This state update can cause the UI to freeze.
+    performDestructiveAction();
+  }
+};
+
+// --- CORRECT: Use this state-driven pattern ---
+function MyComponent() {
+  const [isConfirming, setIsConfirming] = useState(false);
+  const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleDeleteClick = () => {
+    if (isConfirming) {
+      // 2. Second click: perform the action.
+      performDestructiveAction();
+      setIsConfirming(false);
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+    } else {
+      // 1. First click: enter confirmation state.
+      setIsConfirming(true);
+      // 3. Set a timeout to automatically cancel confirmation.
+      confirmTimeoutRef.current = setTimeout(() => setIsConfirming(false), 3000);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleDeleteClick}
+      className={isConfirming ? 'confirm-delete' : ''}
+    >
+      {isConfirming ? 'Sure?' : 'Delete'}
+    </button>
+  );
+}
+```

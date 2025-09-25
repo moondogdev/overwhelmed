@@ -40,13 +40,15 @@ This document should be updated whenever new declarative logic is implemented.
 ### `settings.openChecklistSectionIds: number[]`
 -   **Description**: An array within the `settings` object that stores the IDs of checklist sections that are currently expanded. This allows the UI to remember which sections are open or collapsed.
 
-### `isChecklistPromptOpen: boolean`
--   **Description**: A boolean flag that controls the visibility of the `PromptModal` used for editing a checklist item's `response` or `note` field.
+### `settings.openChecklistSectionIds: number[]`
+-   **Description**: An array within the `settings` object that stores the IDs of checklist sections that are currently expanded. This allows the UI to remember which sections are open or collapsed.
 
-### `editingChecklistItem: object | null`
--   **Description**: A state object that holds the context for the checklist item currently being edited via the `PromptModal`. It stores the `sectionId`, `itemId`, the `field` being edited ('response' or 'note'), and the `currentText`. It is `null` when the modal is closed.
+### `settings.showChecklistResponses: boolean`
+-   **Description**: A boolean flag within the `settings` object that controls the global visibility of all `response` fields in checklists.
 
----
+### `settings.showChecklistNotes: boolean`
+-   **Description**: A boolean flag within the `settings` object that controls the global visibility of all `note` fields in checklists.
+
 ### `editingItemId: number | null`
 -   **Description**: A state variable that holds the `id` of the checklist item currently being edited directly in the list. This enables the in-place editing feature in both "Task" and "Edit" views.
 
@@ -62,6 +64,22 @@ This document should be updated whenever new declarative logic is implemented.
 ### `focusSubInputKey: string | null`
 -   **Description**: A state variable that holds a unique key (e.g., `"response-123"`) for a checklist sub-input field (`response` or `note`). It is used in the "Edit" view to programmatically focus the correct input field immediately after it is created.
 
+### `Checklist` Component State
+-   **Description**: The following state variables are managed locally within the `Checklist` component to handle its UI interactions.
+
+#### `editingSectionId: number | null`
+-   **Description**: Holds the `id` of the checklist section whose title is currently being edited in-line.
+
+#### `editingSectionTitle: string`
+-   **Description**: Holds the text content for the section title input field identified by `editingSectionId`.
+
+#### `confirmingDelete...: number | null` or `boolean`
+-   **Description**: A family of state variables (`confirmingDeleteNotes`, `confirmingDeleteSectionResponses`, etc.) that track the two-click confirmation state for destructive actions. They hold a section ID or a boolean to indicate that the next click should confirm the deletion.
+
+#### `history: ChecklistSection[][]` / `historyIndex: number`
+-   **Description**: State variables that manage the local undo/redo history for all changes made to the checklist. `history` is an array of snapshots, and `historyIndex` points to the current state within that array.
+
+---
 ### `subInputRefs: RefObject`
 -   **Description**: A React `ref` object that stores references to all the dynamically rendered `response` and `note` input fields in the checklist, keyed by a unique string (e.g., `"response-123"`). This allows for programmatic focusing of specific inputs.
 ---
@@ -314,6 +332,9 @@ interface Word {
 ### `extractUrlFromText(text: string): string | null`
 -   **Description**: A helper function that takes a string and uses a regular expression to find and return the first `http` or `https` URL it contains. Returns `null` if no URL is found.
 
+### `formatChecklistSectionRawForCopy(section: ChecklistSection): string`
+-   **Description**: A helper function that takes a single checklist section and returns a plain-text string containing only the text of its items, separated by newlines. Used for the "Copy Raw" feature.
+
 ---
 
 ## Handlers (Functions)
@@ -369,12 +390,36 @@ interface Word {
 ### `checklist-item-command` Listener
 -   **Description**: A `useEffect` hook in `renderer.tsx` that listens for commands sent from the various checklist-related context menus. It acts as a central router to perform actions on checklist items, notes, and responses.
 -   **Commands Handled**:
-    -   `edit_note` / `edit_response`: Puts the note/response into an inline-editable state in the Task view.
+    -   `edit_note` / `edit_response`: Creates the note/response field if it doesn't exist, then puts it into an inline-editable state directly in the UI, eliminating the need for a modal.
     -   `copy_note` / `copy_response`: Copies the text content of the note/response to the clipboard.
     -   `delete_note` / `delete_response`: Deletes the note/response from the item.
     -   `open_link` / `copy_link`: Opens or copies the first URL found in the main item text.
     -   `open_note_link` / `copy_note_link`: Opens or copies the first URL found in a note.
     -   `open_response_link` / `copy_response_link`: Opens or copies the first URL found in a response.
+---
+### `checklist-section-command` Listener
+-   **Description**: A `useEffect` hook in `renderer.tsx` that listens for commands sent from the checklist section context menu.
+-   **Commands Handled**:
+    -   `edit_title`: Puts the section title into an inline-editable state.
+    -   `toggle_collapse`: Expands or collapses the section.
+    -   `expand_all` / `collapse_all`: Expands or collapses all checklist sections.
+    -   `add_note_to_section` / `add_note_to_all`: Adds an empty note field to items in a specific section or all sections.
+    -   `add_response_to_section` / `add_response_to_all`: Adds an empty response field to items in a specific section or all sections.
+    -   `copy_section_raw` / `copy_all_sections_raw`: Copies the raw text content of a section or all sections to the clipboard.
+    -   `clear_all_highlights`: Removes the highlight color from all items in a section.
+
+### `Checklist` Component Handlers
+-   **Description**: The following handlers are defined within the `Checklist` component to manage its local state and UI.
+
+#### `handleUpdateSectionTitle(sectionId: number, newTitle: string)`
+-   **Description**: Updates the `title` for a specific checklist section.
+
+#### `handleToggleSectionCollapse(sectionId: number)`
+-   **Description**: Toggles the collapsed/expanded state of a single checklist section by updating `settings.openChecklistSectionIds`.
+
+#### `handleDeleteAllNotes()` / `handleDeleteAllResponses()`
+-   **Description**: Implements the logic for the two-click confirmation pattern to delete all notes or responses from every item in the checklist.
+
 ---
 
 ---

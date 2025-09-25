@@ -6,6 +6,7 @@ A log of what was commited to git.
 
 ## Log of Changes
 
+- **[1.0.15] - 2025-09-25: Checklist Usability & Collapsible Sections**: feat(checklist): Add collapsible sections, in-line editing, and remove native prompts
 - **[1.0.14] - 2025-09-23: Interactive Checklists & Link Handling**: feat(checklist): Overhaul checklist interactivity, add link handling, and fix bugs
 - **[1.0.13] - 2025-09-23: Interactive Checklist Items**: feat(checklist): Implement fully interactive checklist item UI
 - **[1.0.12] - 2025-09-23: Checklist Enhancements**: feat(checklist): Add due dates, fix duplication, and improve layout
@@ -21,6 +22,29 @@ A log of what was commited to git.
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.15] - 2025-09-24: Checklist Usability & Collapsible Sections
+**feat(checklist): Add collapsible sections, in-line editing, and remove native prompts**
+
+This commit introduces major usability enhancements to the checklist system, including collapsible sections, in-line editing for section titles, and a move away from disruptive native prompts for context menu actions, creating a smoother and more intuitive workflow.
+
+#### Features & Fixes:
+-   **Collapsible Sections**:
+    -   Implemented expand/collapse functionality for individual checklist sections via a new arrow icon in the section header.
+    -   Added "Expand All Sections" and "Collapse All Sections" buttons and context menu actions to the main checklist header for global control.
+-   **In-Line Section Title Editing**: Checklist section titles can now be edited directly in both "Task" and "Edit" views by double-clicking the title text.
+-   **Context Menu Overhaul**:
+    -   Refactored the context menu actions for adding/editing notes and responses to use the same non-blocking, in-place editing UI as the quick-action buttons, removing the reliance on native `prompt()` dialogs.
+    -   The "View Task" / "Edit Task" option now correctly toggles based on the current view mode.
+-   **UI/UX Polish**:
+    -   Refactored the main checklist header and section header buttons for a more uniform and consistent appearance.
+    -   Added "Hide/Show Notes" and "Hide/Show Responses" toggles to section context menus and as global buttons in the main checklist header.
+    -   When adding a new section, the "New Section" placeholder text is now automatically selected for immediate renaming.
+-   **Documentation**:
+    -   Added `Rule 60.0` (Synchronizing Checklist State) and `Rule 61.0` (Avoiding Native Modals) to `GEMINI.md`.
+    -   Updated `DEFINITIONS.md` with new handlers and state related to collapsible sections and improved context menus.
 
 ---
 

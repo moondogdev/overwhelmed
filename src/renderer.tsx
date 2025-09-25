@@ -27,14 +27,14 @@ declare global {
     on: (channel: string, callback: (...args: any[]) => void) => (() => void) | undefined;
     manageFile: (args: { action: 'select' } | { action: 'open', filePath: string }) => Promise<{ name: string, path: string } | null>;
     downloadImage: (url: string) => Promise<void>;
-    showTaskContextMenu: (payload: { wordId: number, x: number, y: number }) => void;
+    showTaskContextMenu: (payload: { wordId: number, x: number, y: number, isInEditMode: boolean, hasCompletedTasks: boolean }) => void;
     showSelectionContextMenu: (payload: { selectionText: string, x: number, y: number }) => void;
-    showToastContextMenu: (payload: { wordId: number, x: number, y: number }) => void;
+    showToastContextMenu: (payload: { wordId: number, x: number, y: number, isInEditMode: boolean }) => void;
     showInboxItemContextMenu: (payload: { message: InboxMessage, x: number, y: number }) => void;
     showNavButtonContextMenu: (payload: { x: number, y: number, canGoBack: boolean, canGoForward: boolean }) => void;
-    showSaveButtonContextMenu: (payload: { x: number, y: number }) => void;    
-    showChecklistSectionContextMenu: (payload: { wordId: number, sectionId: number, areAllComplete: boolean, x: number, y: number }) => void;
-    showChecklistItemContextMenu: (payload: { sectionId: number, itemId: number, isCompleted: boolean, hasNote: boolean, hasResponse: boolean, hasUrl: boolean, x: number, y: number }) => void;    
+    showSaveButtonContextMenu: (payload: { x: number, y: number }) => void;
+    showChecklistSectionContextMenu: (payload: { wordId: number, sectionId: number, areAllComplete: boolean, isSectionOpen: boolean, isNotesHidden: boolean, isResponsesHidden: boolean, x: number, y: number, isInEditMode: boolean }) => void;
+    showChecklistItemContextMenu: (payload: { wordId: number, sectionId: number, itemId: number, isCompleted: boolean, hasNote: boolean, hasResponse: boolean, hasUrl: boolean, isInEditMode: boolean, x: number, y: number }) => void;
     showChecklistNoteContextMenu: (payload: { sectionId: number, itemId: number, hasUrl: boolean, hasNote: boolean, x: number, y: number }) => void;
     showChecklistResponseContextMenu: (payload: { sectionId: number, itemId: number, hasUrl: boolean, hasResponse: boolean, x: number, y: number }) => void;
     notifyDirtyState: (isDirty: boolean) => void;
@@ -178,6 +178,9 @@ interface Settings {
   inboxSort?: 'date-desc' | 'date-asc' | 'type';
   openInboxGroupTypes?: string[];
   taskTypes?: TaskType[];
+  openChecklistSectionIds?: number[]; // New setting to store open/collapsed checklist sections
+  showChecklistResponses?: boolean; // New setting to toggle response visibility
+  showChecklistNotes?: boolean; // New setting to toggle note visibility
   allCategoryColor?: string;
 }
 
@@ -199,6 +202,7 @@ interface TabbedViewProps {
   settings: Settings; // Pass down settings for browser selection
   startInEditMode?: boolean;
   words: Word[]; // Add words to props
+  completedWords: Word[];
   onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void; // Add this prop
   setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>; // Add setInboxMessages to props
   className?: string;
@@ -224,6 +228,7 @@ interface FullTaskViewProps {
   onDescriptionChange: (html: string) => void; // Add the missing prop
   focusChecklistItemId: number | null;
   setFocusChecklistItemId: (id: number | null) => void;
+  completedWords: Word[];
 }
 
 function FullTaskView({ task, onClose, setCopyStatus, ...props }: FullTaskViewProps) {
@@ -366,9 +371,15 @@ function PromptModal({ isOpen, title, onClose, onConfirm, placeholder, initialVa
   );
 }
 
-function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange, onSettingsChange, words, setInboxMessages, onComplete, wordId, checklistRef, focusChecklistItemId, setFocusChecklistItemId, ...rest }: TabbedViewProps) {
+function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange, onSettingsChange, words, completedWords, setInboxMessages, onComplete, wordId, checklistRef, focusChecklistItemId, setFocusChecklistItemId, ...rest }: TabbedViewProps) {
   const initialTab = settings.activeTaskTabs[word.id] || (word.completedDuration ? 'ticket' : 'ticket');
   const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(initialTab);
+
+  // This effect synchronizes the internal state with the prop from the parent.
+  useEffect(() => {
+    const newTab = settings.activeTaskTabs[word.id] || 'ticket';
+    if (newTab !== activeTab) setActiveTab(newTab);
+  }, [settings.activeTaskTabs, word.id, activeTab]);
 
   const handleTabClick = (tab: 'ticket' | 'edit') => {
     setActiveTab(tab);
@@ -381,7 +392,12 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
 
   const handleTaskContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    window.electronAPI.showTaskContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY });
+    const isInEditMode = activeTab === 'edit';
+    // We need to check if there are any completed tasks to enable the "Re-Open Last Task" option.
+    // Since TabbedView doesn't have `completedWords`, we'll pass it down from `App`.
+    //const hasCompletedTasks = rest.completedWords.length > 0;
+    const hasCompletedTasks = completedWords.length > 0;
+    window.electronAPI.showTaskContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY, isInEditMode, hasCompletedTasks });
   };
 
   useEffect(() => {
@@ -565,6 +581,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
                 focusItemId={focusChecklistItemId} 
                 onFocusHandled={() => setFocusChecklistItemId(null)} 
                 settings={settings} 
+                onSettingsChange={onSettingsChange}
               />
               <DescriptionEditor 
                 description={word.description || ''} 
@@ -717,6 +734,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
               focusItemId={focusChecklistItemId} 
               onFocusHandled={() => setFocusChecklistItemId(null)}
               settings={settings} 
+              onSettingsChange={onSettingsChange}
               />
             <DescriptionEditor 
               description={word.description || ''} 
@@ -939,7 +957,7 @@ function DescriptionEditor({ description, onDescriptionChange, settings, onSetti
   );
 }
 
-function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInboxMessages, wordId, checklistRef, setCopyStatus, focusItemId, onFocusHandled, settings }: { sections: ChecklistSection[] | ChecklistItem[], onUpdate: (newSections: ChecklistSection[]) => void, isEditable: boolean, onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void, words: Word[], setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>, wordId: number, checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>, setCopyStatus: (message: string) => void, focusItemId: number | null, onFocusHandled: () => void, settings: Settings }) {
+function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInboxMessages, wordId, checklistRef, setCopyStatus, focusItemId, onFocusHandled, settings, onSettingsChange }: { sections: ChecklistSection[] | ChecklistItem[], onUpdate: (newSections: ChecklistSection[]) => void, isEditable: boolean, onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void, words: Word[], setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>, wordId: number, checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>, setCopyStatus: (message: string) => void, focusItemId: number | null, onFocusHandled: () => void, settings: Settings, onSettingsChange: (newSettings: Partial<Settings>) => void }) {
   const [newItemTexts, setNewItemTexts] = useState<{ [key: number]: string }>({});
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
   const [editingSectionTitle, setEditingSectionTitle] = useState('');
@@ -949,6 +967,13 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
   const [editingNoteForItemId, setEditingNoteForItemId] = useState<number | null>(null);
   const [focusSubInputKey, setFocusSubInputKey] = useState<string | null>(null);
   const subInputRefs = useRef<{ [key: string]: HTMLInputElement }>({});
+  const [hiddenNotesSections, setHiddenNotesSections] = useState<Set<number>>(new Set());
+  const [hiddenResponsesSections, setHiddenResponsesSections] = useState<Set<number>>(new Set());
+  const [confirmingDeleteSectionNotes, setConfirmingDeleteSectionNotes] = useState<number | null>(null);
+  const [confirmingDeleteSectionResponses, setConfirmingDeleteSectionResponses] = useState<number | null>(null);
+  const [confirmingDeleteNotes, setConfirmingDeleteNotes] = useState(false);
+  const [confirmingDeleteResponses, setConfirmingDeleteResponses] = useState(false);
+  const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const addItemInputRef = useRef<{ [key: number]: HTMLTextAreaElement }>({});
 
   // State for local undo/redo history of checklist changes
@@ -989,24 +1014,27 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     setHistory([...newHistory, newSections]);
     setHistoryIndex(newHistory.length);
   };
-  // Effect to handle commands from the context menu that require local state changes
-  useEffect(() => {
-    const handleChecklistCommand = (payload: { command: string, sectionId: number, itemId: number }) => {
-      if (payload.command === 'edit') {
-        const section = normalizedSections.find(s => s.id === payload.sectionId);
-        const item = section?.items.find(i => i.id === payload.itemId);
-        if (item) {
-          setEditingItemId(item.id);
-          setEditingItemText(item.text);
-        }
+
+  const handleToggleSectionNotes = (sectionId: number) => {
+    setHiddenNotesSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId);
+      } else {
+        newSet.add(sectionId);
       }
-    };
+      return newSet;
+    });
+  };
 
-    // We listen for the generic command, but only act on 'edit'
-    const cleanup = window.electronAPI.on('checklist-item-command', handleChecklistCommand);
-    return cleanup;
-  }, [normalizedSections]); // Re-bind if the sections change
-
+  const handleToggleSectionResponses = (sectionId: number) => {
+    setHiddenResponsesSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionId)) newSet.delete(sectionId);
+      else newSet.add(sectionId);
+      return newSet;
+    });
+  };
   useEffect(() => {
     if (focusItemId && editingItemId === focusItemId && editingItemInputRef.current) {
       editingItemInputRef.current.focus();
@@ -1015,9 +1043,8 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     }
   }, [editingItemId, focusItemId, onFocusHandled]);
 
-
   const handleUpdateItemText = (sectionId: number, itemId: number, newText: string) => {
-    const newSections = normalizedSections.map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, text: newText } : item) } : sec);
+    const newSections = history[historyIndex].map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, text: newText } : item) } : sec);
     if (!isUndoingRedoing.current) {
       updateHistory(newSections);
     }
@@ -1025,32 +1052,31 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
   };
 
   const handleUpdateItemResponse = (sectionId: number, itemId: number, newResponse: string) => {
-    const newSections = normalizedSections.map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, response: newResponse } : item) } : sec);
+    const newSections = history[historyIndex].map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, response: newResponse } : item) } : sec);
     updateHistory(newSections);
     onUpdate(newSections);
   };
 
   const handleUpdateItemNote = (sectionId: number, itemId: number, newNote: string) => {
-    const newSections = normalizedSections.map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, note: newNote } : item) } : sec);
+    const newSections = history[historyIndex].map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, note: newNote } : item) } : sec);
     updateHistory(newSections);
     onUpdate(newSections);
   };
 
   const handleDeleteItemResponse = (sectionId: number, itemId: number) => {
-    const newSections = normalizedSections.map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, response: undefined } : item) } : sec);
+    const newSections = history[historyIndex].map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, response: undefined } : item) } : sec);
     updateHistory(newSections);
     onUpdate(newSections);
   };
 
   const handleDeleteItemNote = (sectionId: number, itemId: number) => {
-    const newSections = normalizedSections.map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, note: undefined } : item) } : sec);
+    const newSections = history[historyIndex].map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(item => item.id === itemId ? { ...item, note: undefined } : item) } : sec);
     updateHistory(newSections);
     onUpdate(newSections);
   };
 
-
   const handleUpdateItemDueDate = (sectionId: number, itemId: number, newDueDate: number | undefined) => {
-    const newSections = normalizedSections.map(sec =>
+    const newSections = history[historyIndex].map(sec =>
       sec.id === sectionId
         ? { ...sec, items: sec.items.map(item => (item.id === itemId ? { ...item, dueDate: newDueDate } : item)) }
         : sec,
@@ -1061,7 +1087,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
 
   const handleUpdateItemDueDateFromPicker = (sectionId: number, itemId: number, dateString: string) => {
     const newDueDate = dateString ? new Date(dateString + 'T00:00:00').getTime() : undefined;
-    const newSections = normalizedSections.map(sec =>
+    const newSections = history[historyIndex].map(sec =>
       sec.id === sectionId ? { ...sec, items: sec.items.map(item => (item.id === itemId ? { ...item, dueDate: newDueDate } : item)) } : sec
     );
     updateHistory(newSections);
@@ -1075,7 +1101,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
       title: 'New Section',
       items: [],
     };
-    const newSections = [...normalizedSections, newSection];
+    const newSections = [...history[historyIndex], newSection];
     updateHistory(newSections);
     onUpdate(newSections);
     setEditingSectionId(newId); // Set the new section to be in edit mode
@@ -1083,7 +1109,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
   };
 
   const handleUpdateSectionTitle = (sectionId: number, newTitle: string) => {
-    const newSections = normalizedSections.map(sec => 
+    const newSections = history[historyIndex].map(sec => 
       sec.id === sectionId ? { ...sec, title: newTitle } : sec
     );
     if (!isUndoingRedoing.current) {
@@ -1110,7 +1136,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
       isCompleted: false,
     }));
 
-    const newSections = normalizedSections.map(sec =>
+    const newSections = history[historyIndex].map(sec =>
       sec.id === sectionId ? { ...sec, items: [...sec.items, ...newItems] } : sec
     );
 
@@ -1128,7 +1154,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
 
   const handleToggleItem = (sectionId: number, itemId: number) => {
     let toggledItem: ChecklistItem | null = null;
-    const newSections = normalizedSections.map(sec => {
+    const newSections = history[historyIndex].map(sec => {
       if (sec.id !== sectionId) return sec;
 
       const newItems = sec.items.map(item => {
@@ -1171,7 +1197,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
   };
 
   const handleCompleteAllInSection = (sectionId: number) => {
-    const sectionToUpdate = normalizedSections.find(sec => sec.id === sectionId);
+    const sectionToUpdate = history[historyIndex].find(sec => sec.id === sectionId);
     if (!sectionToUpdate) return;
 
     const areAllCurrentlyCompleted = sectionToUpdate.items.every(item => item.isCompleted);
@@ -1193,7 +1219,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     }
 
     // Finally, update the state to toggle all items.
-    const newSections = normalizedSections.map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(i => ({ ...i, isCompleted: !areAllCurrentlyCompleted })) } : sec);
+    const newSections = history[historyIndex].map(sec => sec.id === sectionId ? { ...sec, items: sec.items.map(i => ({ ...i, isCompleted: !areAllCurrentlyCompleted })) } : sec);
     if (!isUndoingRedoing.current) {
       updateHistory(newSections);
     }
@@ -1201,7 +1227,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
   };
 
   const handleClearCompleted = (sectionId: number) => {
-    const newSections = normalizedSections.map(sec => {
+    const newSections = history[historyIndex].map(sec => {
       if (sec.id === sectionId) {
         const newItems = sec.items.filter(item => !item.isCompleted);
         return { ...sec, items: newItems };
@@ -1215,12 +1241,12 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
   };
   
   const handleToggleAllSections = () => {
-    const allItems = normalizedSections.flatMap(sec => sec.items);
+    const allItems = history[historyIndex].flatMap(sec => sec.items);
     if (allItems.length === 0) return;
 
     const areAllItemsComplete = allItems.every(item => item.isCompleted);
 
-    const newSections = normalizedSections.map(sec => ({
+    const newSections = history[historyIndex].map(sec => ({
       ...sec,
       items: sec.items.map(item => {
         // If we are completing all, and this item isn't complete yet, send a notification
@@ -1239,18 +1265,20 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
   const handleDeleteChecked = (sectionId?: number) => {
     const message = sectionId ? 'Are you sure you want to delete all checked items in this section?' : 'Are you sure you want to delete all checked items in this checklist?';
     if (window.confirm(message)) {
-      const newSections = normalizedSections.map(sec => 
-        (sectionId === undefined || sec.id === sectionId) 
-          ? { ...sec, items: sec.items.filter(item => !item.isCompleted) } 
-          : sec
-      );
-      updateHistory(newSections);
-      onUpdate(newSections);
+      setTimeout(() => {
+        const newSections = history[historyIndex].map(sec => 
+          (sectionId === undefined || sec.id === sectionId) 
+            ? { ...sec, items: sec.items.filter(item => !item.isCompleted) } 
+            : sec
+        );
+        updateHistory(newSections);
+        onUpdate(newSections);
+      }, 0);
     }
   };
 
   const handleDeleteItem = (sectionId: number, itemId: number) => {
-    const newSections = normalizedSections.map(sec => {
+    const newSections = history[historyIndex].map(sec => {
       if (sec.id === sectionId) {
         const newItems = sec.items.filter(item => item.id !== itemId);
         return { ...sec, items: newItems };
@@ -1293,24 +1321,215 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     };
   }
 
+  const handleToggleSectionCollapse = React.useCallback((sectionId: number) => {
+    const openIds = settings.openChecklistSectionIds || [];
+    const isOpen = openIds.includes(sectionId);
+    const newOpenIds = isOpen
+      ? openIds.filter(id => id !== sectionId)
+      : [...openIds, sectionId];
+    
+    onSettingsChange({ openChecklistSectionIds: newOpenIds });
+  }, [settings.openChecklistSectionIds, onSettingsChange]);
+
+  const handleCollapseAllSections = React.useCallback(() => {
+    onSettingsChange({ openChecklistSectionIds: [] });
+  }, [onSettingsChange]);
+
+  const handleExpandAllSections = React.useCallback(() => {
+    const allSectionIds = history[historyIndex].map(s => s.id);
+    onSettingsChange({ openChecklistSectionIds: allSectionIds });
+  }, [history, historyIndex, onSettingsChange]);
+
+  const handleAddNotes = React.useCallback((sectionId?: number) => {
+    const newSections = history[historyIndex].map(sec => {
+      if (sectionId && sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        items: sec.items.map(item => 
+          item.note === undefined ? { ...item, note: '' } : item
+        )
+      };
+    });
+    updateHistory(newSections);
+    onUpdate(newSections);
+    setCopyStatus('Note fields added!');
+  }, [history, historyIndex, onUpdate, setCopyStatus]);
+
+  const handleAddResponses = React.useCallback((sectionId?: number) => {
+    const newSections = history[historyIndex].map(sec => {
+      if (sectionId && sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        items: sec.items.map(item => 
+          item.response === undefined ? { ...item, response: '' } : item
+        )
+      };
+    });
+    updateHistory(newSections);
+    onUpdate(newSections);
+    setCopyStatus('Response fields added!');
+  }, [history, historyIndex, onUpdate, setCopyStatus]);
+
+  const handleDeleteAllResponses = () => {
+    const newSections = history[historyIndex].map(sec => ({
+      ...sec,
+      items: sec.items.map(item => {
+        const { response, ...rest } = item;
+        return rest;
+      })
+    }));
+    updateHistory(newSections);
+    onUpdate(newSections);
+    setCopyStatus('All Response deleted!');
+  };
+
+
+  const handleDeleteAllNotes = () => {
+    const newSections = history[historyIndex].map(sec => ({
+      ...sec,
+      items: sec.items.map(item => {
+        const { note, ...rest } = item;
+        return rest;
+      })
+    }));
+    updateHistory(newSections);
+    onUpdate(newSections);
+    setCopyStatus('All Notes deleted!');
+  };
+
+  const handleDeleteAllSectionResponses = (sectionId: number) => {
+    const newSections = history[historyIndex].map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        items: sec.items.map(item => {
+          const { response, ...rest } = item;
+          return rest;
+        })
+      };
+    });
+    updateHistory(newSections);
+    onUpdate(newSections);
+    setCopyStatus('Section Responses deleted!');
+  };
+
+  const handleDeleteAllSectionNotes = (sectionId: number) => {
+    const newSections = history[historyIndex].map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return { ...sec, items: sec.items.map(item => { const { note, ...rest } = item; return rest; }) };
+    });
+    updateHistory(newSections);
+    onUpdate(newSections);
+    setCopyStatus('Section Notes deleted!');
+  };
+  // Effect to handle commands from the context menu that require local state changes
+  useEffect(() => {
+    const handleChecklistCommand = (payload: { command: string, sectionId: number, itemId: number }) => {
+      if (payload.command === 'edit') {
+        const section = history[historyIndex].find(s => s.id === payload.sectionId);
+        const item = section?.items.find(i => i.id === payload.itemId);
+        if (item) {
+          setEditingItemId(item.id);
+          setEditingItemText(item.text);
+        }
+      } else if (payload.command === 'edit_response') {
+        const section = history[historyIndex].find(s => s.id === payload.sectionId);
+        const item = section?.items.find(i => i.id === payload.itemId);
+        if (item) {
+          // If response doesn't exist, create it. Then set it to be edited.
+          if (item.response === undefined) handleUpdateItemResponse(payload.sectionId, payload.itemId, '');
+          setEditingResponseForItemId(payload.itemId);
+        }
+      } else if (payload.command === 'edit_note') {
+        const section = history[historyIndex].find(s => s.id === payload.sectionId);
+        const item = section?.items.find(i => i.id === payload.itemId);
+        if (item) {
+          // If note doesn't exist, create it. Then set it to be edited.
+          if (item.note === undefined) handleUpdateItemNote(payload.sectionId, payload.itemId, '');
+          setEditingNoteForItemId(payload.itemId);
+        }
+      } 
+    };
+    const handleSectionCommand = (payload: { command: string, sectionId?: number }) => {
+      switch (payload.command) {
+        case 'edit_title': {
+          const section = history[historyIndex].find(s => s.id === payload.sectionId);
+          if (section) {
+            setEditingSectionId(section.id);
+            setEditingSectionTitle(section.title);
+          }
+          break;
+        }
+        case 'toggle_collapse': handleToggleSectionCollapse(payload.sectionId); break;
+        case 'expand_all': handleExpandAllSections(); break;
+        case 'collapse_all': handleCollapseAllSections(); break;
+        case 'add_note_to_section': handleAddNotes(payload.sectionId); break;
+        case 'add_note_to_all': handleAddNotes(); break;
+        case 'add_response_to_section': handleAddResponses(payload.sectionId); break;
+        case 'add_response_to_all': handleAddResponses(); break;
+        case 'toggle_section_notes':
+          if (payload.sectionId) handleToggleSectionNotes(payload.sectionId);
+          break;
+        case 'toggle_section_responses':
+          if (payload.sectionId) handleToggleSectionResponses(payload.sectionId);
+          break;
+        case 'copy_section_raw': {
+          const sectionToCopy = history[historyIndex].find(s => s.id === payload.sectionId);
+          if (sectionToCopy) {
+            const textToCopy = formatChecklistSectionRawForCopy(sectionToCopy);
+            navigator.clipboard.writeText(textToCopy);
+            setCopyStatus('Section raw content copied!');
+            setTimeout(() => setCopyStatus(''), 2000);
+          }
+          break;
+        }
+        case 'copy_all_sections_raw': {
+          const allRawText = history[historyIndex]
+            .map(section => formatChecklistSectionRawForCopy(section))
+            .join('\n\n'); // Separate sections with a double newline
+          navigator.clipboard.writeText(allRawText);
+          setCopyStatus('All sections raw content copied!');
+          setTimeout(() => setCopyStatus(''), 2000);
+          break;
+        }
+        case 'clear_all_highlights': {
+          if (payload.sectionId) {
+            const newSections = history[historyIndex].map(sec => 
+              sec.id === payload.sectionId 
+                ? { ...sec, items: sec.items.map(item => ({ ...item, highlightColor: undefined } as ChecklistItem)) }
+                : sec
+            );
+            updateHistory(newSections);
+            onUpdate(newSections);
+            setCopyStatus('Highlights cleared for section.');
+            setTimeout(() => setCopyStatus(''), 2000);
+          }
+          break;
+        }
+      }
+    };
+
+    // We listen for the generic command, but only act on 'edit'
+    const cleanup = window.electronAPI.on('checklist-item-command', handleChecklistCommand);
+    const cleanupSection = window.electronAPI.on('checklist-section-command', handleSectionCommand);
+
+    return () => { 
+      cleanup?.();
+      cleanupSection?.();
+    };
+  }, [history, historyIndex, handleAddNotes, handleAddResponses, handleCollapseAllSections, handleExpandAllSections, handleToggleSectionCollapse]);
+
   return (
     <div className="checklist-container">
       <div className="checklist-main-header">
         <h4>Checklist</h4>
         {(() => {
-          const allItems = normalizedSections.flatMap(sec => sec.items);
+          const allItems = history[historyIndex].flatMap(sec => sec.items);
           if (allItems.length === 0) return null;
           const areAllItemsComplete = allItems.every(item => item.isCompleted);
           const anyItemsCompleted = allItems.some(item => item.isCompleted);
           return (
-            <div className="checklist-section-actions">
-              <button 
-                onClick={handleToggleAllSections} 
-                className="checklist-action-btn"
-                title={areAllItemsComplete ? 'Re-Open All Items in All Sections' : 'Complete All Items in All Sections'}
-              >
-                <i className={`fas ${areAllItemsComplete ? 'fa-undo' : 'fa-check-square'}`}></i>
-              </button>
+            <div className="checklist-section-actions checklist-main-header-actions">
               {isEditable && anyItemsCompleted && (
                 <>
                   <button className="checklist-action-btn delete-btn" onClick={() => handleDeleteChecked()} title="Delete All Checked Items">
@@ -1318,115 +1537,269 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                   </button>
                 </>
               )}
-              <button className="checklist-action-btn" onClick={handleUndo} disabled={historyIndex === 0} title="Undo Last Checklist Action">
-                <i className="fas fa-undo-alt"></i>
-              </button>
-              <button className="checklist-action-btn" onClick={handleRedo} disabled={historyIndex === history.length - 1} title="Redo Checklist Action">
-                <i className="fas fa-redo-alt"></i>
-              </button>
-              <button className="checklist-action-btn" onClick={() => {
-                const textToCopy = formatChecklistForCopy(normalizedSections);
-                navigator.clipboard.writeText(textToCopy);
-                setCopyStatus('All sections copied to clipboard!');
-              }} title="Copy All Sections">
-                <i className="fas fa-copy"></i>
-              </button>
+              <button 
+                onClick={handleToggleAllSections} 
+                className="checklist-action-btn"
+                title={areAllItemsComplete ? 'Re-Open All Items in All Sections' : 'Complete All Items in All Sections'}
+              >
+                <i className={`fas ${areAllItemsComplete ? 'fa-undo' : 'fa-check-square'}`}></i>
+              </button>              
+              <div className="checklist-action-group checklist-action-group-expand">
+                <button className="checklist-action-btn" onClick={handleExpandAllSections} title="Expand All Sections">
+                  <i className="fas fa-folder-open"></i>
+                </button>
+                <button className="checklist-action-btn" onClick={handleCollapseAllSections} title="Collapse All Sections">
+                  <i className="fas fa-folder"></i>
+                </button>                         
+              </div>
+              <div className="checklist-action-group checklist-action-group-responses">
+                <button className="checklist-action-btn" onClick={() => handleAddResponses()} title="Add Response to All Items">
+                  <i className="fas fa-reply"></i>
+                </button>
+                <button 
+                  className="checklist-action-btn" 
+                  onClick={() => onSettingsChange({ showChecklistResponses: !settings.showChecklistResponses })} title={settings.showChecklistResponses ? 'Hide All Responses' : 'Show All Responses'}>
+                  <i className={`fas fa-eye ${settings.showChecklistResponses ? '' : 'disabled-icon'}`}></i>
+                </button>
+                <button className={`checklist-action-btn ${confirmingDeleteResponses ? 'confirm-delete' : ''}`} onClick={() => {
+                  if (confirmingDeleteResponses) {
+                    handleDeleteAllResponses();
+                    setConfirmingDeleteResponses(false);
+                    if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+                  } else {
+                    setConfirmingDeleteResponses(true);
+                    setConfirmingDeleteNotes(false); // Cancel other confirmation
+                    if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+                    confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteResponses(false), 3000);
+                  }
+                }} title="Delete All Responses">
+                  {confirmingDeleteResponses ? 'Sure?' : (                  
+                    <i className="fas fas fa-trash-alt delete-icon"></i>                  
+                  )}
+                </button>
+              </div>
+              <div className="checklist-action-group checklist-action-group-notes">
+                <button className="checklist-action-btn" onClick={() => handleAddNotes()} title="Add Note to All Items">
+                  <i className="fas fa-sticky-note"></i>
+                </button>
+                <button 
+                  className="checklist-action-btn" 
+                  onClick={() => onSettingsChange({ showChecklistNotes: !settings.showChecklistNotes })} title={settings.showChecklistNotes ? 'Hide All Notes' : 'Show All Notes'}>
+                  <i className={`fas fa-eye ${settings.showChecklistNotes ? '' : 'disabled-icon'}`}></i>
+                </button>                   
+                <button className={`checklist-action-btn ${confirmingDeleteNotes ? 'confirm-delete' : ''}`} onClick={() => {
+                  if (confirmingDeleteNotes) {
+                    handleDeleteAllNotes();
+                    setConfirmingDeleteNotes(false);
+                    if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+                  } else {
+                    setConfirmingDeleteNotes(true);
+                    setConfirmingDeleteResponses(false); // Cancel other confirmation
+                    if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+                    confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteNotes(false), 3000);
+                  }
+                }} title="Delete All Notes">
+                  {confirmingDeleteNotes ? 'Sure?' : (
+                    <i className="fas fas fa-trash-alt delete-icon"></i>
+                  )}
+                </button>
+              </div>                            
+              <div className="checklist-action-group checklist-action-group-copy">
+                <button className="checklist-action-btn" onClick={() => {
+                  const textToCopy = formatChecklistForCopy(history[historyIndex]);
+                  navigator.clipboard.writeText(textToCopy);
+                  setCopyStatus('All sections copied to clipboard!');
+                }} title="Copy All Sections">
+                  <i className="fas fa-copy"></i>
+                </button>
+                <button className="checklist-action-btn" onClick={() => {
+                  const allRawText = history[historyIndex].map(section => formatChecklistSectionRawForCopy(section)).join('\n\n');
+                  navigator.clipboard.writeText(allRawText);
+                  setCopyStatus('All sections raw content copied!');
+                }} title="Copy All Sections Raw">
+                  <i className="fas fa-paste"></i>
+                </button>
+              </div>
+              <div className="checklist-action-group checklist-action-group-history">
+                <button className="checklist-action-btn" onClick={handleUndo} disabled={historyIndex === 0} title="Undo Last Checklist Action">
+                  <i className="fas fa-undo-alt"></i>
+                </button>
+                <button className="checklist-action-btn" onClick={handleRedo} disabled={historyIndex === history.length - 1} title="Redo Checklist Action">
+                  <i className="fas fa-redo-alt"></i>
+                </button>
+              </div>
             </div>
           );
         })()}
       </div>
-      {normalizedSections.map(section => {
+      {history[historyIndex].map(section => {
         const completedCount = section.items.filter(item => item.isCompleted).length;
         const totalCount = section.items.length;
         const areAllComplete = totalCount > 0 && completedCount === totalCount;
+        const isSectionOpen = (settings.openChecklistSectionIds || []).includes(section.id);
         const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
         return (
           <div key={section.id} className="checklist-section" data-section-id={section.id} onContextMenu={(e) => { 
               e.preventDefault(); 
               e.stopPropagation(); // Stop the event from bubbling up to the parent TaskAccordion
-              window.electronAPI.showChecklistSectionContextMenu({ wordId, sectionId: section.id, areAllComplete, x: e.clientX, y: e.clientY }); 
+              const isInEditMode = settings.activeTaskTabs?.[wordId] === 'edit';
+              window.electronAPI.showChecklistSectionContextMenu({ 
+                wordId, 
+                sectionId: section.id, 
+                areAllComplete, 
+                isSectionOpen, 
+                isNotesHidden: hiddenNotesSections.has(section.id), 
+                isResponsesHidden: hiddenResponsesSections.has(section.id),
+                isInEditMode, // This was the missing piece
+                x: e.clientX, y: e.clientY }); 
             }}>
-            <div className="checklist-header">
-              {editingSectionId === section.id && isEditable ? (
-                <input
-                  type="text"
-                  value={editingSectionTitle}
-                  onChange={(e) => setEditingSectionTitle(e.target.value)}
-                  onBlur={() => {
-                    handleUpdateSectionTitle(section.id, editingSectionTitle);
-                    setEditingSectionId(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+            <header className="checklist-section-header">
+              <button 
+                className="checklist-collapse-btn" 
+                onClick={() => handleToggleSectionCollapse(section.id)}
+                title={isSectionOpen ? 'Collapse Section' : 'Expand Section'}>
+                <i className={`fas ${isSectionOpen ? 'fa-chevron-down' : 'fa-chevron-right'}`}></i>
+              </button>
+              <div className="checklist-header" onDoubleClick={() => { setEditingSectionId(section.id); setEditingSectionTitle(section.title); }}>
+                {editingSectionId === section.id ? (
+                  <input
+                    type="text"
+                    value={editingSectionTitle}
+                    onChange={(e) => setEditingSectionTitle(e.target.value)}
+                    onBlur={() => {
                       handleUpdateSectionTitle(section.id, editingSectionTitle);
                       setEditingSectionId(null);
-                    }
-                  }}
-                  autoFocus
-                  className="checklist-section-title-input"
-                />
-              ) : (
-                <strong
-                  className={isEditable ? 'editable-title' : ''}
-                  onClick={() => {
-                    if (isEditable) {
-                      setEditingSectionId(section.id);
-                      setEditingSectionTitle(section.title);
-                    }
-                  }}
-                >
-                  {section.title} ({completedCount}/{totalCount})
-                </strong> 
-              )}
-              {totalCount > 0 && (
-                <span className="checklist-progress">
-                  ({completedCount} / {totalCount} completed)
-                </span>
-              )}
-              <div className="checklist-section-actions">
-                {totalCount > 0 && (
-                  <button className="checklist-action-btn" onClick={() => handleCompleteAllInSection(section.id)} title={areAllComplete ? "Reopen All Items" : "Complete All Items"}>
-                    <i className={`fas ${areAllComplete ? 'fa-undo' : 'fa-check-square'}`}></i>
-                  </button>
-                )}
-                {isEditable && completedCount > 0 && (
-                  <button className="checklist-action-btn clear-completed-btn" onClick={() => handleClearCompleted(section.id)} title="Clear Completed Items">
-                    <i className="fas fa-broom"></i>
-                  </button>
-                )}
-                {isEditable && completedCount > 0 && (
-                  <button className="checklist-action-btn delete-btn" onClick={() => handleDeleteChecked(section.id)} title="Delete Checked Items">
-                    <i className="fas fa-trash-alt"></i>
-                  </button>
-                )}
-                <button className="checklist-action-btn" onClick={() => {
-                  const sectionToCopy = normalizedSections.find(s => s.id === section.id);
-                  if (sectionToCopy) {
-                    const textToCopy = formatChecklistForCopy([sectionToCopy]);
-                    navigator.clipboard.writeText(textToCopy);
-                    setCopyStatus('Section copied to clipboard!');
-                  }
-                }} title="Copy Section"><i className="fas fa-copy"></i></button>
-                <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(normalizedSections, section.id, 'up'))} title="Move Section Up"><i className="fas fa-arrow-up"></i></button>
-                <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(normalizedSections, section.id, 'down'))} title="Move Section Down"><i className="fas fa-arrow-down"></i></button>
-                {isEditable && (
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleUpdateSectionTitle(section.id, editingSectionTitle);
+                        setEditingSectionId(null);
+                      }
+                    }}
+                    onFocus={(e) => {
+                      // Automatically select the text when the input is focused
+                      e.target.select();
+                    }}
+                    autoFocus
+                    className="checklist-section-title-input"
+                  />
+                ) : (
                   <>
-                    <button className="checklist-delete-btn" onClick={() => {
-                      if (window.confirm('Are you sure you want to delete this entire section and all its items?')) onUpdate(normalizedSections.filter(sec => sec.id !== section.id));
-                    }} title="Delete Section">
-                      <i className="fas fa-trash-alt"></i>
-                    </button>
+                    <strong
+                      className={'editable-title'}
+                      title="Double-click to edit"
+                    >
+                      {section.title} ({completedCount}/{totalCount})
+                    </strong> 
+                    {hiddenNotesSections.has(section.id) && (
+                      <span className="hidden-indicator" title="Notes are hidden in this section">
+                        <i className="fas fa-sticky-note disabled-icon"></i>
+                      </span>
+                    )}
+                    {hiddenResponsesSections.has(section.id) && (
+                      <span className="hidden-indicator" title="Responses are hidden in this section">
+                        <i className="fas fa-reply disabled-icon"></i>
+                      </span>
+                    )}
                   </>
                 )}
+                {totalCount > 0 && (
+                  <span className="checklist-progress">
+                    ({completedCount} / {totalCount} completed)
+                  </span>
+                )}
+                <div className="checklist-section-actions checklist-section-header-actions">
+                  {isEditable && completedCount > 0 && (
+                    <button className="checklist-action-btn delete-btn" onClick={() => handleDeleteChecked(section.id)} title="Delete Checked Items">
+                      <i className="fas fa-trash-alt"></i>
+                    </button>
+                  )}      
+                  {totalCount > 0 && (
+                    <button className="checklist-action-btn" onClick={() => handleCompleteAllInSection(section.id)} title={areAllComplete ? "Reopen All Items" : "Complete All Items"}>
+                      <i className={`fas ${areAllComplete ? 'fa-undo' : 'fa-check-square'}`}></i>
+                    </button>
+                  )}                                                
+                  <div className="checklist-action-group checklist-action-group-responses">
+                    <button className="checklist-action-btn" onClick={() => handleAddResponses(section.id)} title="Add Response to All Items in Section">
+                      <i className="fas fa-reply"></i>
+                    </button>
+                    <button 
+                      className="checklist-action-btn" 
+                      onClick={() => onSettingsChange({ showChecklistResponses: !settings.showChecklistResponses })} title={settings.showChecklistResponses ? 'Hide All Responses in Section' : 'Show All Responses in Section'}>
+                      <i className={`fas fa-eye ${settings.showChecklistResponses ? '' : 'disabled-icon'}`}></i>
+                    </button>
+                    <button className={`checklist-action-btn ${confirmingDeleteSectionResponses === section.id ? 'confirm-delete' : ''}`} onClick={() => {
+                      if (confirmingDeleteSectionResponses === section.id) {
+                        handleDeleteAllSectionResponses(section.id);
+                        setConfirmingDeleteSectionResponses(null);
+                        if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+                      } else {
+                        setConfirmingDeleteSectionResponses(section.id);
+                        setConfirmingDeleteSectionNotes(null);
+                        if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+                        confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteSectionResponses(null), 3000);
+                      }
+                    }} title="Delete All Responses in Section">
+                      {confirmingDeleteSectionResponses === section.id ? 'Sure?' : <i className="fas fa-trash-alt delete-icon"></i>}
+                    </button>
+                  </div>
+                  <div className="checklist-action-group checklist-action-group-notes">
+                    <button className="checklist-action-btn" onClick={() => handleAddNotes(section.id)} title="Add Note to All Items in Section">
+                      <i className="fas fa-sticky-note"></i>
+                    </button>
+                    <button 
+                      className="checklist-action-btn" 
+                      onClick={() => onSettingsChange({ showChecklistNotes: !settings.showChecklistNotes })} title={settings.showChecklistNotes ? 'Hide All Notes in Section' : 'Show All Notes in Section'}>
+                      <i className={`fas fa-eye ${settings.showChecklistNotes ? '' : 'disabled-icon'}`}></i>
+                    </button>  
+                    <button className={`checklist-action-btn ${confirmingDeleteSectionNotes === section.id ? 'confirm-delete' : ''}`} onClick={() => { if (confirmingDeleteSectionNotes === section.id) { handleDeleteAllSectionNotes(section.id); setConfirmingDeleteSectionNotes(null); if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current); } else { setConfirmingDeleteSectionNotes(section.id); setConfirmingDeleteSectionResponses(null); if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current); confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteSectionNotes(null), 3000); } }} title="Delete All Notes in Section">
+                      {confirmingDeleteSectionNotes === section.id ? 'Sure?' : <i className="fas fa-trash-alt delete-icon"></i>}
+                    </button>
+                  </div>                  
+                  <div className="checklist-action-group checklist-action-group-copy">
+                    <button className="checklist-action-btn" onClick={() => {
+                      const sectionToCopy = history[historyIndex].find(s => s.id === section.id);
+                      if (sectionToCopy) {
+                        const textToCopy = formatChecklistForCopy([sectionToCopy]);
+                        navigator.clipboard.writeText(textToCopy);
+                        setCopyStatus('Section copied to clipboard!');
+                      }
+                    }} title="Copy Section"><i className="fas fa-copy"></i>
+                    </button>
+                    <button className="checklist-action-btn" onClick={() => {
+                      const sectionToCopy = history[historyIndex].find(s => s.id === section.id);
+                      if (sectionToCopy) {
+                        const textToCopy = formatChecklistSectionRawForCopy(sectionToCopy);
+                        navigator.clipboard.writeText(textToCopy);
+                        setCopyStatus('Section raw content copied!');
+                      }
+                    }} title="Copy Section Raw"><i className="fas fa-paste"></i>
+                    </button>                
+                  </div>
+                  <div className="checklist-action-group checklist-action-group-history">
+                    <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(history[historyIndex], section.id, 'up'))} title="Move Section Up"><i className="fas fa-arrow-up"></i></button>
+                    <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(history[historyIndex], section.id, 'down'))} title="Move Section Down"><i className="fas fa-arrow-down"></i></button>
+                  </div>                  
+                  {isEditable && (
+                    <>
+                      <button className="checklist-delete-btn" onClick={() => {
+                        if (window.confirm('Are you sure you want to delete this entire section and all its items?')) onUpdate(history[historyIndex].filter(sec => sec.id !== section.id));
+                      }} title="Delete Section">
+                        <i className="fas fa-trash-alt"></i>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
+            </header>
+            {isSectionOpen && <>
             <div className="checklist-progress-bar-container">
               <div 
                 className={`checklist-progress-bar-fill ${areAllComplete ? 'complete' : ''}`} 
                 style={{ width: `${progressPercentage}%` }}></div>
             </div>
             <div className="checklist-items">
-              {section.items.map(item => (
+              {section.items.map(item => { return (
                 <div 
                   key={item.id} 
                   className={`checklist-item ${item.isCompleted ? 'completed' : ''} ${item.highlightColor ? 'highlighted' : ''} checklist-item-interactive-area`} 
@@ -1435,7 +1808,19 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                   e.preventDefault();
                   e.stopPropagation();
                   const url = extractUrlFromText(item.text);
-                  window.electronAPI.showChecklistItemContextMenu({ sectionId: section.id, itemId: item.id, isCompleted: item.isCompleted, hasNote: !!item.note, hasResponse: !!item.response, hasUrl: !!url, x: e.clientX, y: e.clientY });
+                  const isInEditMode = settings.activeTaskTabs?.[wordId] === 'edit';
+                  window.electronAPI.showChecklistItemContextMenu({ 
+                    wordId: wordId,
+                    sectionId: section.id, 
+                    itemId: item.id, 
+                    isCompleted: item.isCompleted, 
+                    hasNote: !!item.note, 
+                    hasResponse: !!item.response, 
+                    hasUrl: !!url, 
+                    isInEditMode,
+                    x: e.clientX, 
+                    y: e.clientY 
+                  });
                 }}>
                   {/*
                     * This is the key change. We check if a specific item is being edited FIRST.
@@ -1522,7 +1907,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                         // In EDIT mode, only show the inputs if they have content or if the user just added them.
                         // The `handleUpdate...` function with an empty string creates the property, making it non-undefined.
                         <>
-                          {(item.response !== undefined) && (
+                          {settings.showChecklistResponses && !hiddenResponsesSections.has(section.id) && (item.response !== undefined) && (
                             <div className="checklist-item-response" onContextMenu={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -1540,8 +1925,8 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                               />
                             </div>
                           )}
-                          {(item.note !== undefined) && (
-                            <div className="checklist-item-note" onContextMenu={(e) => {
+                          {settings.showChecklistNotes && !hiddenNotesSections.has(section.id) && (item.note !== undefined) && (
+                            <div className="checklist-item-note" onContextMenu={(e) => { 
                               e.preventDefault();
                               e.stopPropagation();
                               const url = extractUrlFromText(item.note);
@@ -1561,7 +1946,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                         </>
                       ) : (
                         <>
-                          {item.response !== undefined ? (
+                          {settings.showChecklistResponses && !hiddenResponsesSections.has(section.id) && item.response !== undefined ? (
                             <div className="checklist-item-response" onContextMenu={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -1583,7 +1968,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                               )}
                             </div>
                           ) : null}
-                          {item.note !== undefined ? (
+                          {settings.showChecklistNotes && !hiddenNotesSections.has(section.id) && item.note !== undefined ? (
                             <div className="checklist-item-note" onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); const url = extractUrlFromText(item.note); window.electronAPI.showChecklistNoteContextMenu({ sectionId: section.id, itemId: item.id, hasUrl: !!url, hasNote: !!item.note, x: e.clientX, y: e.clientY }); }}>
                               <strong><i className="fas fa-sticky-note"></i> Note:</strong>{editingNoteForItemId === item.id ? (
                                 <input type="text" value={item.note || ''} onBlur={() => setEditingNoteForItemId(null)} onChange={(e) => handleUpdateItemNote(section.id, item.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setEditingNoteForItemId(null); }} className="checklist-item-sub-input" autoFocus />
@@ -1601,19 +1986,19 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                             onChange={(e) => handleUpdateItemDueDateFromPicker(section.id, item.id, e.target.value)}
                             title="Set Due Date"
                           />
-                          {item.response === undefined ? (
+                          {settings.showChecklistResponses && (item.response === undefined ? (
                             <button className="icon-button" onClick={() => { handleUpdateItemResponse(section.id, item.id, ''); setFocusSubInputKey(`response-${item.id}`); }} title="Add Response"><i className="fas fa-reply"></i></button>
-                          ) : ( <button className="icon-button" onClick={() => handleDeleteItemResponse(section.id, item.id)} title="Delete Response"><i className="fas fa-reply active-icon"></i></button> )}
-                          {item.note === undefined ? (
+                          ) : ( <button className="icon-button" onClick={() => handleDeleteItemResponse(section.id, item.id)} title="Delete Response"><i className="fas fa-reply active-icon"></i></button> )) }
+                          {settings.showChecklistNotes && (item.note === undefined ? (
                             <button className="icon-button" onClick={() => { handleUpdateItemNote(section.id, item.id, ''); setFocusSubInputKey(`note-${item.id}`); }} title="Add Note"><i className="fas fa-sticky-note"></i></button>
-                          ) : ( <button className="icon-button" onClick={() => handleDeleteItemNote(section.id, item.id)} title="Delete Note"><i className="fas fa-sticky-note active-icon"></i></button> )}
+                          ) : ( <button className="icon-button" onClick={() => handleDeleteItemNote(section.id, item.id)} title="Delete Note"><i className="fas fa-sticky-note active-icon"></i></button> )) }
                           <button className="icon-button" onClick={() => handleUpdateItemDueDate(section.id, item.id, undefined)} title="Clear Due Date"><i className="fas fa-times"></i></button>
                         </div>
                       )}                      
                     </>
                   )}
                 </div>
-              ))}
+              )})}
             </div>
             {isEditable && (
               <div className="checklist-add-item">
@@ -1633,6 +2018,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                 <button onClick={() => handleAddItem(section.id)}>+</button>
               </div>
             )}
+            </>}
           </div>
         );
       })}
@@ -1640,7 +2026,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
         <div className="checklist-actions">
           <div className="checklist-main-actions">
             <button onClick={handleAddSection} className="add-section-btn"><i className='fas fa-plus'></i> Add Section</button>
-            {normalizedSections.length > 0 && (
+            {history[historyIndex].length > 0 && (
               <button onClick={handleDeleteAllSections} className="add-section-btn delete-btn">Delete All Sections</button>
             )}
           </div>
@@ -1693,7 +2079,7 @@ const formatTimestampForInput = (ts: number | undefined) => {
 const parseInputTimestamp = (datetime: string) => {
   return new Date(datetime).getTime();
 };
-function TaskAccordion({ title, children, isOpen, onToggle, word }: AccordionProps & { isOpen: boolean, onToggle: () => void, word: Word }) {
+function TaskAccordion({ title, children, isOpen, onToggle, word, settings, completedWords }: AccordionProps & { isOpen: boolean, onToggle: () => void, word: Word, settings: Settings, completedWords: Word[] }) {
   const [content, headerActions] = React.Children.toArray(children);
 
   useEffect(() => {
@@ -1704,12 +2090,16 @@ function TaskAccordion({ title, children, isOpen, onToggle, word }: AccordionPro
   return (
     <div className="accordion">
       <div className="accordion-header-container">
-        <div
+        <div 
           className="accordion-header"
           onClick={onToggle}
           onContextMenu={(e: React.MouseEvent) => {
             e.preventDefault();
-            window.electronAPI.showTaskContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY });
+            // The settings object holds the active tab state for each task.
+            const isInEditMode = settings.activeTaskTabs?.[word.id] === 'edit';
+            // We need to check if there are any completed tasks to enable the "Re-Open Last Task" option.
+            const hasCompletedTasks = completedWords.length > 0;
+            window.electronAPI.showTaskContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY, isInEditMode, hasCompletedTasks });
           }}
         >
           <span className="accordion-icon"><i className={`fas ${isOpen ? 'fa-minus' : 'fa-plus'}`}></i></span>
@@ -2165,6 +2555,9 @@ const defaultSettings: Settings = {
     { id: 'research', name: 'Research', fields: ['text', 'url', 'notes', 'description', 'attachments'] },
   ],
 };
+defaultSettings.showChecklistNotes = true; // Default to showing notes
+defaultSettings.openChecklistSectionIds = []; // Initialize as empty array
+defaultSettings.showChecklistResponses = true; // Default to showing responses
 
 const getRelativeDateHeader = (dateStr: string): string => {
   const today = new Date();
@@ -2235,6 +2628,10 @@ const formatChecklistForCopy = (sections: ChecklistSection[]): string => {
   }
   return output.trim();
 };
+const formatChecklistSectionRawForCopy = (section: ChecklistSection): string => {
+  return section.items.map(item => item.text).join('\n');
+};
+
 const extractUrlFromText = (text: string): string | null => {
   if (!text) return null;
   // A simple regex to find the first http/https URL in a string.
@@ -2481,6 +2878,7 @@ function App() {
   // State for the checklist item response/note editing modal
   const [isChecklistPromptOpen, setIsChecklistPromptOpen] = useState(false);
   const [editingChecklistItem, setEditingChecklistItem] = useState<{ sectionId: number; itemId: number; field: 'response' | 'note'; currentText: string; } | null>(null);
+
   const [focusChecklistItemId, setFocusChecklistItemId] = useState<number | null>(null);
 
 
@@ -2706,7 +3104,7 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [viewHistory, historyIndex]); // Re-bind when history changes
 
-  const handleDuplicateTask = (taskToCopy: Word) => {
+  const handleDuplicateTask = React.useCallback((taskToCopy: Word) => {
     // Create a new task with a new ID and open date, but keep the content
     const newTask: Word = {
       ...taskToCopy,
@@ -2725,17 +3123,120 @@ function App() {
     }, ...prev]);
     setCopyStatus('Task duplicated!');
     setTimeout(() => setCopyStatus(''), 2000);
-  };
+  }, []); // No dependencies on state that would cause re-creation
+  
+  const handleCompleteWord = React.useCallback((wordToComplete: Word) => {
+    // Calculate final duration
+    const finalDuration = wordToComplete.isPaused
+      ? wordToComplete.pausedDuration
+      : (wordToComplete.pausedDuration || 0) + (Date.now() - wordToComplete.createdAt);
 
-  const removeWord = (idToRemove: number) => {    
+    const completedWord = { ...wordToComplete, completedDuration: finalDuration };
+
+    // Add to completed list and remove from active list
+    setCompletedWords(prev => [completedWord, ...prev]);
+    setWords(words.filter(word => word.id !== wordToComplete.id));
+    setInboxMessages(prev => [{ 
+      id: Date.now() + Math.random(),
+      type: 'completed',
+      text: `Task completed: "${completedWord.text}"`,
+      timestamp: Date.now(),
+      wordId: completedWord.id,
+    }, ...prev]);
+    setCopyStatus('Task completed!');
+
+    setTimeout(() => setCopyStatus(''), 2000);
+
+    // --- Refactored Recurring and Alternating Task Logic ---
+
+    let newRecurringTask: Word | null = null;
+
+    // Determine if a new recurring task should be created
+    if (wordToComplete.isRecurring || wordToComplete.isDailyRecurring || wordToComplete.isWeeklyRecurring || wordToComplete.isMonthlyRecurring || wordToComplete.isYearlyRecurring) {
+      let newOpenDate = Date.now();
+      let newCompleteBy: number | undefined = undefined;
+
+      if (wordToComplete.isDailyRecurring) {
+        newOpenDate += 24 * 60 * 60 * 1000;
+        if (wordToComplete.completeBy) newCompleteBy = wordToComplete.completeBy + 24 * 60 * 60 * 1000;
+      } else if (wordToComplete.isWeeklyRecurring) {
+        newOpenDate += 7 * 24 * 60 * 60 * 1000;
+        if (wordToComplete.completeBy) newCompleteBy = wordToComplete.completeBy + 7 * 24 * 60 * 60 * 1000;
+      } else if (wordToComplete.isMonthlyRecurring) {
+        const d = new Date(newOpenDate);
+        d.setMonth(d.getMonth() + 1);
+        newOpenDate = d.getTime();
+        if (wordToComplete.completeBy) {
+          const cbd = new Date(wordToComplete.completeBy);
+          cbd.setMonth(cbd.getMonth() + 1);
+          newCompleteBy = cbd.getTime();
+        }
+      } else if (wordToComplete.isYearlyRecurring) {
+        const d = new Date(newOpenDate);
+        d.setFullYear(d.getFullYear() + 1);
+        newOpenDate = d.getTime();
+        if (wordToComplete.completeBy) {
+          const cbd = new Date(wordToComplete.completeBy);
+          cbd.setFullYear(cbd.getFullYear() + 1);
+          newCompleteBy = cbd.getTime();
+        }
+      } else if (wordToComplete.isRecurring && wordToComplete.completeBy && wordToComplete.createdAt) {
+        const originalDuration = wordToComplete.completeBy - wordToComplete.createdAt;
+        newCompleteBy = Date.now() + originalDuration;
+      }
+
+      newRecurringTask = {
+        ...wordToComplete,
+        id: Date.now() + Math.random(),
+        createdAt: newOpenDate,
+        openDate: newOpenDate,
+        completedDuration: undefined,
+        completeBy: newCompleteBy,
+        startsTaskIdOnComplete: wordToComplete.startsTaskIdOnComplete,
+      };
+    }
+
+    // --- Alternating Task & Loop Logic ---
+    if (wordToComplete.startsTaskIdOnComplete) {
+      const successorTaskId = wordToComplete.startsTaskIdOnComplete;
+      setWords(prevWords => {
+        let newWords = prevWords.map(w => {
+          if (w.id !== successorTaskId) return w;
+          
+          // This is the successor task. Activate it.
+          const updatedSuccessor = { ...w, openDate: Date.now(), completeBy: Date.now() };
+          
+          // If the successor was part of a loop, we need to update its link.
+          if (w.startsTaskIdOnComplete === wordToComplete.id && newRecurringTask) {
+            updatedSuccessor.startsTaskIdOnComplete = newRecurringTask.id;
+          }
+          return updatedSuccessor;
+        });
+
+        // Add the new recurring task if it was created
+        if (newRecurringTask) {
+          newWords = [newRecurringTask, ...newWords];
+        }
+
+        return newWords;
+      });
+    } else if (newRecurringTask) {
+      // If there's no successor but there is a recurring task, just add it.
+      setWords(prev => [newRecurringTask, ...prev]);
+    }
+  }, [words]);
+  
+  const removeWord = React.useCallback((idToRemove: number) => {
     // Remove from either list, whichever one it's in.
     const wasInActive = words.some(w => w.id === idToRemove);
     const wordToRemove = words.find(w => w.id === idToRemove) || completedWords.find(w => w.id === idToRemove);
+
     if (wasInActive) {
       setWords(prev => prev.filter(word => word.id !== idToRemove));
     } else {
       setCompletedWords(prev => prev.filter(word => word.id !== idToRemove));
     }
+
     setCopyStatus('Task removed.');
     if (wordToRemove) {
       setInboxMessages(prev => [{
@@ -2746,7 +3247,7 @@ function App() {
       }, ...prev]);
     }
     setTimeout(() => setCopyStatus(''), 2000);
-  }; 
+  }, [words, completedWords]);
 
   const setActiveCategoryId = (id: number | 'all') => {
     setSettings(prev => ({ ...prev, activeCategoryId: id }));
@@ -2919,10 +3420,22 @@ function App() {
       if (!targetWord) return;
 
       switch (command) {
+        case 'view':
+          // Set the tab to 'ticket' (view mode)
+          setSettings(prev => ({
+            ...prev,
+            activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'ticket' }
+          }));
+          // Open the accordion if it's closed
+          if (!settings.openAccordionIds.includes(wordId)) {
+            handleAccordionToggle(wordId);
+          }
+          break;
         case 'edit':
           // Guard: Only edit active (non-completed) tasks.
           if (!targetWord.completedDuration) {
-             setEditingViaContext(wordId);
+            // Set the tab to 'edit' and open the accordion
+            setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'edit' }, openAccordionIds: [...new Set([...prev.openAccordionIds, wordId])] }));
           }
           break;
         case 'complete':
@@ -2942,7 +3455,8 @@ function App() {
     };
     const cleanup = window.electronAPI.on('context-menu-command', handleMenuCommand);
     return cleanup;
-  }, [words, completedWords]); // Dependency on words ensures the handler has the latest list
+  }, [words, completedWords, handleCompleteWord, handleDuplicateTask, removeWord]); 
+  // Dependency on words ensures the handler has the latest list
 
   const handleSaveProject = React.useCallback(async () => {
     // Prevent any save operations while the app is still loading its initial data.
@@ -2994,48 +3508,43 @@ function App() {
     setSettings(prev => ({ ...prev, currentView: view }));
   };
   const handleChecklistCompletion = React.useCallback((item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => {
-    // This handler is now ONLY for individual item completions.
-    const parentWord = words.find(w => w.checklist?.some(s => 'items' in s && s.id === sectionId));
-    if (parentWord) {
-      setInboxMessages(prev => [{
-        id: Date.now() + Math.random(), type: 'completed', text: `Checklist item completed: "${item.text}" in task "${parentWord.text}"`,
-        timestamp: Date.now(), wordId: parentWord.id, sectionId: sectionId
-      }, ...prev]);
-    }
-  }, [words]); // Dependency on `words` ensures it has the latest task list
-  const handleInboxItemClick = (message: InboxMessage) => {
-    if (!message || !message.wordId) return;
-
-    const { wordId, sectionId } = message;
-
+    // This handler is now ONLY for individual item completions.    
+    const parentWord = words.find(w => w.checklist?.some(s => 'items' in s && s.id === sectionId));    
+    if (parentWord) {      
+      setInboxMessages(prev => [{        
+        id: Date.now() + Math.random(), type: 'completed', text: `Checklist item completed: "${item.text}" in task "${parentWord.text}"`,        
+        timestamp: Date.now(), wordId: parentWord.id, sectionId: sectionId      
+      }, ...prev]);    
+    }  
+  }, [words]); // Dependency on `words` ensures it has the latest task list  
+  const navigateToTask = (wordId: number, sectionId?: number) => {
     // Find the word to determine its category
     const word = words.find(w => w.id === wordId);
-    if (!word || !word.categoryId) return;
-
+    if (!word) return; // Don't require category to navigate
+  
     const category = settings.categories.find(c => c.id === word.categoryId); 
-    if (!category) return;
-
+  
     // Determine the parent and sub-category to activate
-    const parentId = category.parentId || category.id;
-    const subId = category.parentId ? category.id : 'all';
-
+    const parentId = category ? (category.parentId || category.id) : 'all';
+    const subId = category?.parentId ? category.id : 'all';
+  
     // Switch to the list view and set the correct category/sub-category filters
     setSettings(prev => ({
       ...prev,
       currentView: 'list',
       activeCategoryId: parentId,
       activeSubCategoryId: subId,
-      openAccordionIds: [...new Set([...prev.openAccordionIds, wordId])]
+      openAccordionIds: [...new Set([...prev.openAccordionIds, wordId])] // Ensure accordion is open
     }));
-
+  
     // Use a timeout to ensure the list view has rendered before we try to scroll
     setTimeout(() => {
       const element = document.querySelector(`[data-word-id='${wordId}']`);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
+  
         // If a sectionId is provided, scroll to and highlight the checklist section
-        if (message.sectionId) {
+        if (sectionId) {
           setTimeout(() => {
             const sectionElement = element.querySelector(`[data-section-id='${sectionId}']`);
             if (sectionElement) {
@@ -3046,108 +3555,12 @@ function App() {
           }, 300); // Wait for accordion to open
         }
       }
-    }, 100);
+    }, 100); // Small delay for view to switch
   };
-  const handleCompleteWord = React.useCallback((wordToComplete: Word) => {
-    // Calculate final duration
-    const finalDuration = wordToComplete.isPaused
-      ? wordToComplete.pausedDuration
-      : (wordToComplete.pausedDuration || 0) + (Date.now() - wordToComplete.createdAt);
-
-    const completedWord = { ...wordToComplete, completedDuration: finalDuration };
-
-    // Add to completed list and remove from active list
-    setCompletedWords(prev => [completedWord, ...prev]);
-    setWords(words.filter(word => word.id !== wordToComplete.id));
-    setInboxMessages(prev => [{ 
-      id: Date.now() + Math.random(),
-      type: 'completed',
-      text: `Task completed: "${completedWord.text}"`,
-      timestamp: Date.now(),
-      wordId: completedWord.id,
-    }, ...prev]);
-    setCopyStatus('Task completed!');
-
-    setTimeout(() => setCopyStatus(''), 2000);
-
-    // --- Refactored Recurring and Alternating Task Logic ---
-
-    let newRecurringTask: Word | null = null;
-
-    // Determine if a new recurring task should be created
-    if (wordToComplete.isRecurring || wordToComplete.isDailyRecurring || wordToComplete.isWeeklyRecurring || wordToComplete.isMonthlyRecurring || wordToComplete.isYearlyRecurring) {
-      let newOpenDate = Date.now();
-      let newCompleteBy: number | undefined = undefined;
-
-      if (wordToComplete.isDailyRecurring) {
-        newOpenDate += 24 * 60 * 60 * 1000;
-        if (wordToComplete.completeBy) newCompleteBy = wordToComplete.completeBy + 24 * 60 * 60 * 1000;
-      } else if (wordToComplete.isWeeklyRecurring) {
-        newOpenDate += 7 * 24 * 60 * 60 * 1000;
-        if (wordToComplete.completeBy) newCompleteBy = wordToComplete.completeBy + 7 * 24 * 60 * 60 * 1000;
-      } else if (wordToComplete.isMonthlyRecurring) {
-        const d = new Date(newOpenDate);
-        d.setMonth(d.getMonth() + 1);
-        newOpenDate = d.getTime();
-        if (wordToComplete.completeBy) {
-          const cbd = new Date(wordToComplete.completeBy);
-          cbd.setMonth(cbd.getMonth() + 1);
-          newCompleteBy = cbd.getTime();
-        }
-      } else if (wordToComplete.isYearlyRecurring) {
-        const d = new Date(newOpenDate);
-        d.setFullYear(d.getFullYear() + 1);
-        newOpenDate = d.getTime();
-        if (wordToComplete.completeBy) {
-          const cbd = new Date(wordToComplete.completeBy);
-          cbd.setFullYear(cbd.getFullYear() + 1);
-          newCompleteBy = cbd.getTime();
-        }
-      } else if (wordToComplete.isRecurring && wordToComplete.completeBy && wordToComplete.createdAt) {
-        const originalDuration = wordToComplete.completeBy - wordToComplete.createdAt;
-        newCompleteBy = Date.now() + originalDuration;
-      }
-
-      newRecurringTask = {
-        ...wordToComplete,
-        id: Date.now() + Math.random(),
-        createdAt: newOpenDate,
-        openDate: newOpenDate,
-        completedDuration: undefined,
-        completeBy: newCompleteBy,
-        startsTaskIdOnComplete: wordToComplete.startsTaskIdOnComplete,
-      };
-    }
-
-    // --- Alternating Task & Loop Logic ---
-    if (wordToComplete.startsTaskIdOnComplete) {
-      const successorTaskId = wordToComplete.startsTaskIdOnComplete;
-      setWords(prevWords => {
-        let newWords = prevWords.map(w => {
-          if (w.id !== successorTaskId) return w;
-          
-          // This is the successor task. Activate it.
-          const updatedSuccessor = { ...w, openDate: Date.now(), completeBy: Date.now() };
-          
-          // If the successor was part of a loop, we need to update its link.
-          if (w.startsTaskIdOnComplete === wordToComplete.id && newRecurringTask) {
-            updatedSuccessor.startsTaskIdOnComplete = newRecurringTask.id;
-          }
-          return updatedSuccessor;
-        });
-
-        // Add the new recurring task if it was created
-        if (newRecurringTask) {
-          newWords = [newRecurringTask, ...newWords];
-        }
-
-        return newWords;
-      });
-    } else if (newRecurringTask) {
-      // If there's no successor but there is a recurring task, just add it.
-      setWords(prev => [newRecurringTask, ...prev]);
-    }
-  }, [words]);
+  const handleInboxItemClick = (message: InboxMessage) => {
+    if (!message || !message.wordId) return;
+    navigateToTask(message.wordId, message.sectionId);
+  };
 
   const handleSnooze = React.useCallback((wordToSnooze: Word, duration?: 'low' | 'medium' | 'high') => {
     const snoozeDurations = {
@@ -3209,12 +3622,19 @@ function App() {
       if (!targetWord) return;
 
       switch (command) {
-        case 'view':
-          handleInboxItemClick({ id: 0, type: 'overdue', text: '', timestamp: 0, wordId }); // Re-use the existing "go to task" logic
+        case 'view': {
+          navigateToTask(wordId);
+          setSettings(prev => ({
+            ...prev,
+            activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'ticket' }
+          }));
           break;
-        case 'edit':
-          setEditingViaContext(wordId);
+        }
+        case 'edit': {
+          navigateToTask(wordId);
+          setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'edit' } }));
           break;
+        }
         case 'snooze':
           handleSnooze(targetWord);
           break;
@@ -3238,7 +3658,7 @@ function App() {
     };
     const cleanup = window.electronAPI.on('toast-context-menu-command', handleMenuCommand);
     return cleanup;
-  }, [words, handleCompleteWord, handleSnooze, handleInboxItemClick, navigateToView]);
+  }, [words, handleCompleteWord, handleSnooze, navigateToView]);
 
   // Effect to handle commands from the inbox context menu
   useEffect(() => {
@@ -3302,21 +3722,32 @@ function App() {
   // Effect to handle commands from the new checklist item context menu
   useEffect(() => {
     let editingPayload: { sectionId: number, itemId: number } | null = null;
-    const handleMenuCommand = (payload: { command: string, sectionId: number, itemId: number, color?: string }) => {
-      const { command, sectionId, itemId } = payload;
+    const handleMenuCommand = (payload: { command: string, sectionId?: number, itemId?: number, wordId?: number, color?: string }) => {
+      const { command, sectionId, itemId, wordId } = payload;
+
+      // Handle view/edit commands first as they have a different payload
+      if (command === 'view' && wordId) {
+        setSettings(prev => ({
+          ...prev,
+          activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'ticket' }
+        }));
+        return;
+      }
+      if (command === 'edit' && wordId) {
+        setSettings(prev => ({
+          ...prev,
+          activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'edit' }
+        }));
+        return;
+      }
 
       // Find the word that contains this checklist
-      const wordContainingChecklist = words.find(w => w.checklist?.some(sec => 'items' in sec && sec.items.some(item => item.id === itemId)));
+      // Ensure we have the necessary IDs for item-specific commands
+      if (!sectionId || !itemId) return;
+      const wordContainingChecklist = words.find(w => w.id === wordId || w.checklist?.some(sec => 'items' in sec && sec.items.some(item => item.id === itemId)));
       if (!wordContainingChecklist || !wordContainingChecklist.checklist) return;
       
       let newFocusId: number | null = null;
-      if (command === 'edit') {
-        // The actual state change will be handled inside the Checklist component itself
-        // We just need to trigger a re-render of the parent to pass down the editing state.
-        // A simple way is to find the word and re-set it.
-        handleWordUpdate({ ...wordContainingChecklist }); // This triggers the update flow
-        return; // Stop here for edit command
-      }
       let newSections = (wordContainingChecklist.checklist as ChecklistSection[]).map(sec => {
         if (sec.id !== sectionId) return sec;
 
@@ -3380,16 +3811,6 @@ function App() {
         return { ...sec, items: newItems };
       });
 
-      // Handle response and note editing
-      if (command === 'edit_response' || command === 'edit_note') {
-        const itemToUpdate = newSections.flatMap(s => s.items).find(i => i.id === itemId);
-        if (itemToUpdate) {
-          const fieldToEdit = command === 'edit_response' ? 'response' : 'note';
-          setEditingChecklistItem({ sectionId, itemId, field: fieldToEdit, currentText: itemToUpdate[fieldToEdit] || '' });
-          setIsChecklistPromptOpen(true);
-          return; // Stop further processing, the modal will handle the update
-        }
-      }
       if (command === 'highlight') {        
         const { color } = payload; // color will be '#f4d03f', '#c94a4a', etc., or undefined
         const updatedSections = (wordContainingChecklist.checklist as ChecklistSection[]).map(sec => ({
@@ -3511,8 +3932,22 @@ function App() {
 
   // Effect to handle commands from the new checklist section context menu
   useEffect(() => {
-    const handleMenuCommand = (payload: { command: string, sectionId: number }) => {
-      const { command, sectionId } = payload;
+    const handleMenuCommand = (payload: { command: string, sectionId?: number, wordId?: number }) => {
+      const { command, sectionId, wordId } = payload;
+
+      // Handle view/edit commands first as they don't need a sectionId
+      if (command === 'view' && wordId) {
+        setSettings(prev => ({
+          ...prev,
+          activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'ticket' }
+        }));
+        return;
+      }
+      if (command === 'edit' && wordId) {
+        setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'edit' } }));
+        return;
+      }
+
       const wordContainingChecklist = words.find(w => w.checklist?.some(sec => 'items' in sec && sec.id === sectionId));
       if (!wordContainingChecklist || !wordContainingChecklist.checklist) return;
 
@@ -3536,6 +3971,9 @@ function App() {
             const textToCopy = formatChecklistForCopy([sectionToCopy]);
             navigator.clipboard.writeText(textToCopy);
             setCopyStatus('Section copied to clipboard!');
+            setTimeout(() => {
+              setCopyStatus('');
+            }, 2000);
           }
           return; // Don't update state, just copy
         }
@@ -3554,12 +3992,15 @@ function App() {
             // CRITICAL FIX: Give all duplicated items new, unique IDs
             items: sectionToDuplicate.items.map(item => ({ ...item, id: Date.now() + Math.random() })),
           };
+          setCopyStatus('Section Duplicated!');
+          setTimeout(() => {
+            setCopyStatus('');
+          }, 2000);
           newSections.splice(sectionIndex + 1, 0, newDuplicatedSection);
           break;
         case 'toggle_all_in_section':
-          // Find the correct Checklist instance and call its handler
-          // This is complex, for now, we can call the button's handler if we can find it.
-          // Or, we can just call the handler directly.
+          // Need to implement this
+          break;
         case 'delete_section':
           if (window.confirm(`Are you sure you want to delete this section?`)) {
             newSections = newSections.filter(s => s.id !== sectionId);
@@ -3574,9 +4015,7 @@ function App() {
           break;
         case 'move_section_down':
           if (sectionIndex < newSections.length - 1) {
-            [newSections[sectionIndex], newSections[sectionIndex + 1]] = [newSections[sectionIndex + 1], newSections[sectionIndex]];
-          } else {
-            return; // Do not proceed with update if user cancels
+            [newSections[sectionIndex], newSections[sectionIndex + 1]] = [newSections[sectionIndex + 1], newSections[sectionIndex]];          
           }
           break;
         case 'undo_checklist':
@@ -4346,7 +4785,7 @@ function App() {
       if (wordToDelete) removeWord(wordToDelete.id);
     });
   };
-
+  
   const handleDismissInboxMessage = (messageId: number) => {
     const messageToTrash = inboxMessages.find(m => m.id === messageId);
     if (!messageToTrash) return;
@@ -4396,6 +4835,7 @@ function App() {
           onTabChange={(wordId, tab) => setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: tab } }))}
           onDescriptionChange={(html) => handleWordUpdate({ ...taskToShow, description: html })}          
           focusChecklistItemId={focusChecklistItemId}
+          completedWords={completedWords}
           setFocusChecklistItemId={setFocusChecklistItemId}
         />
       );
@@ -4460,7 +4900,11 @@ function App() {
                 <div 
                   key={word.id} 
                   className="overdue-notification-toast"
-                    onContextMenu={(e) => { e.preventDefault(); window.electronAPI.showToastContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY }); }} 
+                    onContextMenu={(e) => { 
+                      e.preventDefault(); 
+                      const isInEditMode = settings.activeTaskTabs?.[word.id] === 'edit';
+                      window.electronAPI.showToastContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY, isInEditMode }); 
+                    }} 
                 >
                   <div className="overdue-notification-content">
                     <div className="overdue-title-bar">
@@ -4527,7 +4971,7 @@ function App() {
             setEditingChecklistItem(null);
           }}
         />
-      )}
+      )}      
       <Footer />
       <div className="main-content">
         <header className="app-header">
@@ -5018,6 +5462,8 @@ function App() {
                                         word={word}
                                         isOpen={settings.openAccordionIds.includes(word.id)}
                                         onToggle={() => handleAccordionToggle(word.id)}
+                                        settings={settings}
+                                        completedWords={completedWords}
                                         title={
                                           <TaskAccordionHeader
                                             word={word}
@@ -5057,6 +5503,7 @@ function App() {
                                             wordId={word.id}
                                             checklistRef={activeChecklistRef}
                                             focusChecklistItemId={focusChecklistItemId}
+                                            completedWords={completedWords}
                                             setFocusChecklistItemId={setFocusChecklistItemId}
                                           />
                                           <div className="word-item-display">
@@ -5135,6 +5582,8 @@ function App() {
                                 word={word}
                                 isOpen={settings.openAccordionIds.includes(word.id)}
                                 onToggle={() => handleAccordionToggle(word.id)}
+                                settings={settings}
+                                completedWords={completedWords}
                                 title={
                                   <TaskAccordionHeader
                                     word={word}
@@ -5176,7 +5625,9 @@ function App() {
                                     wordId={word.id}
                                     checklistRef={activeChecklistRef}
                                     focusChecklistItemId={focusChecklistItemId}
+                                    completedWords={completedWords}
                                     setFocusChecklistItemId={setFocusChecklistItemId}
+                                    
                                   />
                                   <div className="word-item-display">
                                     <span className="stopwatch date-opened">
@@ -5338,13 +5789,18 @@ function App() {
                       </>
                     );
                     return (
-                      <div key={word.id} className="priority-list-item completed-item">                        
+                      <div key={word.id} className="priority-list-item completed-item" data-word-id={word.id}>                        
                         <TaskAccordionHeader
                           word={word}
                           settings={settings}
                           allWords={[...words, ...completedWords]} // Pass all words here
                           onCategoryClick={() => {}} />
-                        <TaskAccordion word={word} title={title} isOpen={settings.openAccordionIds.includes(word.id)} onToggle={() => handleAccordionToggle(word.id)}>
+                        <TaskAccordion word={word} 
+                          title={title} 
+                          isOpen={settings.openAccordionIds.includes(word.id)} 
+                          onToggle={() => handleAccordionToggle(word.id)}
+                          settings={settings}
+                          completedWords={completedWords}>
                           {/* This first child is the 'content' for the accordion */}
                           <TabbedView 
                             word={word} 
@@ -5360,9 +5816,10 @@ function App() {
                             onComplete={handleChecklistCompletion}
                             checklistRef={activeChecklistRef}
                             wordId={word.id}
-                                    focusChecklistItemId={focusChecklistItemId}
-                                    setFocusChecklistItemId={setFocusChecklistItemId}
-                                  setInboxMessages={setInboxMessages} 
+                            focusChecklistItemId={focusChecklistItemId}
+                            completedWords={completedWords}
+                            setFocusChecklistItemId={setFocusChecklistItemId}
+                            setInboxMessages={setInboxMessages} 
                           />
                           {/* This second child is the 'headerActions' for the accordion */}
                           <div className="list-item-controls">
@@ -5486,6 +5943,7 @@ function App() {
               focusItemId={focusChecklistItemId} 
               onFocusHandled={() => setFocusChecklistItemId(null)}
               settings={settings} 
+              onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
               />}
                   {shouldShow('description') && <DescriptionEditor 
               description={newTask.description || ''} 
