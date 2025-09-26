@@ -5,69 +5,93 @@ All notable changes to this project will be documented in this file. See `## Log
 ---
 
 ## Current Timeline
-- **Checklist Section Context Menu**: 
-    - **Delete Section & Duplicate Section**: It works to delete the section but we need to swap views to update it;
-        - Fixed by moving the case out of the `function App` and into the `function Checklist`
-        - Updated logic to use payload `if (payload.sectionId) handleDeleteSection(payload.sectionId);`
-        - Delete Section CM and Button point to `handleDeleteSection` 
-        - `handleDeleteSection` requires double click confirmation
-        - Remove native prompts from this logic string
-        - Identical handling for Duplicate section except no double confirmation
-
-    - **`Move Up` doesnt update until view swap**: need to connect updateHistory
-        - Similar issue, we needed to move the case up into `function Checklist`
-    
-    - **Added Delete All Sections**: `Delete All Sections` added to Context Menu
-
-    - **`case 'toggle_all_in_section'`**: re-implemented
-        - This works again to toggle all checklist items in section via context menu
-    
-    - **Added Delete All Notes**: Can now instantly delete all notes from context menu; no confirmation
-    - **Added Delete All Responses**: Can now instantly delete all responses from context menu; no confirmation
-
-- **setCopyStatus**: this notification seems to occur twice and linger? (Solved by adding the wipe and 2000ms to the underlining logic)
-    - Refactored to `showToast`;
-    - Added the 2000ms delay and wipe to its logic rather than hardcoded
-    - Removed hardcoded 2000 timeout and wipe on every instance 
-    - Renamed from `setCopyStatus("Message")` to `showToast("Message")`
-    - Defined as `const showToast = (message: string, duration: number = 2000) => {`
-    - Feeds to `const [copyStatus, setToastStatus] = useState('');`
-    - Diplays as `copyStatus && <div className="copy-status-toast toast-notification-central">{copyStatus}</div>`
-
--**Delete All Sections Changed**: 
-    - Updated to doubleclick confirmation instead of prompt in bottom button
-    - Added `Delete All Sections` UI Button in the Checklist Main Header
-
-- **Reimplemented All context menus**:
-    - A lot of the context menu options werent working after the refactoring
-
-- **Checklist Item Context Menu**: 
-    - Highlight now works correctly
-    - Delete Note / Response now works correctly 
-    - Open Link had two cases so it opened twice; removed second one
-
-- **Hide and Show All Notes/Responses in Section buttons**
-    - This is now correctly hooked up to the existing logic to hide/show notes/responses on the section
-
-- **Replace Native Prompts**:
-    - All destructive actions (`Delete Section`, `Delete All Checked Items`, etc.) need to be refactored to use a two-click confirmation pattern instead of `window.confirm()`.
-
-- **Bulk Deletion**: Add the 'Delete Checked' handling we already have into the Task View & context menu 
-- **Checklist Section Main Header**:
- - Checklist main header should receive right click context menu handling actions associated with the "All" options
-
- - **Context Menu Refactor**: Refactored the main `useEffect(() => {` to handle all 3 similar context menu options for `handleChecklistCommand`, `handleSectionCommand`, `handleMainHeaderCommand`.
  
 ### Broken Implementation
 
 ### To do
 
-
 ---
 
 ## Future Features 
 -   ### **Checklists**:
-    - **Time Tracker**:
+    -   ### **Time Tracker Log: Implementation Plan**
+        This plan outlines the steps to evolve the current `ManualStopwatch` into a detailed time tracking log system.
+
+        #### **Phase 1: Data Structure & Core Component Setup**
+        The goal of this phase is to establish the foundational data structures and create the new component that will replace `ManualStopwatch`.
+        1.  **Define the `TimeLogEntry` Interface**:
+            -   Create a new TypeScript interface to represent a single entry in the time log.
+            -   **Fields**: `id: number`, `description: string`, `duration: number` (in milliseconds), `startTime?: number` (timestamp for when it started running), `isRunning?: boolean`.
+        2.  **Update the `Word` Interface**:
+            -   Add a new optional property to the `Word` interface: `timeLog?: TimeLogEntry[]`.
+            -   This will hold the array of time log entries for a task.
+            -   We will keep the old `manualTime` fields for now to ensure backward compatibility and migrate data later.
+        3.  **Create the `TimeTrackerLog` Component**:
+            -   Create a new React component named `TimeTrackerLog`.
+            -   It will accept `word` and `onUpdate` as props, just like `ManualStopwatch`.
+            -   Inside `TabbedView`, replace the call to `<ManualStopwatch />` with `<TimeTrackerLog />`.
+        4.  **Initial Render Logic**:
+            -   The `TimeTrackerLog` component will render the main header: `<header>Worktime Total: {totalTime}</header>`.
+            -   It will calculate `totalTime` by summing the `duration` of all entries in `word.timeLog`.
+            -   It will map over `word.timeLog` and render a static list item for each entry, displaying its `description` and formatted `duration`.
+        
+        ---
+        
+        #### **Phase 2: Basic Entry Management (CRUD)**
+        This phase focuses on allowing the user to create, edit, and delete individual time log entries.
+        1.  **Add New Entries**:
+            -   Add an "+ Add New Line" button.
+            -   When clicked, it will add a new, empty `TimeLogEntry` object to the `word.timeLog` array and call `onUpdate`.
+            -   The new entry should immediately be put into an "edit" state.
+        2.  **In-Place Description Editing**:
+            -   Implement state within `TimeTrackerLog` to track the `editingEntryId`.
+            -   When a user double-clicks an entry's description, set `editingEntryId` to that entry's ID.
+            -   Use conditional rendering: if an entry's ID matches `editingEntryId`, render an `<input>` field; otherwise, render the static text.
+            -   When the input loses focus (`onBlur`) or the user presses "Enter," update the description for that entry and set `editingEntryId` back to `null`.
+            -   The input field for a new or edited entry should be autofocused.
+        3.  **Delete Entries**:
+            -   Add a delete button (`<i class="fas fa-trash"></i>`) to each entry.
+            -   When clicked, filter the `timeLog` array to remove that entry and call `onUpdate`.
+            -   We will implement our standard two-click confirmation pattern to prevent accidental deletion.
+        
+        ---
+        
+        #### **Phase 3: Core Timer Functionality**
+        This phase brings the time tracking logic to life for each individual entry.
+        1.  **Single Active Timer**:
+            -   Establish a rule: only one time log entry can be running at a time across the entire task.
+            -   When a "start" button is clicked for an entry, ensure any other running entry is stopped first.
+        2.  **Start/Stop/Resume Logic**:
+            -   Add a record/pause icon button to each entry.
+            -   **On Start/Resume**:
+                -   Set the entry's `isRunning` flag to `true`.
+                -   Set its `startTime` to `Date.now()`.
+                -   Call `onUpdate`.
+            -   **On Pause**:
+                -   Calculate the elapsed time: `Date.now() - entry.startTime`.
+                -   Add the elapsed time to the entry's `duration`.
+                -   Set `isRunning` to `false` and clear the `startTime`.
+                -   Call `onUpdate`.
+        3.  **Live Timer Display**:
+            -   Inside `TimeTrackerLog`, create a `useEffect` hook with a `setInterval` (that runs every second).
+            -   This effect will find the currently running entry (where `isRunning` is `true`).
+            -   It will calculate the live elapsed time and update a local state variable, causing the UI for that specific entry's timer and the total header time to update in real-time.
+        
+        ---
+        
+        #### **Phase 4: Advanced Features & UX Polish**
+        This final phase adds the remaining quality-of-life features.
+        1.  **Reordering Entries**:
+            -   Add "Move Up" and "Move Down" buttons to each entry.
+            -   Implement the handler logic to change the item's position in the `timeLog` array, similar to how we reorder checklist items.
+        2.  **Bulk Add from Text**:
+            -   Add a `textarea` for bulk-adding entries.
+            -   When the user adds text, split it by newlines. For each line, create a new `TimeLogEntry` with the line as the description and a duration of 0.
+        3.  **Context Menus**:
+            -   **Item Context Menu**: Create a context menu for each log entry with actions like "Edit Description," "Delete," "Duplicate," and "Move Up/Down."
+            -   **Header Context Menu**: Create a context menu for the header with actions like "Copy Total Time," "Copy Log as Text," and "Delete All Entries."
+        4.  **Data Migration**:
+            -   Create a one-time migration logic. When `TimeTrackerLog` mounts, if `word.timeLog` is empty but `word.manualTime` has a value, create a single `TimeLogEntry` with the description "Legacy Timed Entry" and the duration from `word.manualTime`. This preserves old data.
         - Time Tracker per Checklist item in a Task: 
             - Checkbox option on a checklist section that makes the checklist function where, as we add a checklist item, it starts a timer next to that item:
                 #### `Time Tracker (Example)`:
@@ -176,13 +200,13 @@ All notable changes to this project will be documented in this file. See `## Log
       - We can likely overhaul the Meme view into a fullblown Meme Generator by including a different subview that allows the user to choose the image, text, and placement.    
     - **Check for Duplications**: The codebase might have duplication in its declaratives so we'll need to check for that.
     - **Refactor `<App>`**: App is growing too large and will cause performance issues 
-    - **Rename `setCopyStatus`**: The `setCopyStatus` function and `copyStatus` state are used as the central toast notification system. They should be renamed to `setToastMessage` and `toastMessage` respectively to more accurately reflect their purpose.
 
 ---
 
 ## Log of Changes
 
-- **[1.0.16] - 2025-09-24: Checklist Main Header Context Menu & Command Refactor**: feat(checklist): Add main header context menu and refactor command handling
+- **[1.0.17] - 2025-09-26: Time Tracker Log & Checklist Integration**: feat(time): Implement detailed time tracker log and checklist integration
+- **[1.0.16] - 2025-09-25: Checklist Main Header Context Menu & Command Refactor**: feat(checklist): Add main header context menu and refactor command handling
 - **[1.0.15] - 2025-09-25: Checklist Usability & Collapsible Sections**: feat(checklist): Add collapsible sections, in-line editing, and remove native prompts
 - **[1.0.14] - 2025-09-23: Interactive Checklists & Link Handling**: feat(checklist): Overhaul checklist interactivity, add link handling, and fix bugs
 - **[1.0.13] - 2025-09-23: Interactive Checklist Items**: feat(checklist): Implement fully interactive checklist item UI
@@ -199,6 +223,37 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.17] - 2025-09-25: Time Tracker Log & Checklist Integration
+**feat(time): Implement detailed time tracker log and checklist integration**
+
+This commit introduces a complete overhaul of the task timer, evolving it from a simple stopwatch into a detailed `TimeTrackerLog`. It also deeply integrates this new system with the `Checklist`, creating a seamless workflow for time tracking.
+
+#### Time Tracker Log Features:
+-   **Entry-Based System**: The timer is now a log of individual entries, each with its own description and duration.
+-   **Full CRUD & Timer Functionality**:
+    -   Users can add, edit, and delete log entries.
+    -   Each entry has its own start/pause button, with a live-updating timer. Only one entry can be running at a time.
+    -   The total time for the task is now the sum of all log entries and updates in real-time.
+-   **Advanced UX**:
+    -   **Reordering**: Entries can be moved up and down in the log.
+    -   **Bulk Add**: A `textarea` allows for pasting multiple lines to create several entries at once.
+    -   **Context Menus**: A right-click menu on the header provides actions like "Copy Total Time" and "Delete All". A menu on each item provides "Duplicate," "Edit," "Delete," and reordering actions.
+-   **Data Migration**: A one-time migration automatically converts any time tracked with the old stopwatch into the first entry in the new log system, ensuring no data is lost.
+
+#### Checklist Integration Features:
+-   **Send Individual Items to Timer**:
+    -   A new "Add to Timer" button (`+`) and "Add to Timer & Start" button (`▶`) have been added to the quick-actions menu for each checklist item.
+    -   The same options are available in the checklist item's right-click context menu.
+-   **Send Sections to Timer**:
+    -   A new "Send All to Timer" button (`✓`) has been added to each section header and its context menu, which adds all active items from that section to the log.
+-   **Send All Items to Timer**:
+    -   A "Send All Items to Timer" button (`⏱️`) and a "Send All & Start" button (`▶`) have been added to the main checklist header and its context menu, allowing for one-click population of the time log from the entire checklist.
+
+#### Summary
+This is a major feature release that transforms time tracking in the application from a basic utility into a core, detailed, and highly usable feature. The deep integration with the checklist system creates a powerful and efficient workflow for users to track their work against specific to-do items.
 
 ---
 

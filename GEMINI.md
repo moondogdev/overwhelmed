@@ -516,6 +516,10 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 62.0: Maintaining the IPC Contract for Type Safety
   - Rule 63.0: Child-to-Parent State Updates via Callback Props
   - Rule 64.0: The `useEffect` Dependency Array and Stale Closures
+  - Rule 65.0: On-the-Fly Data Migration in Components
+  - Rule 66.0: Enforcing Business Logic in State Handlers
+  - Rule 67.0: Live UI Updates with `setInterval`
+  - Rule 68.0: Cross-Component State Updates
 
 ---
 

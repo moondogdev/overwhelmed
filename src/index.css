@@ -1319,6 +1319,126 @@ input[type="datetime-local"] + .button-group button {
   height: 25px;
   border: none;
 }
+/* --- Time Tracker Log Styles --- */
+
+.time-tracker-log {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 5px;
+  border: 1px solid #4a4f5b;
+  border-radius: 4px;
+  background-color: #20232a;
+}
+
+.time-tracker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  padding: 5px 10px;
+  background-color: #282c34;
+  border-radius: 3px;
+}
+
+.add-new-line-btn {
+  background-color: #4a4f5b;
+  border: none;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.add-new-line-btn:hover {
+  background-color: #61dafb;
+  color: #20232a;
+}
+
+.time-log-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.time-log-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background-color: #282c34;
+  border-radius: 3px;
+  border-left: 3px solid transparent;
+  transition: background-color 0.2s;
+}
+
+.time-log-entry:hover {
+  background-color: #3a3f4b;
+}
+
+.time-log-entry.running {
+  border-left: 3px solid #82ca9d;
+  background-color: #2f3c34;
+}
+
+.time-log-description {
+  flex-grow: 1;
+  cursor: text;
+}
+
+.time-log-edit-input {
+  width: 100%;
+  background-color: #3a3f4b;
+  border: 1px solid #61dafb;
+  color: white;
+  padding: 4px;
+  border-radius: 3px;
+}
+
+.time-log-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.time-log-duration {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: bold;
+  color: #a9b7c6;
+  min-width: 80px;
+  text-align: right;
+}
+
+.time-log-entry.running .time-log-duration {
+  color: #82ca9d;
+}
+
+.timer-toggle-btn .fa-play-circle { color: #82ca9d; }
+.timer-toggle-btn .fa-pause-circle { color: #f4d03f; }
+
+.time-log-reorder-actions {
+  display: flex;
+  flex-direction: column;
+}
+
+.time-log-reorder-actions .icon-button {
+  padding: 0 5px;
+  height: 14px;
+  font-size: 10px;
+}
+
+.time-log-bulk-add {
+  display: flex;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.bulk-add-textarea { width: 100%; }
+.bulk-add-btn { padding: 5px 10px; }
 .timer-notification-container {
   position: fixed;
   bottom: 60px; /* Position above the save button/toast */
@@ -1932,6 +2052,15 @@ input[type="datetime-local"] + .button-group button {
 .checklist-action-btn:hover .fa-sticky-note {
   color: #f4d03f !important;
 }
+.checklist-action-btn:hover .fa-tasks {
+  color: #82ca9d !important; /* Green, like the play button */
+}
+.checklist-action-btn:hover .fa-stopwatch {
+  color: #82ca9d !important; /* Green, like the play button */
+}
+.checklist-action-btn:hover .fa-play-circle {
+  color: #82ca9d !important; /* Green, like the play button */
+}
 
 .checklist-action-btn .disabled-icon {
   opacity: 0.4;
@@ -2122,6 +2251,8 @@ header.checklist-section-header .checklist-header {
 .checklist-item-quick-actions .icon-button:hover .fa-reply { color: #61dafb; }
 .checklist-item-quick-actions .icon-button:hover .fa-sticky-note { color: #f4d03f; }
 .checklist-item-quick-actions .icon-button:hover .fa-pencil-alt { color: #f4d03f; }
+.checklist-item-quick-actions .icon-button:hover .fa-plus-circle { color: #61dafb; } /* Add to Timer */
+.checklist-item-quick-actions .icon-button:hover .fa-play { color: #82ca9d; } /* Add to Timer & Start */
 .checklist-item-quick-actions .icon-button:hover .delete-icon { color: #c94a4a; }
 
 

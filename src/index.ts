@@ -595,6 +595,15 @@ app.whenReady().then(() => {
       },      
       { type: 'separator' },
       {
+        label: 'Add to Timer',
+        click: () => webContents.send('checklist-item-command', { command: 'send_to_timer', sectionId, itemId }),
+      },
+      {
+        label: 'Add to Timer & Start',
+        click: () => webContents.send('checklist-item-command', { command: 'send_to_timer_and_start', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
         label: 'Add Item Before',
         click: () => webContents.send('checklist-item-command', { command: 'add_before', sectionId, itemId }),
       },
@@ -726,6 +735,11 @@ app.whenReady().then(() => {
         click: () => webContents.send('checklist-section-command', { command: 'duplicate_section', sectionId }),
       },      
       {
+        label: 'Send All to Timer',
+        click: () => webContents.send('checklist-section-command', { command: 'send_section_to_timer', sectionId }),
+      },
+      { type: 'separator' },
+      {
         label: 'Delete All Sections',
         click: () => webContents.send('checklist-section-command', { command: 'delete_all_sections' }),
         visible: isInEditMode,
@@ -852,6 +866,50 @@ app.whenReady().then(() => {
     ];
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });
   });
+  ipcMain.on('show-time-log-item-context-menu', (event, payload) => {
+    const { entry, index, totalEntries, x, y } = payload;
+    const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+      {
+        label: 'Edit Description',
+        click: () => webContents.send('time-log-item-command', { command: 'edit_description', entry, index }),
+      },
+      {
+        label: 'Duplicate',
+        click: () => webContents.send('time-log-item-command', { command: 'duplicate', entry, index }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Move Up',
+        enabled: index > 0,
+        click: () => webContents.send('time-log-item-command', { command: 'move_up', entry, index }),
+      },
+      {
+        label: 'Move Down',
+        enabled: index < totalEntries - 1,
+        click: () => webContents.send('time-log-item-command', { command: 'move_down', entry, index }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Delete',
+        click: () => webContents.send('time-log-item-command', { command: 'delete', entry, index }),
+      },
+    ];
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });
+  });
+  ipcMain.on('show-time-log-header-context-menu', (event, payload) => {
+    const { totalTime, timeLog, x, y } = payload;
+    const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+      { label: 'Copy Total Time', click: () => webContents.send('time-log-header-command', { command: 'copy_total_time', totalTime, timeLog }) },
+      { label: 'Copy Log as Text', click: () => webContents.send('time-log-header-command', { command: 'copy_log_as_text', totalTime, timeLog }) },
+      { type: 'separator' },
+      { label: 'Delete All Entries', click: () => webContents.send('time-log-header-command', { command: 'delete_all', totalTime, timeLog }) },
+      { type: 'separator' },
+      { label: 'Add New Line', click: () => webContents.send('time-log-header-command', { command: 'add_new_line', totalTime, timeLog }) },
+    ];
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });
+  });
   ipcMain.on('show-checklist-main-header', (event, payload) => {
     const { wordId, sectionId, areAllComplete, isSectionOpen, isNotesHidden, isResponsesHidden, x, y, isInEditMode, isConfirmingDelete } = payload;
     const webContents = event.sender;
@@ -897,6 +955,15 @@ app.whenReady().then(() => {
       {
         label: 'Copy All Sections Raw',
         click: () => webContents.send('checklist-main-header-command', { command: 'copy_all_sections_raw' }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Send All Items to Timer',
+        click: () => webContents.send('checklist-main-header-command', { command: 'send_all_to_timer' }),
+      },
+      {
+        label: 'Send All Items & Start',
+        click: () => webContents.send('checklist-main-header-command', { command: 'send_all_to_timer_and_start' }),
       },
       { type: 'separator' },   
       {

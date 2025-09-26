@@ -38,6 +38,8 @@ declare global {
     showChecklistItemContextMenu: (payload: { wordId: number, sectionId: number, itemId: number, isCompleted: boolean, hasNote: boolean, hasResponse: boolean, hasUrl: boolean, isInEditMode: boolean, x: number, y: number }) => void;
     showChecklistNoteContextMenu: (payload: { sectionId: number, itemId: number, hasUrl: boolean, hasNote: boolean, x: number, y: number }) => void;
     showChecklistResponseContextMenu: (payload: { sectionId: number, itemId: number, hasUrl: boolean, hasResponse: boolean, x: number, y: number }) => void;
+    showTimeLogItemContextMenu: (payload: { entry: TimeLogEntry, index: number, totalEntries: number, x: number, y: number }) => void;
+    showTimeLogHeaderContextMenu: (payload: { totalTime: number, timeLog: TimeLogEntry[], x: number, y: number }) => void;
     notifyDirtyState: (isDirty: boolean) => void;
   } }
 }
@@ -57,6 +59,15 @@ interface ChecklistItem {
   dueDate?: number; // Timestamp for individual due date
   highlightColor?: string;
 }
+
+interface TimeLogEntry {
+  id: number;
+  description: string;
+  duration: number; // in milliseconds
+  startTime?: number; // timestamp for when it started running
+  isRunning?: boolean;
+}
+
 
 interface ChecklistSection {
   id: number;
@@ -105,6 +116,7 @@ interface Word {
   taskType?: string; // New property for task types
   startsTaskIdOnComplete?: number; // ID of the task to start when this one is completed
   manualTimeStart?: number; // Timestamp when manual timer was started
+  timeLog?: TimeLogEntry[];
 }
 
 interface InboxMessage {
@@ -194,6 +206,7 @@ interface AccordionProps {
 interface TabbedViewProps {
   word: Word;
   onUpdate: (updatedWord: Word) => void;
+  onWordUpdate: (updatedWord: Word) => void; // Add this prop
   onTabChange: (wordId: number, tab: 'ticket' | 'edit') => void;
   onNotify: (word: Word) => void;
   formatTimestamp: (ts: number) => string;
@@ -216,6 +229,7 @@ interface TabbedViewProps {
 interface FullTaskViewProps {
   task: Word;
   onClose: () => void;
+  onWordUpdate: (updatedWord: Word) => void;
   onUpdate: (updatedWord: Word) => void;
   onNotify: (word: Word) => void;
   formatTimestamp: (ts: number) => string;
@@ -232,7 +246,7 @@ interface FullTaskViewProps {
   completedWords: Word[];
 }
 
-function FullTaskView({ task, onClose, showToast, ...props }: FullTaskViewProps) {
+function FullTaskView({ task, onClose, showToast, onWordUpdate, ...props }: FullTaskViewProps) {
   return (
     <div className="full-task-view-container">
       <div className="full-task-view-header">
@@ -247,6 +261,7 @@ function FullTaskView({ task, onClose, showToast, ...props }: FullTaskViewProps)
           word={task}
           wordId={task.id}
           showToast={showToast}
+          onWordUpdate={onWordUpdate}
           {...props}
           // These are already in props, but being explicit for clarity
           onUpdate={props.onUpdate}
@@ -374,7 +389,7 @@ function PromptModal({ isOpen, title, onClose, onConfirm, placeholder, initialVa
   );
 }
 
-function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, showToast, settings, startInEditMode = false, onDescriptionChange, onSettingsChange, words, completedWords, setInboxMessages, onComplete, wordId, checklistRef, focusChecklistItemId, setFocusChecklistItemId, ...rest }: TabbedViewProps) {
+function TabbedView({ word, onUpdate, onWordUpdate, onTabChange, onNotify, formatTimestamp, showToast, settings, startInEditMode = false, onDescriptionChange, onSettingsChange, words, completedWords, setInboxMessages, onComplete, wordId, checklistRef, focusChecklistItemId, setFocusChecklistItemId, ...rest }: TabbedViewProps) {
   const initialTab = settings.activeTaskTabs[word.id] || (word.completedDuration ? 'ticket' : 'ticket');
   const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(initialTab);
 
@@ -505,7 +520,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, sh
             {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft word={word} onUpdate={onUpdate} onNotify={onNotify} settings={settings} /></p>}
             {word.company && <p><strong>Company:</strong> <span className="link-with-copy">{word.company}<button className="icon-button copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); showToast('Company copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
             <div className="work-timer-container"><strong>Work Timer:</strong>
-              <ManualStopwatch word={word} onUpdate={(updatedWord) => onUpdate(updatedWord)} />
+              <TimeTrackerLog word={word} onUpdate={onUpdate} showToast={showToast} />
             </div>
             <div><strong>Task Cost:</strong>
               <span> ${(((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0)).toFixed(2)}</span>
@@ -570,7 +585,9 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, sh
                 onComplete={onComplete}
                 words={words}
                 setInboxMessages={setInboxMessages} 
+                word={word}
                 wordId={wordId}
+                onWordUpdate={onWordUpdate}
                 checklistRef={checklistRef}
                 showToast={showToast}
                 isEditable={false}
@@ -718,7 +735,9 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, sh
               sections={word.checklist || []} 
               onUpdate={(newSections) => handleFieldChange('checklist', newSections)} 
               onComplete={onComplete}
-              isEditable={true} 
+              isEditable={true}
+              onWordUpdate={onWordUpdate}
+              word={word}
               words={words} 
               setInboxMessages={setInboxMessages}
               checklistRef={checklistRef}
@@ -950,7 +969,7 @@ function DescriptionEditor({ description, onDescriptionChange, settings, onSetti
   );
 }
 
-function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInboxMessages, wordId, checklistRef, showToast, focusItemId, onFocusHandled, settings, onSettingsChange }: { sections: ChecklistSection[] | ChecklistItem[], onUpdate: (newSections: ChecklistSection[]) => void, isEditable: boolean, onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void, words: Word[], setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>, wordId: number, checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>, showToast: (message: string, duration?: number) => void, focusItemId: number | null, onFocusHandled: () => void, settings: Settings, onSettingsChange: (newSettings: Partial<Settings>) => void }) {
+function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInboxMessages, word, wordId, onWordUpdate, checklistRef, showToast, focusItemId, onFocusHandled, settings, onSettingsChange }: { sections: ChecklistSection[] | ChecklistItem[], onUpdate: (newSections: ChecklistSection[]) => void, isEditable: boolean, onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void, words: Word[], setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>, word: Word, wordId: number, onWordUpdate: (updatedWord: Word) => void, checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>, showToast: (message: string, duration?: number) => void, focusItemId: number | null, onFocusHandled: () => void, settings: Settings, onSettingsChange: (newSettings: Partial<Settings>) => void }) {
   const [newItemTexts, setNewItemTexts] = useState<{ [key: number]: string }>({});
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
   const [editingSectionTitle, setEditingSectionTitle] = useState('');
@@ -996,6 +1015,106 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     setHistory([normalizedSections]);
     setHistoryIndex(0);
   }, [wordId]); // Re-initialize history only when the task itself changes
+
+  const handleSendAllItemsToTimer = (startImmediately: boolean) => {
+    const now = Date.now();
+    let newTimeLog = [...(word.timeLog || [])];
+
+    const allItemsToSend = history[historyIndex].flatMap(section => section.items.filter(item => !item.isCompleted));
+
+    if (allItemsToSend.length === 0) {
+      showToast('No active items in any section to send to timer.');
+      return;
+    }
+
+    // If starting immediately, stop any other running timer first.
+    if (startImmediately) {
+      newTimeLog = newTimeLog.map(entry => {
+        if (entry.isRunning) {
+          const elapsed = now - (entry.startTime || now);
+          return { ...entry, duration: entry.duration + elapsed, isRunning: false, startTime: undefined };
+        }
+        return entry;
+      });
+    }
+
+    const newEntries: TimeLogEntry[] = allItemsToSend.map((item, index) => ({
+      id: now + Math.random() + index,
+      description: item.text,
+      duration: 0,
+      isRunning: startImmediately && index === 0, // Only start the first item
+      startTime: startImmediately && index === 0 ? now : undefined,
+    }));
+
+    onWordUpdate({ ...word, timeLog: [...newTimeLog, ...newEntries] });
+    showToast(`${allItemsToSend.length} item(s) sent to timer!`);
+  };
+
+  const handleSendSectionToTimer = (section: ChecklistSection, startImmediately: boolean) => {
+    const now = Date.now();
+    let newTimeLog = [...(word.timeLog || [])];
+
+    const itemsToSend = section.items.filter(item => !item.isCompleted);
+    if (itemsToSend.length === 0) {
+      showToast('No active items in this section to send to timer.');
+      return;
+    }
+
+    // If starting immediately, stop any other running timer first.
+    if (startImmediately) {
+      newTimeLog = newTimeLog.map(entry => {
+        if (entry.isRunning) {
+          const elapsed = now - (entry.startTime || now);
+          return { ...entry, duration: entry.duration + elapsed, isRunning: false, startTime: undefined };
+        }
+        return entry;
+      });
+    }
+
+    const newEntries: TimeLogEntry[] = itemsToSend.map((item, index) => ({
+      id: now + Math.random() + index,
+      description: item.text,
+      duration: 0,
+      isRunning: startImmediately && index === 0, // Only start the first item
+      startTime: startImmediately && index === 0 ? now : undefined,
+    }));
+
+    onWordUpdate({ ...word, timeLog: [...newTimeLog, ...newEntries] });
+    showToast(`${itemsToSend.length} item(s) sent to timer!`);
+  };
+
+  const handleSendToTimer = (itemText: string, startImmediately: boolean) => {
+    const now = Date.now();
+    let newTimeLog = [...(word.timeLog || [])];
+
+    // If starting immediately, stop any other running timer first.
+    if (startImmediately) {
+      newTimeLog = newTimeLog.map(entry => {
+        if (entry.isRunning) {
+          const elapsed = now - (entry.startTime || now);
+          return { ...entry, duration: entry.duration + elapsed, isRunning: false, startTime: undefined };
+        }
+        return entry;
+      });
+    }
+
+    // Create the new entry from the checklist item.
+    const newEntry: TimeLogEntry = {
+      id: now + Math.random(),
+      description: itemText,
+      duration: 0,
+      isRunning: startImmediately,
+      startTime: startImmediately ? now : undefined,
+    };
+
+    newTimeLog.push(newEntry);
+
+    // This is the key: we call the parent's onUpdate with the modified `word` object.
+    // Since we don't have direct access to the parent's onUpdate, we'll pass the whole word object
+    // through the checklist's onUpdate prop. The parent will handle it.
+    onWordUpdate({ ...word, timeLog: newTimeLog });
+    showToast(`'${itemText}' sent to timer!`);
+  };
 
   useEffect(() => {
     // This effect now specifically focuses the input whose key is stored in `focusSubInputKey`.
@@ -1626,6 +1745,12 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
           if (item.note === undefined) handleUpdateItemNote(payload.sectionId, payload.itemId, '');
           setEditingNoteForItemId(payload.itemId);
         }
+      } else if (command === 'send_to_timer') {
+        const item = section.items.find(i => i.id === itemId);
+        if (item) handleSendToTimer(item.text, false);
+      } else if (command === 'send_to_timer_and_start') {
+        const item = section.items.find(i => i.id === itemId);
+        if (item) handleSendToTimer(item.text, true);
       } 
     };
     const handleSectionCommand = (payload: { command: string, sectionId?: number }) => {
@@ -1735,6 +1860,19 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
           handleDeleteAllSections();
           break;
         }
+        case 'send_section_to_timer': {
+          const section = history[historyIndex].find(s => s.id === payload.sectionId);
+          if (section) handleSendSectionToTimer(section, false);
+          break;
+        }
+        case 'send_all_to_timer': {
+          handleSendAllItemsToTimer(false);
+          break;
+        }
+        case 'send_all_to_timer_and_start': {
+          handleSendAllItemsToTimer(true);
+          break;
+        }
       }
     };
 
@@ -1813,6 +1951,18 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                 <i className={`fas ${areAllItemsComplete ? 'fa-undo' : 'fa-check-square'}`}></i>
               </button>              
               <div className="checklist-action-group checklist-action-group-expand">
+                <button 
+                  className="checklist-action-btn" 
+                  onClick={() => handleSendAllItemsToTimer(false)} 
+                  title="Send All Items to Timer">
+                  <i className="fas fa-stopwatch"></i>
+                </button>
+                <button
+                  className="checklist-action-btn"
+                  onClick={() => handleSendAllItemsToTimer(true)}
+                  title="Send All Items to Timer & Start">
+                  <i className="fas fa-play-circle"></i>
+                </button>
                 <button className="checklist-action-btn" onClick={handleExpandAllSections} title="Expand All Sections">
                   <i className="fas fa-folder-open"></i>
                 </button>
@@ -2002,6 +2152,12 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                     <button className="checklist-action-btn" onClick={() => handleAddResponses(section.id)} title="Add Response to All Items in Section">
                       <i className="fas fa-reply"></i>
                     </button>
+                <button 
+                  className="checklist-action-btn" 
+                  onClick={() => handleSendSectionToTimer(section, false)} 
+                  title="Send All to Timer">
+                  <i className="fas fa-tasks"></i>
+                </button>
                     <button
                       className="checklist-action-btn"
                       onClick={() => handleToggleSectionResponses(section.id)}
@@ -2185,6 +2341,8 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                             ) : (
                               <button className="icon-button" onClick={() => handleDeleteItemNote(section.id, item.id)} title="Delete Note"><i className="fas fa-sticky-note active-icon"></i></button>
                             )}
+                            <button className="icon-button" onClick={() => handleSendToTimer(item.text, false)} title="Add to Timer"><i className="fas fa-plus-circle"></i></button>
+                            <button className="icon-button" onClick={() => handleSendToTimer(item.text, true)} title="Add to Timer & Start"><i className="fas fa-play"></i></button>
                             <button className="icon-button" onClick={() => handleDeleteItem(section.id, item.id)} title="Delete Item"><i className="fas fa-trash-alt delete-icon"></i></button>
                           </div>
                         )}
@@ -2798,6 +2956,330 @@ function ManualStopwatch({ word, onUpdate }: { word: Word, onUpdate: (updatedWor
   );
 }
 
+function TimeTrackerLog({ word, onUpdate, showToast }: { word: Word, onUpdate: (updatedWord: Word) => void, showToast: (message: string, duration?: number) => void }) {
+  const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
+  const [editingDescription, setEditingDescription] = useState('');
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const [liveElapsedTime, setLiveElapsedTime] = useState(0);
+  const [bulkAddText, setBulkAddText] = useState('');
+  const [confirmingDeleteAll, setConfirmingDeleteAll] = useState(false);
+
+  // Phase 4.4: One-time data migration from old system
+  useEffect(() => {
+    // If timeLog is missing/empty AND there's legacy manualTime data...
+    if ((!word.timeLog || word.timeLog.length === 0) && (word.manualTime || 0) > 0) {
+      // ...create a new entry from the old data.
+      const legacyEntry: TimeLogEntry = {
+        id: Date.now(),
+        description: 'Legacy Timed Entry',
+        duration: word.manualTime || 0,
+        isRunning: false,
+      };
+      // Update the word object with the new timeLog array.
+      onUpdate({ ...word, timeLog: [legacyEntry] });
+    }
+  }, [word.timeLog, word.manualTime, onUpdate]);
+
+  // Focus the input when an entry enters edit mode.
+  useEffect(() => {
+    if (editingEntryId !== null && editInputRef.current) {
+      editInputRef.current.focus();
+    }
+  }, [editingEntryId]);
+
+  // Phase 3.3: Live Timer Display
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const runningEntry = (word.timeLog || []).find(entry => entry.isRunning);
+      if (runningEntry && runningEntry.startTime) {
+        setLiveElapsedTime(Date.now() - runningEntry.startTime);
+      } else {
+        // If no timer is running, ensure elapsed time is zero.
+        if (liveElapsedTime !== 0) setLiveElapsedTime(0);
+      }
+    }, 1000); // Update every second
+
+    return () => clearInterval(interval);
+    // We depend on word.timeLog to find the running entry.
+  }, [word.timeLog, liveElapsedTime]);
+
+  // Effect to handle commands from the context menus
+  useEffect(() => {
+    const handleItemCommand = (payload: { command: string, entry: TimeLogEntry, index: number }) => {
+      const { command, entry, index } = payload;
+      switch (command) {
+        case 'edit_description':
+          handleStartEditing(entry);
+          break;
+        case 'delete':
+          handleDeleteEntry(entry.id);
+          break;
+        case 'duplicate': {
+          const newEntry: TimeLogEntry = { ...entry, id: Date.now() + Math.random(), isRunning: false, startTime: undefined };
+          const newTimeLog = [...(word.timeLog || [])];
+          newTimeLog.splice(index + 1, 0, newEntry);
+          handleUpdateLog(newTimeLog);
+          break;
+        }
+        case 'move_up':
+          handleMoveEntry(index, 'up');
+          break;
+        case 'move_down':
+          handleMoveEntry(index, 'down');
+          break;
+      }
+    };
+
+    const handleHeaderCommand = (payload: { command: string, totalTime: number, timeLog: TimeLogEntry[] }) => {
+      const { command, totalTime, timeLog } = payload;
+      switch (command) {
+        case 'copy_total_time':
+          navigator.clipboard.writeText(formatTime(totalTime));
+          showToast('Total time copied!');
+          break;
+        case 'copy_log_as_text': {
+          const text = timeLog.map(entry => `${entry.description}: ${formatTime(entry.duration)}`).join('\n');
+          navigator.clipboard.writeText(text);
+          showToast('Log copied as text!');
+          break;
+        }
+        case 'delete_all':          
+          handleUpdateLog([]);
+          showToast('Timer Wiped!');
+          break;
+        case 'add_new_line':
+          handleAddNewEntry();
+          showToast('New Timer Line Added!');            
+          break;
+      }
+    };
+
+    const cleanupItem = window.electronAPI.on('time-log-item-command', handleItemCommand);
+    const cleanupHeader = window.electronAPI.on('time-log-header-command', handleHeaderCommand);
+
+    return () => {
+      cleanupItem?.();
+      cleanupHeader?.();
+    };
+  }, [word.timeLog, confirmingDeleteAll]); // Rerun if log changes or confirmation state changes
+
+  const handleUpdateLog = (newTimeLog: TimeLogEntry[]) => {
+    onUpdate({ ...word, timeLog: newTimeLog });
+  };
+
+  const handleAddNewEntry = () => {
+    const newEntry: TimeLogEntry = {
+      id: Date.now() + Math.random(),
+      description: '',
+      duration: 0,
+      isRunning: false,
+    };
+    const newTimeLog = [...(word.timeLog || []), newEntry];
+    handleUpdateLog(newTimeLog);
+    // Immediately enter edit mode for the new entry
+    setEditingEntryId(newEntry.id);
+    setEditingDescription('');
+  };
+
+  const handleStartEditing = (entry: TimeLogEntry) => {
+    setEditingEntryId(entry.id);
+    setEditingDescription(entry.description);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingEntryId === null) return;
+    const newTimeLog = (word.timeLog || []).map(entry =>
+      entry.id === editingEntryId ? { ...entry, description: editingDescription } : entry
+    );
+    handleUpdateLog(newTimeLog);
+    setEditingEntryId(null);
+  };
+
+  const handleDeleteEntry = (id: number) => {
+    if (confirmingDeleteId === id) {
+      const newTimeLog = (word.timeLog || []).filter(entry => entry.id !== id);
+      handleUpdateLog(newTimeLog);
+      setConfirmingDeleteId(null);
+    } else {
+      setConfirmingDeleteId(id);
+      setTimeout(() => setConfirmingDeleteId(null), 3000); // Reset after 3 seconds
+    }
+  };
+
+  // Phase 3.1 & 3.2: Single Active Timer and Start/Stop/Resume Logic
+  const handleToggleTimer = (toggledEntryId: number) => {
+    const now = Date.now();
+    let newTimeLog = (word.timeLog || []).map(entry => {
+      // First, stop any other entry that might be running.
+      if (entry.isRunning && entry.id !== toggledEntryId) {
+        const elapsed = now - (entry.startTime || now);
+        return { ...entry, duration: entry.duration + elapsed, isRunning: false, startTime: undefined };
+      }
+      return entry;
+    });
+
+    newTimeLog = newTimeLog.map(entry => {
+      if (entry.id === toggledEntryId) {
+        if (entry.isRunning) {
+          // Pause the clicked entry
+          const elapsed = now - (entry.startTime || now);
+          return { ...entry, duration: entry.duration + elapsed, isRunning: false, startTime: undefined };
+        } else {
+          // Start the clicked entry
+          return { ...entry, isRunning: true, startTime: now };
+        }
+      }
+      return entry;
+    });
+
+    handleUpdateLog(newTimeLog);
+  };
+
+  const handleMoveEntry = (index: number, direction: 'up' | 'down') => {
+    const newTimeLog = [...(word.timeLog || [])];
+    if (direction === 'up' && index > 0) {
+      // Swap the element with the one before it
+      [newTimeLog[index - 1], newTimeLog[index]] = [newTimeLog[index], newTimeLog[index - 1]];
+    } else if (direction === 'down' && index < newTimeLog.length - 1) {
+      // Swap the element with the one after it
+      [newTimeLog[index], newTimeLog[index + 1]] = [newTimeLog[index + 1], newTimeLog[index]];
+    }
+    handleUpdateLog(newTimeLog);
+  };
+
+  const handleBulkAdd = () => {
+    if (!bulkAddText.trim()) return;
+
+    const lines = bulkAddText.split('\n').filter(line => line.trim() !== '');
+    const newEntries: TimeLogEntry[] = lines.map(line => ({
+      id: Date.now() + Math.random(),
+      description: line.trim(),
+      duration: 0,
+      isRunning: false,
+    }));
+
+    const newTimeLog = [...(word.timeLog || []), ...newEntries];
+    handleUpdateLog(newTimeLog);
+    setBulkAddText(''); // Clear the textarea after adding
+  };
+
+  const timeLog = word.timeLog || [];
+  const runningEntry = timeLog.find(entry => entry.isRunning);
+
+  // Calculate total time by summing the duration of all entries.
+  const totalTime = timeLog.reduce((sum, entry) => sum + entry.duration, 0) + (runningEntry ? liveElapsedTime : 0);
+
+  return (
+    <div className="time-tracker-log" style={{width: '100%'}}>
+      <header 
+        className="time-tracker-header"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          window.electronAPI.showTimeLogHeaderContextMenu({
+            totalTime,
+            timeLog,
+            x: e.clientX,
+            y: e.clientY,
+          });
+        }}
+      >
+        <span>Worktime Total: {formatTime(totalTime)}</span>
+        { 
+          // Copy Total Time
+          // Copy Log as Text
+          // Delete Timer Log
+          // Add New Line 
+        }
+        <div className="button-group">
+          <button onClick={() => navigator.clipboard.writeText(formatTime(totalTime))} className="copy-total-time-btn" title="Copy Total Time">                  
+            <i className="fas fa-copy"></i> 
+          </button>
+          <button onClick={() => {
+            const text = timeLog.map(entry => `${entry.description}: ${formatTime(entry.duration)}`).join('\n');
+            navigator.clipboard.writeText(text);
+            showToast('Log copied as text!');
+            }} className="copy-log-as-text-btn" title="Copy Log as Text">
+            <i className="fas fa-copy"></i> 
+          </button>
+          <button onClick={() => handleUpdateLog([])} className="delete-all-entries-btn" title="Delete All Entries">
+            <i className="fas fa-trash-alt"></i> 
+          </button>
+        </div>        
+        <button onClick={handleAddNewEntry} className="add-new-line-btn">
+          <i className="fas fa-plus"></i> Add New Line
+        </button>
+      </header>
+      <ul className="time-log-list">
+        {timeLog.map((entry, index) => (
+          <li 
+            key={entry.id} 
+            className={`time-log-entry ${entry.isRunning ? 'running' : ''}`}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              window.electronAPI.showTimeLogItemContextMenu({ entry, index, totalEntries: timeLog.length, x: e.clientX, y: e.clientY });
+            }}
+          >
+            <div className="time-log-description">
+              {editingEntryId === entry.id ? (
+                <input
+                  ref={editInputRef}
+                  type="text"
+                  value={editingDescription}
+                  onChange={(e) => setEditingDescription(e.target.value)}
+                  onBlur={handleSaveEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveEdit();
+                    if (e.key === 'Escape') setEditingEntryId(null);
+                  }}
+                  className="time-log-edit-input"
+                />
+              ) : (
+                <span onDoubleClick={() => handleStartEditing(entry)} title="Double-click to edit description">
+                  {entry.description || '...'}
+                </span>
+              )}
+            </div>
+            <div className="time-log-actions">
+              <div className="time-log-duration">
+                {formatTime(entry.isRunning ? entry.duration + liveElapsedTime : entry.duration)}
+              </div>
+              <button onClick={() => handleToggleTimer(entry.id)} className="icon-button timer-toggle-btn" title={entry.isRunning ? 'Pause' : 'Start'}>
+                <i className={`fas ${entry.isRunning ? 'fa-pause-circle' : 'fa-play-circle'}`}></i>
+              </button>
+              <div className="time-log-reorder-actions">
+                <button onClick={() => handleMoveEntry(index, 'up')} className="icon-button" title="Move Up" disabled={index === 0}>
+                  <i className="fas fa-arrow-up"></i>
+                </button>
+                <button onClick={() => handleMoveEntry(index, 'down')} className="icon-button" title="Move Down" disabled={index === timeLog.length - 1}>
+                  <i className="fas fa-arrow-down"></i>
+                </button>
+              </div>
+              <button onClick={() => handleDeleteEntry(entry.id)} className={`icon-button delete-btn ${confirmingDeleteId === entry.id ? 'confirm-delete' : ''}`} title="Delete Entry">
+                <i className="fas fa-trash"></i>
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="time-log-bulk-add">
+        <textarea
+          value={bulkAddText}
+          onChange={(e) => setBulkAddText(e.target.value)}
+          placeholder="Paste multiple lines to bulk add entries..."
+          rows={3}
+          className="bulk-add-textarea"
+        />
+        <button onClick={handleBulkAdd} className="bulk-add-btn" title="Add Entries">
+          <i className="fas fa-plus-square"></i>
+          Add
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const defaultSettings: Settings = {
   fontFamily: "Arial",
   fontColor: "#FFFFFF",
@@ -3251,7 +3733,7 @@ function App() {
     });
   };
   const [newTask, setNewTask] = useState({
-    text: '',
+    text: '', // This will be inferred as string, not string | undefined
     url: '',
     taskType: 'default',
     priority: 'Medium' as 'High' | 'Medium' | 'Low',
@@ -3277,7 +3759,7 @@ function App() {
     lastNotified: undefined,
     snoozedAt: undefined,
     notes: '',
-  });
+  } as Partial<Word>);
   // Load words from localStorage on initial component mount
   useEffect(() => {
     const loadDataFromStore = async () => {
@@ -4746,6 +5228,7 @@ function App() {
         <FullTaskView
           task={taskToShow}
           onClose={() => setFullTaskViewId(null)}
+          onWordUpdate={handleWordUpdate}
           onUpdate={handleWordUpdate}
           onNotify={handleTimerNotify}
           formatTimestamp={formatTimestamp}
@@ -5418,10 +5901,11 @@ function App() {
                                               ...prev,
                                               activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: tab }
                                             }))}
+                                           onWordUpdate={handleWordUpdate}
                                             onUpdate={handleWordUpdate}
                                             onNotify={handleTimerNotify}
                                             formatTimestamp={formatTimestamp}
-                                            showToast={showToast}
+                                            showToast={showToast}                                            
                                             words={words}
                                             setInboxMessages={setInboxMessages}
                                             settings={settings} 
@@ -5539,6 +6023,7 @@ function App() {
                                       ...prev,
                                       activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: tab }
                                     }))}
+                                   onWordUpdate={handleWordUpdate}
                                     onUpdate={handleWordUpdate}
                                     onNotify={handleTimerNotify}
                                     formatTimestamp={formatTimestamp}
@@ -5740,6 +6225,7 @@ function App() {
                             onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
                             onDescriptionChange={() => {}}                            
                             settings={settings}
+                            onWordUpdate={handleWordUpdate}
                             words={words}
                             onComplete={handleChecklistCompletion}
                             checklistRef={activeChecklistRef}
@@ -5864,6 +6350,8 @@ function App() {
                     onUpdate={(newSections) => setNewTask({ ...newTask, checklist: newSections })} 
                     onComplete={handleChecklistCompletion} 
                     isEditable={true}
+                    onWordUpdate={(updatedWord) => setNewTask(updatedWord)}
+                    word={newTask as Word}
                     words={words}
                     setInboxMessages={setInboxMessages}
                     checklistRef={activeChecklistRef}
