@@ -33,7 +33,8 @@ declare global {
     showInboxItemContextMenu: (payload: { message: InboxMessage, x: number, y: number }) => void;
     showNavButtonContextMenu: (payload: { x: number, y: number, canGoBack: boolean, canGoForward: boolean }) => void;
     showSaveButtonContextMenu: (payload: { x: number, y: number }) => void;
-    showChecklistSectionContextMenu: (payload: { wordId: number, sectionId: number, areAllComplete: boolean, isSectionOpen: boolean, isNotesHidden: boolean, isResponsesHidden: boolean, x: number, y: number, isInEditMode: boolean }) => void;
+    showChecklistSectionContextMenu: (payload: { wordId: number, sectionId: number, areAllComplete: boolean, isSectionOpen: boolean, isNotesHidden: boolean, isResponsesHidden: boolean, x: number, y: number, isInEditMode: boolean, isConfirmingDelete: boolean }) => void;
+    showChecklistMainHeaderContextMenu: (payload: { wordId: number, sectionId: number, areAllComplete: boolean, isSectionOpen: boolean, isNotesHidden: boolean, isResponsesHidden: boolean, x: number, y: number, isInEditMode: boolean, isConfirmingDelete: boolean }) => void;
     showChecklistItemContextMenu: (payload: { wordId: number, sectionId: number, itemId: number, isCompleted: boolean, hasNote: boolean, hasResponse: boolean, hasUrl: boolean, isInEditMode: boolean, x: number, y: number }) => void;
     showChecklistNoteContextMenu: (payload: { sectionId: number, itemId: number, hasUrl: boolean, hasNote: boolean, x: number, y: number }) => void;
     showChecklistResponseContextMenu: (payload: { sectionId: number, itemId: number, hasUrl: boolean, hasResponse: boolean, x: number, y: number }) => void;
@@ -196,7 +197,7 @@ interface TabbedViewProps {
   onTabChange: (wordId: number, tab: 'ticket' | 'edit') => void;
   onNotify: (word: Word) => void;
   formatTimestamp: (ts: number) => string;
-  setCopyStatus: (message: string) => void;  
+  showToast: (message: string, duration?: number) => void;
   onSettingsChange: (newSettings: Partial<Settings>) => void;
   onDescriptionChange: (html: string) => void;
   settings: Settings; // Pass down settings for browser selection
@@ -218,7 +219,7 @@ interface FullTaskViewProps {
   onUpdate: (updatedWord: Word) => void;
   onNotify: (word: Word) => void;
   formatTimestamp: (ts: number) => string;
-  setCopyStatus: (message: string) => void;
+  showToast: (message: string, duration?: number) => void;
   settings: Settings;
   onSettingsChange: (newSettings: Partial<Settings>) => void;
   words: Word[];
@@ -231,19 +232,21 @@ interface FullTaskViewProps {
   completedWords: Word[];
 }
 
-function FullTaskView({ task, onClose, setCopyStatus, ...props }: FullTaskViewProps) {
+function FullTaskView({ task, onClose, showToast, ...props }: FullTaskViewProps) {
   return (
     <div className="full-task-view-container">
       <div className="full-task-view-header">
         <button onClick={onClose} className="back-to-list-btn">
-          <i className="fas fa-arrow-left"></i> Back to List
+          <i className="fas fa-arrow-left"></i>
+          {' '}
+          Back to List
         </button>
       </div>
       <div className="full-task-view-content">
         <TabbedView
           word={task}
           wordId={task.id}
-          setCopyStatus={setCopyStatus}
+          showToast={showToast}
           {...props}
           // These are already in props, but being explicit for clarity
           onUpdate={props.onUpdate}
@@ -371,7 +374,7 @@ function PromptModal({ isOpen, title, onClose, onConfirm, placeholder, initialVa
   );
 }
 
-function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, setCopyStatus, settings, startInEditMode = false, onDescriptionChange, onSettingsChange, words, completedWords, setInboxMessages, onComplete, wordId, checklistRef, focusChecklistItemId, setFocusChecklistItemId, ...rest }: TabbedViewProps) {
+function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, showToast, settings, startInEditMode = false, onDescriptionChange, onSettingsChange, words, completedWords, setInboxMessages, onComplete, wordId, checklistRef, focusChecklistItemId, setFocusChecklistItemId, ...rest }: TabbedViewProps) {
   const initialTab = settings.activeTaskTabs[word.id] || (word.completedDuration ? 'ticket' : 'ticket');
   const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(initialTab);
 
@@ -419,12 +422,10 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
         const textBlob = new Blob([text], { type: 'text/plain' });
         const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
         await navigator.clipboard.write(data);
-        setCopyStatus('Description copied!');
-        setTimeout(() => setCopyStatus(''), 2000);
+        showToast('Description copied!');
       } catch (err) {
         console.error('Failed to copy description: ', err);
-        setCopyStatus('Copy failed!');
-        setTimeout(() => setCopyStatus(''), 2000);
+        showToast('Copy failed!');
       }
     }
   };
@@ -443,13 +444,11 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
           const textBlob = new Blob([text], { type: 'text/plain' });
           const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
           await navigator.clipboard.write(data);
-          setCopyStatus('Notes copied!');
-          setTimeout(() => setCopyStatus(''), 2000);
+          showToast('Notes copied!');
         }
       } catch (err) {
         console.error('Failed to copy notes: ', err);
-        setCopyStatus('Copy failed!');
-        setTimeout(() => setCopyStatus(''), 2000);
+        showToast('Copy failed!');
       }
     }
   };
@@ -471,12 +470,10 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
         const textBlob = new Blob([combinedText], { type: 'text/plain' });
         const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
         await navigator.clipboard.write(data);
-        setCopyStatus('All content copied!');
-        setTimeout(() => setCopyStatus(''), 2000);
+        showToast('All content copied!');
       } catch (err) {
         console.error('Failed to copy all: ', err);
-        setCopyStatus('Copy failed!');
-        setTimeout(() => setCopyStatus(''), 2000);
+        showToast('Copy failed!');
       }
     }
   };
@@ -497,23 +494,23 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
       {tabHeaders}
       <div className="tab-content" ref={tabContentRef}>
         {activeTab === 'ticket' && (
-          <div className="ticket-display-view">            
-            <h3 onContextMenu={handleTaskContextMenu}>{word.text} (ID: {word.id})</h3>            
-            {word.url && <p><strong>URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.url}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); setCopyStatus('URL copied!'); setTimeout(() => setCopyStatus(''), 2000); }}><i className="fas fa-copy"></i></button></span></p>}
+          <div className="ticket-display-view">
+            <h3 onContextMenu={handleTaskContextMenu}>{word.text} (ID: {word.id})</h3>
+            {word.url && <p><strong>URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.url}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); showToast('URL copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
             <p><strong>Category:</strong> {settings.categories.find(c => c.id === word.categoryId)?.name || 'Uncategorized'}</p>
             <p><strong>Priority:</strong> {word.priority || 'Medium'}</p>
             <p><strong>Open Date:</strong> {formatTimestamp(word.openDate)}</p>
             <p><strong>Time Open:</strong> <TimeOpen startDate={word.createdAt} /></p>
-            {word.completeBy && <p><strong>Complete By:</strong> {formatTimestamp(word.completeBy)}</p>}            
-            {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft word={word} onUpdate={onUpdate} onNotify={onNotify} settings={settings} /></p>}            
-            {word.company && <p><strong>Company:</strong> <span className="link-with-copy">{word.company}<button className="icon-button copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); setCopyStatus('Company copied!'); setTimeout(() => setCopyStatus(''), 2000); }}><i className="fas fa-copy"></i></button></span></p>}
+            {word.completeBy && <p><strong>Complete By:</strong> {formatTimestamp(word.completeBy)}</p>}
+            {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft word={word} onUpdate={onUpdate} onNotify={onNotify} settings={settings} /></p>}
+            {word.company && <p><strong>Company:</strong> <span className="link-with-copy">{word.company}<button className="icon-button copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); showToast('Company copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
             <div className="work-timer-container"><strong>Work Timer:</strong>
               <ManualStopwatch word={word} onUpdate={(updatedWord) => onUpdate(updatedWord)} />
             </div>
             <div><strong>Task Cost:</strong>
               <span> ${(((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0)).toFixed(2)}</span>
             </div>
-            {word.websiteUrl && <p><strong>Website URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.websiteUrl, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.websiteUrl}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.websiteUrl); setCopyStatus('Website URL copied!'); setTimeout(() => setCopyStatus(''), 2000); }}><i className="fas fa-copy"></i></button></span></p>}
+            {word.websiteUrl && <p><strong>Website URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.websiteUrl, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.websiteUrl}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.websiteUrl); showToast('Website URL copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
             <div><strong>Image Links:</strong>
               <div className="image-links-display">
                 {(word.imageLinks || []).map((link, index) => (
@@ -521,7 +518,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
                     <img src={link} alt={`Image ${index + 1}`} />
                     <div className="image-link-actions">
                       <button className="icon-button" onClick={() => window.electronAPI.downloadImage(link)} title="Download Image"><i className="fas fa-download"></i></button>
-                      <button className="icon-button" onClick={() => { navigator.clipboard.writeText(link); setCopyStatus('Image URL copied!'); setTimeout(() => setCopyStatus(''), 2000); }} title="Copy URL"><i className="fas fa-copy"></i></button>
+                      <button className="icon-button" onClick={() => { navigator.clipboard.writeText(link); showToast('Image URL copied!'); }} title="Copy URL"><i className="fas fa-copy"></i></button>
                     </div>
                   </div>
                 ))}
@@ -563,8 +560,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
                 <strong>Description:</strong>
                 <button className="icon-button copy-btn" title="Copy Description Text" onClick={handleCopyDescription}><i className="fas fa-copy"></i></button>
                 <button className="icon-button copy-btn" title="Copy Description HTML" onClick={() => {
-                  navigator.clipboard.writeText(word.description || ''); setCopyStatus('Description HTML copied!');
-                  setTimeout(() => setCopyStatus(''), 2000);
+                  navigator.clipboard.writeText(word.description || ''); showToast('Description HTML copied!');
                 }}><i className="fas fa-code"></i></button>
                 <button className="icon-button copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}><i className="fas fa-copy"></i> All</button>
               </div>
@@ -573,10 +569,10 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
                 onUpdate={(newSections) => handleFieldChange('checklist', newSections)} 
                 onComplete={onComplete}
                 words={words}
-                setInboxMessages={setInboxMessages}
+                setInboxMessages={setInboxMessages} 
                 wordId={wordId}
                 checklistRef={checklistRef}
-                setCopyStatus={setCopyStatus}
+                showToast={showToast}
                 isEditable={false}
                 focusItemId={focusChecklistItemId} 
                 onFocusHandled={() => setFocusChecklistItemId(null)} 
@@ -594,9 +590,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
               <div className="description-header">
                 <strong>Notes:</strong>
                 <button className="icon-button copy-btn" title="Copy Notes Text" onClick={handleCopyNotes}><i className="fas fa-copy"></i></button>
-                <button className="icon-button copy-btn" title="Copy Notes HTML" onClick={() => {
-                  navigator.clipboard.writeText(word.notes || ''); setCopyStatus('Notes HTML copied!');
-                  setTimeout(() => setCopyStatus(''), 2000);
+                <button className="icon-button copy-btn" title="Copy Notes HTML" onClick={() => { navigator.clipboard.writeText(word.notes || ''); showToast('Notes HTML copied!');
                 }}><i className="fas fa-code"></i></button>
               </div>
               <DescriptionEditor 
@@ -716,8 +710,7 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
               <strong>Description:</strong>
               <button className="icon-button copy-btn" title="Copy Description Text" onClick={handleCopyDescription}><i className="fas fa-copy"></i></button>
               <button className="icon-button copy-btn" title="Copy Description HTML" onClick={() => {
-                navigator.clipboard.writeText(word.description || ''); setCopyStatus('Description HTML copied!');
-                setTimeout(() => setCopyStatus(''), 2000);
+                navigator.clipboard.writeText(word.description || ''); showToast('Description HTML copied!');
               }}><i className="fas fa-code"></i></button>
               <button className="icon-button copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}><i className="fas fa-copy"></i> All</button>
             </div>
@@ -726,16 +719,16 @@ function TabbedView({ word, onUpdate, onTabChange, onNotify, formatTimestamp, se
               onUpdate={(newSections) => handleFieldChange('checklist', newSections)} 
               onComplete={onComplete}
               isEditable={true} 
-              words={words}
+              words={words} 
               setInboxMessages={setInboxMessages}
               checklistRef={checklistRef}
               wordId={wordId}
-              setCopyStatus={setCopyStatus}
+              showToast={showToast}
               focusItemId={focusChecklistItemId} 
               onFocusHandled={() => setFocusChecklistItemId(null)}
               settings={settings} 
               onSettingsChange={onSettingsChange}
-              />
+            />
             <DescriptionEditor 
               description={word.description || ''} 
               onDescriptionChange={(html) => handleFieldChange('description', html)} 
@@ -957,7 +950,7 @@ function DescriptionEditor({ description, onDescriptionChange, settings, onSetti
   );
 }
 
-function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInboxMessages, wordId, checklistRef, setCopyStatus, focusItemId, onFocusHandled, settings, onSettingsChange }: { sections: ChecklistSection[] | ChecklistItem[], onUpdate: (newSections: ChecklistSection[]) => void, isEditable: boolean, onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void, words: Word[], setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>, wordId: number, checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>, setCopyStatus: (message: string) => void, focusItemId: number | null, onFocusHandled: () => void, settings: Settings, onSettingsChange: (newSettings: Partial<Settings>) => void }) {
+function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInboxMessages, wordId, checklistRef, showToast, focusItemId, onFocusHandled, settings, onSettingsChange }: { sections: ChecklistSection[] | ChecklistItem[], onUpdate: (newSections: ChecklistSection[]) => void, isEditable: boolean, onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void, words: Word[], setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>, wordId: number, checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>, showToast: (message: string, duration?: number) => void, focusItemId: number | null, onFocusHandled: () => void, settings: Settings, onSettingsChange: (newSettings: Partial<Settings>) => void }) {
   const [newItemTexts, setNewItemTexts] = useState<{ [key: number]: string }>({});
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
   const [editingSectionTitle, setEditingSectionTitle] = useState('');
@@ -972,7 +965,10 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
   const [confirmingDeleteSectionNotes, setConfirmingDeleteSectionNotes] = useState<number | null>(null);
   const [confirmingDeleteSectionResponses, setConfirmingDeleteSectionResponses] = useState<number | null>(null);
   const [confirmingDeleteNotes, setConfirmingDeleteNotes] = useState(false);
+  const [confirmingDeleteAllSections, setConfirmingDeleteAllSections] = useState(false);
   const [confirmingDeleteResponses, setConfirmingDeleteResponses] = useState(false);
+  const [confirmingDeleteSectionId, setConfirmingDeleteSectionId] = useState<number | null>(null);
+  const [confirmingDeleteChecked, setConfirmingDeleteChecked] = useState<number | 'all' | null>(null);
   const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const addItemInputRef = useRef<{ [key: number]: HTMLTextAreaElement }>({});
 
@@ -1117,11 +1113,69 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     }
     onUpdate(newSections);
   };
+  const handleDuplicateSection = (sectionId: number) => {
+    const currentSections = history[historyIndex];
+    const sectionIndex = currentSections.findIndex(s => s.id === sectionId);
+    if (sectionIndex === -1) return;
 
+    const sectionToDuplicate = currentSections[sectionIndex];
+    const newDuplicatedSection: ChecklistSection = {
+      ...sectionToDuplicate,
+      id: Date.now() + Math.random(), // Use random to be safe
+      title: `${sectionToDuplicate.title} (Copy)`,
+      // CRITICAL FIX: Give all duplicated items new, unique IDs
+      items: sectionToDuplicate.items.map(item => ({ ...item, id: Date.now() + Math.random() })),
+    };
+
+    const newSections = [...currentSections];
+    newSections.splice(sectionIndex + 1, 0, newDuplicatedSection);
+
+    updateHistory(newSections);
+    onUpdate(newSections);
+    showToast('Section Duplicated!');
+  };
+
+  const handleDeleteSection = (sectionId: number) => {
+    if (confirmingDeleteSectionId === sectionId) {
+      // This is the second click, perform deletion
+      const newSections = history[historyIndex].filter(sec => sec.id !== sectionId);
+      updateHistory(newSections);
+      onUpdate(newSections);
+      setConfirmingDeleteSectionId(null); // Reset confirmation state
+      showToast('Section Deleted!');      
+      if (confirmTimeoutRef.current) {
+        clearTimeout(confirmTimeoutRef.current);
+      }
+    } else {
+      // This is the first click, enter confirmation state
+      setConfirmingDeleteSectionId(sectionId);
+      // Also reset other confirmations to avoid confusion
+      setConfirmingDeleteNotes(false);
+      setConfirmingDeleteResponses(false);
+      setConfirmingDeleteSectionNotes(null);
+      setConfirmingDeleteSectionResponses(null);
+
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+      confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteSectionId(null), 3000);
+    }
+  };
   const handleDeleteAllSections = () => {
-    if (window.confirm('Are you sure you want to delete all checklist sections and their items?')) {
+    if (confirmingDeleteAllSections) {
       updateHistory([]);
       onUpdate([]);
+      showToast('All sections deleted.');
+      setConfirmingDeleteAllSections(false);
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+    } else {
+      setConfirmingDeleteAllSections(true);
+      // Reset other confirmations
+      setConfirmingDeleteSectionId(null);
+      setConfirmingDeleteNotes(false);
+      setConfirmingDeleteResponses(false);
+      setConfirmingDeleteSectionNotes(null);
+      setConfirmingDeleteSectionResponses(null);
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+      confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteAllSections(false), 3000);
     }
   };
   
@@ -1224,21 +1278,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
       updateHistory(newSections);
     }
     onUpdate(newSections);
-  };
-
-  const handleClearCompleted = (sectionId: number) => {
-    const newSections = history[historyIndex].map(sec => {
-      if (sec.id === sectionId) {
-        const newItems = sec.items.filter(item => !item.isCompleted);
-        return { ...sec, items: newItems };
-      }
-      return sec;
-    });
-    if (!isUndoingRedoing.current) {
-      updateHistory(newSections);
-    }
-    onUpdate(newSections);
-  };
+  };  
   
   const handleToggleAllSections = () => {
     const allItems = history[historyIndex].flatMap(sec => sec.items);
@@ -1263,18 +1303,31 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
   };
 
   const handleDeleteChecked = (sectionId?: number) => {
-    const message = sectionId ? 'Are you sure you want to delete all checked items in this section?' : 'Are you sure you want to delete all checked items in this checklist?';
-    if (window.confirm(message)) {
-      setTimeout(() => {
-        const newSections = history[historyIndex].map(sec => 
-          (sectionId === undefined || sec.id === sectionId) 
-            ? { ...sec, items: sec.items.filter(item => !item.isCompleted) } 
-            : sec
-        );
-        updateHistory(newSections);
-        onUpdate(newSections);
-      }, 0);
+    const confirmKey = sectionId === undefined ? 'all' : sectionId;
+    if (confirmingDeleteChecked === confirmKey) {
+      const newSections = history[historyIndex].map(sec =>
+        (sectionId === undefined || sec.id === sectionId)
+          ? { ...sec, items: sec.items.filter(item => !item.isCompleted) }
+          : sec
+      );
+      updateHistory(newSections);
+      onUpdate(newSections);
+      showToast('Checked items deleted.');
+      setConfirmingDeleteChecked(null);
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+    } else {
+      setConfirmingDeleteChecked(confirmKey);
+      // Reset other confirmations to avoid confusion
+      setConfirmingDeleteSectionId(null);
+      setConfirmingDeleteNotes(false);
+      setConfirmingDeleteResponses(false);
+      setConfirmingDeleteSectionNotes(null);
+      setConfirmingDeleteSectionResponses(null);
+      setConfirmingDeleteAllSections(false);
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+      confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteChecked(null), 3000);
     }
+
   };
 
   const handleDeleteItem = (sectionId: number, itemId: number) => {
@@ -1352,8 +1405,8 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     });
     updateHistory(newSections);
     onUpdate(newSections);
-    setCopyStatus('Note fields added!');
-  }, [history, historyIndex, onUpdate, setCopyStatus]);
+    showToast('Note fields added!');
+  }, [history, historyIndex, onUpdate, showToast]);
 
   const handleAddResponses = React.useCallback((sectionId?: number) => {
     const newSections = history[historyIndex].map(sec => {
@@ -1367,8 +1420,8 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     });
     updateHistory(newSections);
     onUpdate(newSections);
-    setCopyStatus('Response fields added!');
-  }, [history, historyIndex, onUpdate, setCopyStatus]);
+    showToast('Response fields added!');
+  }, [history, historyIndex, onUpdate, showToast]);
 
   const handleDeleteAllResponses = () => {
     const newSections = history[historyIndex].map(sec => ({
@@ -1380,7 +1433,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     }));
     updateHistory(newSections);
     onUpdate(newSections);
-    setCopyStatus('All Response deleted!');
+    showToast('All Response deleted!');
   };
 
 
@@ -1394,7 +1447,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     }));
     updateHistory(newSections);
     onUpdate(newSections);
-    setCopyStatus('All Notes deleted!');
+    showToast('All Notes deleted!');
   };
 
   const handleDeleteAllSectionResponses = (sectionId: number) => {
@@ -1410,7 +1463,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     });
     updateHistory(newSections);
     onUpdate(newSections);
-    setCopyStatus('Section Responses deleted!');
+    showToast('Section Responses deleted!');
   };
 
   const handleDeleteAllSectionNotes = (sectionId: number) => {
@@ -1420,11 +1473,138 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     });
     updateHistory(newSections);
     onUpdate(newSections);
-    setCopyStatus('Section Notes deleted!');
+    showToast('Section Notes deleted!');
   };
   // Effect to handle commands from the context menu that require local state changes
   useEffect(() => {
-    const handleChecklistCommand = (payload: { command: string, sectionId: number, itemId: number }) => {
+    const handleChecklistCommand = (payload: { command: string, sectionId: number, itemId: number, color?: string }) => {
+      const { command, sectionId, itemId, color } = payload;
+      const currentSections = history[historyIndex];
+      const section = currentSections.find(s => s.id === sectionId);
+      if (!section) return;
+
+      const itemIndex = section.items.findIndex(item => item.id === itemId);
+      if (itemIndex === -1) return;
+
+      let newItems = [...section.items];
+      let newSections = [...currentSections];
+
+      switch (command) {
+        case 'toggle_complete': {
+          let toggledItem: ChecklistItem | null = null;
+          newItems = newItems.map(item => {
+            if (item.id !== itemId) return item;
+            const isNowCompleted = !item.isCompleted;
+            if (isNowCompleted) toggledItem = item;
+            return { ...item, isCompleted: isNowCompleted };
+          });
+          if (toggledItem) onComplete(toggledItem, sectionId, [{ ...section, items: newItems }]);
+          break;
+        }
+        case 'delete':
+          newItems.splice(itemIndex, 1);
+          break;
+        case 'copy':
+          navigator.clipboard.writeText(newItems[itemIndex].text);
+          showToast('Checklist item copied!');
+          return; // No state update needed
+        case 'duplicate': {
+          const itemToDuplicate = { ...newItems[itemIndex] };
+          const duplicatedItem = { ...itemToDuplicate, id: Date.now() + Math.random(), text: `${itemToDuplicate.text} (Copy)` };
+          newItems.splice(itemIndex + 1, 0, duplicatedItem);
+          break;
+        }
+        case 'add_before':
+          newItems.splice(itemIndex, 0, { id: Date.now() + Math.random(), text: 'New Item', isCompleted: false });
+          break;
+        case 'add_after':
+          newItems.splice(itemIndex + 1, 0, { id: Date.now() + Math.random(), text: 'New Item', isCompleted: false });
+          break;
+        case 'move_up':
+          if (itemIndex > 0) {
+            [newItems[itemIndex - 1], newItems[itemIndex]] = [newItems[itemIndex], newItems[itemIndex - 1]];
+          }
+          break;
+        case 'move_down':
+          if (itemIndex < newItems.length - 1) {
+            [newItems[itemIndex], newItems[itemIndex + 1]] = [newItems[itemIndex + 1], newItems[itemIndex]];
+          }
+          break;
+        case 'highlight':
+          newSections = newSections.map(s =>
+            s.id === sectionId
+              ? { ...s, items: s.items.map(i => i.id === itemId ? { ...i, highlightColor: color } : i) }
+              : s
+          );
+          break;
+        case 'delete_note':
+        case 'delete_response': {
+          const fieldToClear = command === 'delete_note' ? 'note' : 'response';
+          newSections = newSections.map(s => s.id === sectionId ? { ...s, items: s.items.map(i => i.id === itemId ? { ...i, [fieldToClear]: undefined } : i) } : s);
+          showToast(`${fieldToClear.charAt(0).toUpperCase() + fieldToClear.slice(1)} deleted.`);
+          break;
+        }
+      }
+      if (command === 'open_link') {
+        const item = section.items.find(i => i.id === itemId);
+        if (item) {
+          const url = extractUrlFromText(item.text);
+          if (url) window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
+        }
+        return; // No state update needed
+      } else if (command === 'copy_link') {
+        const item = section.items.find(i => i.id === itemId);
+        if (item) {
+          const url = extractUrlFromText(item.text);
+          if (url) {
+            navigator.clipboard.writeText(url);
+            showToast('Link copied!');
+          }
+        }
+        return; // No state update needed
+      } else if (command === 'copy_note') {
+        const item = section.items.find(i => i.id === itemId);
+        if (item?.note) {
+          navigator.clipboard.writeText(item.note);
+          showToast('Note copied!');
+        }
+        return; // No state update needed
+      } else if (command === 'open_note_link' || command === 'copy_note_link') {
+        const item = section.items.find(i => i.id === itemId);
+        if (item?.note) {
+          const url = extractUrlFromText(item.note);
+          if (url) {
+            if (command === 'open_note_link') window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
+            else { navigator.clipboard.writeText(url); showToast('Link copied from note!'); }
+          }
+        }
+        return; // No state update needed
+      } else if (command === 'copy_response') {
+        const item = section.items.find(i => i.id === itemId);
+        if (item?.response) {
+          navigator.clipboard.writeText(item.response);
+          showToast('Response copied!');
+        }
+        return; // No state update needed
+      } else if (command === 'open_response_link' || command === 'copy_response_link') {
+        const item = section.items.find(i => i.id === itemId);
+        if (item?.response) {
+          const url = extractUrlFromText(item.response);
+          if (url) {
+            if (command === 'open_response_link') window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
+            else { navigator.clipboard.writeText(url); showToast('Link copied from response!'); }
+          }
+        }
+        return; // No state update needed
+      }
+
+      if (!['highlight', 'delete_note', 'delete_response'].includes(command)) {
+        newSections = newSections.map(s => s.id === sectionId ? { ...s, items: newItems } : s);
+      }
+      
+      updateHistory(newSections); // This is the key: update local history
+      onUpdate(newSections); // AND call the parent update function
+
       if (payload.command === 'edit') {
         const section = history[historyIndex].find(s => s.id === payload.sectionId);
         const item = section?.items.find(i => i.id === payload.itemId);
@@ -1435,16 +1615,14 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
       } else if (payload.command === 'edit_response') {
         const section = history[historyIndex].find(s => s.id === payload.sectionId);
         const item = section?.items.find(i => i.id === payload.itemId);
-        if (item) {
-          // If response doesn't exist, create it. Then set it to be edited.
+        if (item) {          
           if (item.response === undefined) handleUpdateItemResponse(payload.sectionId, payload.itemId, '');
           setEditingResponseForItemId(payload.itemId);
         }
       } else if (payload.command === 'edit_note') {
         const section = history[historyIndex].find(s => s.id === payload.sectionId);
         const item = section?.items.find(i => i.id === payload.itemId);
-        if (item) {
-          // If note doesn't exist, create it. Then set it to be edited.
+        if (item) {          
           if (item.note === undefined) handleUpdateItemNote(payload.sectionId, payload.itemId, '');
           setEditingNoteForItemId(payload.itemId);
         }
@@ -1452,6 +1630,24 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
     };
     const handleSectionCommand = (payload: { command: string, sectionId?: number }) => {
       switch (payload.command) {
+        case 'move_section_up': {
+          const newSections = moveSection(history[historyIndex], payload.sectionId, 'up');
+          updateHistory(newSections);
+          onUpdate(newSections);
+          break;
+        }
+        case 'move_section_down': {
+          const newSections = moveSection(history[historyIndex], payload.sectionId, 'down');
+          updateHistory(newSections);
+          onUpdate(newSections);
+          break;
+        }
+        case 'undo_checklist':
+          handleUndo();
+          break;
+        case 'redo_checklist':
+          handleRedo();
+          break;
         case 'edit_title': {
           const section = history[historyIndex].find(s => s.id === payload.sectionId);
           if (section) {
@@ -1460,6 +1656,9 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
           }
           break;
         }
+        case 'toggle_all_in_section':
+          if (payload.sectionId) handleCompleteAllInSection(payload.sectionId);
+          break;
         case 'toggle_collapse': handleToggleSectionCollapse(payload.sectionId); break;
         case 'expand_all': handleExpandAllSections(); break;
         case 'collapse_all': handleCollapseAllSections(); break;
@@ -1467,19 +1666,39 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
         case 'add_note_to_all': handleAddNotes(); break;
         case 'add_response_to_section': handleAddResponses(payload.sectionId); break;
         case 'add_response_to_all': handleAddResponses(); break;
+        case 'delete_all_notes':
+          handleDeleteAllNotes();
+          break;
+        case 'delete_all_responses':
+          handleDeleteAllResponses();
+          break;
         case 'toggle_section_notes':
           if (payload.sectionId) handleToggleSectionNotes(payload.sectionId);
           break;
         case 'toggle_section_responses':
           if (payload.sectionId) handleToggleSectionResponses(payload.sectionId);
           break;
+        case 'copy_section': {
+          const sectionToCopy = history[historyIndex].find(s => s.id === payload.sectionId);
+          if (sectionToCopy) {
+            const textToCopy = formatChecklistForCopy([sectionToCopy]);
+            navigator.clipboard.writeText(textToCopy);
+            showToast('Section copied to clipboard!');
+          }
+          break; 
+        }
+        case 'copy_all_sections': {
+          const textToCopy = formatChecklistForCopy(history[historyIndex]);
+          navigator.clipboard.writeText(textToCopy);
+          showToast('All sections copied to clipboard!');
+          break; 
+        }
         case 'copy_section_raw': {
           const sectionToCopy = history[historyIndex].find(s => s.id === payload.sectionId);
           if (sectionToCopy) {
             const textToCopy = formatChecklistSectionRawForCopy(sectionToCopy);
             navigator.clipboard.writeText(textToCopy);
-            setCopyStatus('Section raw content copied!');
-            setTimeout(() => setCopyStatus(''), 2000);
+            showToast('Section raw content copied!');            
           }
           break;
         }
@@ -1488,8 +1707,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
             .map(section => formatChecklistSectionRawForCopy(section))
             .join('\n\n'); // Separate sections with a double newline
           navigator.clipboard.writeText(allRawText);
-          setCopyStatus('All sections raw content copied!');
-          setTimeout(() => setCopyStatus(''), 2000);
+          showToast('All sections raw content copied!');          
           break;
         }
         case 'clear_all_highlights': {
@@ -1501,27 +1719,77 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
             );
             updateHistory(newSections);
             onUpdate(newSections);
-            setCopyStatus('Highlights cleared for section.');
-            setTimeout(() => setCopyStatus(''), 2000);
+            showToast('Highlights cleared for section.');            
           }
           break;
         }
+        case 'duplicate_section': {
+          if (payload.sectionId) handleDuplicateSection(payload.sectionId);
+          break;
+        }
+        case 'delete_section': {
+          if (payload.sectionId) handleDeleteSection(payload.sectionId);
+          break;
+        }
+        case 'delete_all_sections': {
+          handleDeleteAllSections();
+          break;
+        }
+      }
+    };
+
+    const handleMainHeaderCommand = (payload: { command: string, wordId?: number }) => {
+      // This is a new, combined handler.
+      // It first checks for task-level commands like 'view' and 'edit'.
+      if (payload.command === 'view' && payload.wordId) {        
+        onSettingsChange({ activeTaskTabs: { ...settings.activeTaskTabs, [payload.wordId]: 'ticket' } });
+        if (!settings.openAccordionIds.includes(payload.wordId)) {
+          onSettingsChange({ openAccordionIds: [...new Set([...settings.openAccordionIds, payload.wordId])] });
+        }
+      } else if (payload.command === 'edit' && payload.wordId) {
+        const targetWord = words.find(w => w.id === payload.wordId);
+        if (targetWord && !targetWord.completedDuration) {
+          onSettingsChange({ activeTaskTabs: { ...settings.activeTaskTabs, [payload.wordId]: 'edit' }, openAccordionIds: [...new Set([...settings.openAccordionIds, payload.wordId])] });
+        }
+      } else {
+        // If it's not 'view' or 'edit', it must be a section command.
+        // We can pass it to the existing handler.
+        handleSectionCommand(payload);
       }
     };
 
     // We listen for the generic command, but only act on 'edit'
     const cleanup = window.electronAPI.on('checklist-item-command', handleChecklistCommand);
     const cleanupSection = window.electronAPI.on('checklist-section-command', handleSectionCommand);
-
+    const cleanupMainHeader = window.electronAPI.on('checklist-main-header-command', handleMainHeaderCommand);
+    
     return () => { 
       cleanup?.();
       cleanupSection?.();
+      cleanupMainHeader?.();
     };
-  }, [history, historyIndex, handleAddNotes, handleAddResponses, handleCollapseAllSections, handleExpandAllSections, handleToggleSectionCollapse]);
+  }, [history, historyIndex, handleAddNotes, onUpdate, handleAddResponses, handleCollapseAllSections, handleExpandAllSections, handleToggleSectionCollapse, handleDeleteSection, handleDuplicateSection, handleUndo, handleRedo, onSettingsChange, settings.activeTaskTabs, settings.openAccordionIds, words]);
 
   return (
     <div className="checklist-container">
-      <div className="checklist-main-header">
+      <div className="checklist-main-header" onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const isInEditMode = settings.activeTaskTabs?.[wordId] === 'edit';
+        window.electronAPI.showChecklistMainHeaderContextMenu({
+          wordId,
+          sectionId: 0, // Not relevant for global commands
+          areAllComplete: false, // Not relevant for global commands
+          // Add the missing properties with dummy/global values
+          isSectionOpen: false,
+          isNotesHidden: !settings.showChecklistNotes,
+          isResponsesHidden: !settings.showChecklistResponses,
+          isConfirmingDelete: confirmingDeleteAllSections,
+          isInEditMode,
+          x: e.clientX, 
+          y: e.clientY
+        });
+      }}>
         <h4>Checklist</h4>
         {(() => {
           const allItems = history[historyIndex].flatMap(sec => sec.items);
@@ -1530,10 +1798,10 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
           const anyItemsCompleted = allItems.some(item => item.isCompleted);
           return (
             <div className="checklist-section-actions checklist-main-header-actions">
-              {isEditable && anyItemsCompleted && (
+              {anyItemsCompleted && (
                 <>
-                  <button className="checklist-action-btn delete-btn" onClick={() => handleDeleteChecked()} title="Delete All Checked Items">
-                    <i className="fas fa-trash-alt"></i>
+                  <button className={`checklist-action-btn delete-btn ${confirmingDeleteChecked === 'all' ? 'confirm-delete' : ''}`} onClick={() => handleDeleteChecked()} title="Delete All Checked Items">
+                    {confirmingDeleteChecked === 'all' ? <i className="fas fa-trash-alt"></i> : <i className="fas fa-trash-alt"></i>}
                   </button>
                 </>
               )}
@@ -1573,7 +1841,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                     confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteResponses(false), 3000);
                   }
                 }} title="Delete All Responses">
-                  {confirmingDeleteResponses ? 'Sure?' : (                  
+                  {confirmingDeleteResponses ? <i className="fas fas fa-trash-alt delete-icon"></i> : (                  
                     <i className="fas fas fa-trash-alt delete-icon"></i>                  
                   )}
                 </button>
@@ -1581,7 +1849,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
               <div className="checklist-action-group checklist-action-group-notes">
                 <button className="checklist-action-btn" onClick={() => handleAddNotes()} title="Add Note to All Items">
                   <i className="fas fa-sticky-note"></i>
-                </button>
+                </button>                
                 <button 
                   className="checklist-action-btn" 
                   onClick={() => onSettingsChange({ showChecklistNotes: !settings.showChecklistNotes })} title={settings.showChecklistNotes ? 'Hide All Notes' : 'Show All Notes'}>
@@ -1599,7 +1867,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                     confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteNotes(false), 3000);
                   }
                 }} title="Delete All Notes">
-                  {confirmingDeleteNotes ? 'Sure?' : (
+                  {confirmingDeleteNotes ? <i className="fas fas fa-trash-alt delete-icon"></i> : (
                     <i className="fas fas fa-trash-alt delete-icon"></i>
                   )}
                 </button>
@@ -1608,14 +1876,14 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                 <button className="checklist-action-btn" onClick={() => {
                   const textToCopy = formatChecklistForCopy(history[historyIndex]);
                   navigator.clipboard.writeText(textToCopy);
-                  setCopyStatus('All sections copied to clipboard!');
+                  showToast('All sections copied to clipboard!');
                 }} title="Copy All Sections">
                   <i className="fas fa-copy"></i>
                 </button>
                 <button className="checklist-action-btn" onClick={() => {
                   const allRawText = history[historyIndex].map(section => formatChecklistSectionRawForCopy(section)).join('\n\n');
                   navigator.clipboard.writeText(allRawText);
-                  setCopyStatus('All sections raw content copied!');
+                  showToast('All sections raw content copied!');
                 }} title="Copy All Sections Raw">
                   <i className="fas fa-paste"></i>
                 </button>
@@ -1628,6 +1896,13 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                   <i className="fas fa-redo-alt"></i>
                 </button>
               </div>
+              {isEditable && (
+                <>
+                  <button onClick={handleDeleteAllSections} className={`add-section-btn checklist-delete-btn delete-btn ${confirmingDeleteAllSections ? 'confirm-delete' : ''}`} title="Delete All Sections">
+                    {confirmingDeleteAllSections ? <i className="fas fas fa-trash-alt delete-icon color-red"></i> : <i className="fas fas fa-trash-alt delete-icon"></i>}
+                  </button>
+                </>
+              )}                
             </div>
           );
         })()}
@@ -1650,6 +1925,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                 isSectionOpen, 
                 isNotesHidden: hiddenNotesSections.has(section.id), 
                 isResponsesHidden: hiddenResponsesSections.has(section.id),
+                isConfirmingDelete: confirmingDeleteSectionId === section.id,
                 isInEditMode, // This was the missing piece
                 x: e.clientX, y: e.clientY }); 
             }}>
@@ -1660,58 +1936,61 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                 title={isSectionOpen ? 'Collapse Section' : 'Expand Section'}>
                 <i className={`fas ${isSectionOpen ? 'fa-chevron-down' : 'fa-chevron-right'}`}></i>
               </button>
-              <div className="checklist-header" onDoubleClick={() => { setEditingSectionId(section.id); setEditingSectionTitle(section.title); }}>
-                {editingSectionId === section.id ? (
-                  <input
-                    type="text"
-                    value={editingSectionTitle}
-                    onChange={(e) => setEditingSectionTitle(e.target.value)}
-                    onBlur={() => {
-                      handleUpdateSectionTitle(section.id, editingSectionTitle);
-                      setEditingSectionId(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+              <div className="checklist-header">
+                <div className="checklist-header-wrap">                            
+                  {editingSectionId === section.id ? (
+                    <input
+                      type="text"
+                      value={editingSectionTitle}
+                      onChange={(e) => setEditingSectionTitle(e.target.value)}
+                      onBlur={() => {
                         handleUpdateSectionTitle(section.id, editingSectionTitle);
                         setEditingSectionId(null);
-                      }
-                    }}
-                    onFocus={(e) => {
-                      // Automatically select the text when the input is focused
-                      e.target.select();
-                    }}
-                    autoFocus
-                    className="checklist-section-title-input"
-                  />
-                ) : (
-                  <>
-                    <strong
-                      className={'editable-title'}
-                      title="Double-click to edit"
-                    >
-                      {section.title} ({completedCount}/{totalCount})
-                    </strong> 
-                    {hiddenNotesSections.has(section.id) && (
-                      <span className="hidden-indicator" title="Notes are hidden in this section">
-                        <i className="fas fa-sticky-note disabled-icon"></i>
-                      </span>
-                    )}
-                    {hiddenResponsesSections.has(section.id) && (
-                      <span className="hidden-indicator" title="Responses are hidden in this section">
-                        <i className="fas fa-reply disabled-icon"></i>
-                      </span>
-                    )}
-                  </>
-                )}
-                {totalCount > 0 && (
-                  <span className="checklist-progress">
-                    ({completedCount} / {totalCount} completed)
-                  </span>
-                )}
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleUpdateSectionTitle(section.id, editingSectionTitle);
+                          setEditingSectionId(null);
+                        }
+                      }}
+                      onFocus={(e) => {
+                        // Automatically select the text when the input is focused
+                        e.target.select();
+                      }}
+                      autoFocus
+                      className="checklist-section-title-input"
+                    />
+                  ) : (
+                    <>
+                      <h3
+                        className={'editable-title'}
+                        title="Double-click to edit"
+                        onDoubleClick={() => { setEditingSectionId(section.id); setEditingSectionTitle(section.title); }}
+                      >
+                        {section.title} ({completedCount}/{totalCount})
+                      </h3> 
+                      {hiddenNotesSections.has(section.id) && (
+                        <span className="hidden-indicator" title="Notes are hidden in this section">
+                          <i className="fas fa-sticky-note disabled-icon"></i>
+                        </span>
+                      )}
+                      {hiddenResponsesSections.has(section.id) && (
+                        <span className="hidden-indicator" title="Responses are hidden in this section">
+                          <i className="fas fa-reply disabled-icon"></i>
+                        </span>
+                      )}
+                    </>
+                  )}
+                  {totalCount > 0 && (
+                    <span className="checklist-progress">
+                      ({completedCount}/{totalCount} completed)
+                    </span>
+                  )}
+                </div>
                 <div className="checklist-section-actions checklist-section-header-actions">
-                  {isEditable && completedCount > 0 && (
-                    <button className="checklist-action-btn delete-btn" onClick={() => handleDeleteChecked(section.id)} title="Delete Checked Items">
-                      <i className="fas fa-trash-alt"></i>
+                  {completedCount > 0 && (
+                    <button className={`checklist-action-btn delete-btn ${confirmingDeleteChecked === section.id ? 'confirm-delete' : ''}`} onClick={() => handleDeleteChecked(section.id)} title="Delete Checked Items">
+                      {confirmingDeleteChecked === section.id ? <i className="fas fa-trash-alt"></i> : <i className="fas fa-trash-alt"></i>}
                     </button>
                   )}      
                   {totalCount > 0 && (
@@ -1723,11 +2002,13 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                     <button className="checklist-action-btn" onClick={() => handleAddResponses(section.id)} title="Add Response to All Items in Section">
                       <i className="fas fa-reply"></i>
                     </button>
-                    <button 
-                      className="checklist-action-btn" 
-                      onClick={() => onSettingsChange({ showChecklistResponses: !settings.showChecklistResponses })} title={settings.showChecklistResponses ? 'Hide All Responses in Section' : 'Show All Responses in Section'}>
-                      <i className={`fas fa-eye ${settings.showChecklistResponses ? '' : 'disabled-icon'}`}></i>
-                    </button>
+                    <button
+                      className="checklist-action-btn"
+                      onClick={() => handleToggleSectionResponses(section.id)}
+                      title={hiddenResponsesSections.has(section.id) ? 'Show Responses in Section' : 'Hide Responses in Section'}
+                    >
+                      <i className={`fas fa-eye ${!hiddenResponsesSections.has(section.id) ? '' : 'disabled-icon'}`}></i>
+                    </button>  
                     <button className={`checklist-action-btn ${confirmingDeleteSectionResponses === section.id ? 'confirm-delete' : ''}`} onClick={() => {
                       if (confirmingDeleteSectionResponses === section.id) {
                         handleDeleteAllSectionResponses(section.id);
@@ -1740,20 +2021,22 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                         confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteSectionResponses(null), 3000);
                       }
                     }} title="Delete All Responses in Section">
-                      {confirmingDeleteSectionResponses === section.id ? 'Sure?' : <i className="fas fa-trash-alt delete-icon"></i>}
+                      {confirmingDeleteSectionResponses === section.id ? <i className="fas fa-trash-alt delete-icon"></i> : <i className="fas fa-trash-alt delete-icon"></i>}
                     </button>
                   </div>
                   <div className="checklist-action-group checklist-action-group-notes">
                     <button className="checklist-action-btn" onClick={() => handleAddNotes(section.id)} title="Add Note to All Items in Section">
                       <i className="fas fa-sticky-note"></i>
                     </button>
-                    <button 
-                      className="checklist-action-btn" 
-                      onClick={() => onSettingsChange({ showChecklistNotes: !settings.showChecklistNotes })} title={settings.showChecklistNotes ? 'Hide All Notes in Section' : 'Show All Notes in Section'}>
-                      <i className={`fas fa-eye ${settings.showChecklistNotes ? '' : 'disabled-icon'}`}></i>
+                    <button
+                      className="checklist-action-btn"
+                      onClick={() => handleToggleSectionNotes(section.id)}
+                      title={hiddenNotesSections.has(section.id) ? 'Show Notes in Section' : 'Hide Notes in Section'}
+                    >
+                      <i className={`fas fa-eye ${!hiddenNotesSections.has(section.id) ? '' : 'disabled-icon'}`}></i>
                     </button>  
                     <button className={`checklist-action-btn ${confirmingDeleteSectionNotes === section.id ? 'confirm-delete' : ''}`} onClick={() => { if (confirmingDeleteSectionNotes === section.id) { handleDeleteAllSectionNotes(section.id); setConfirmingDeleteSectionNotes(null); if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current); } else { setConfirmingDeleteSectionNotes(section.id); setConfirmingDeleteSectionResponses(null); if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current); confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteSectionNotes(null), 3000); } }} title="Delete All Notes in Section">
-                      {confirmingDeleteSectionNotes === section.id ? 'Sure?' : <i className="fas fa-trash-alt delete-icon"></i>}
+                      {confirmingDeleteSectionNotes === section.id ? <i className="fas fa-trash-alt delete-icon"></i> : <i className="fas fa-trash-alt delete-icon"></i>}
                     </button>
                   </div>                  
                   <div className="checklist-action-group checklist-action-group-copy">
@@ -1762,7 +2045,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                       if (sectionToCopy) {
                         const textToCopy = formatChecklistForCopy([sectionToCopy]);
                         navigator.clipboard.writeText(textToCopy);
-                        setCopyStatus('Section copied to clipboard!');
+                        showToast('Section copied to clipboard!');
                       }
                     }} title="Copy Section"><i className="fas fa-copy"></i>
                     </button>
@@ -1771,7 +2054,7 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                       if (sectionToCopy) {
                         const textToCopy = formatChecklistSectionRawForCopy(sectionToCopy);
                         navigator.clipboard.writeText(textToCopy);
-                        setCopyStatus('Section raw content copied!');
+                        showToast('Section raw content copied!');
                       }
                     }} title="Copy Section Raw"><i className="fas fa-paste"></i>
                     </button>                
@@ -1782,10 +2065,12 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                   </div>                  
                   {isEditable && (
                     <>
-                      <button className="checklist-delete-btn" onClick={() => {
-                        if (window.confirm('Are you sure you want to delete this entire section and all its items?')) onUpdate(history[historyIndex].filter(sec => sec.id !== section.id));
-                      }} title="Delete Section">
-                        <i className="fas fa-trash-alt"></i>
+                      <button 
+                        className={`checklist-delete-btn ${confirmingDeleteSectionId === section.id ? 'confirm-delete' : ''}`} 
+                        onClick={() => handleDeleteSection(section.id)} 
+                        title="Delete Section"
+                      >
+                        {confirmingDeleteSectionId === section.id ? <i className="fas fa-trash-alt"></i> : <i className="fas fa-trash-alt"></i>}
                       </button>
                     </>
                   )}
@@ -1805,23 +2090,24 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
                   className={`checklist-item ${item.isCompleted ? 'completed' : ''} ${item.highlightColor ? 'highlighted' : ''} checklist-item-interactive-area`} 
                   style={{ borderLeftColor: item.highlightColor || 'transparent' }}
                   onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const url = extractUrlFromText(item.text);
-                  const isInEditMode = settings.activeTaskTabs?.[wordId] === 'edit';
-                  window.electronAPI.showChecklistItemContextMenu({ 
-                    wordId: wordId,
-                    sectionId: section.id, 
-                    itemId: item.id, 
-                    isCompleted: item.isCompleted, 
-                    hasNote: !!item.note, 
-                    hasResponse: !!item.response, 
-                    hasUrl: !!url, 
-                    isInEditMode,
-                    x: e.clientX, 
-                    y: e.clientY 
-                  });
-                }}>
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const url = extractUrlFromText(item.text);
+                    const isInEditMode = settings.activeTaskTabs?.[wordId] === 'edit';
+                    window.electronAPI.showChecklistItemContextMenu({ 
+                      wordId: wordId,
+                      sectionId: section.id, 
+                      itemId: item.id, 
+                      isCompleted: item.isCompleted, 
+                      hasNote: !!item.note, 
+                      hasResponse: !!item.response, 
+                      hasUrl: !!url, 
+                      isInEditMode,
+                      x: e.clientX, 
+                      y: e.clientY 
+                    });
+                  }}
+                >
                   {/*
                     * This is the key change. We check if a specific item is being edited FIRST.
                     * This allows the "Edit Item" context menu action to work even when `isEditable` is false.
@@ -2025,9 +2311,13 @@ function Checklist({ sections, onUpdate, isEditable, onComplete, words, setInbox
       {isEditable && (
         <div className="checklist-actions">
           <div className="checklist-main-actions">
-            <button onClick={handleAddSection} className="add-section-btn"><i className='fas fa-plus'></i> Add Section</button>
+            <button onClick={handleAddSection} className="add-section-btn">
+              <i className='fas fa-plus'></i> Add Section
+            </button>
             {history[historyIndex].length > 0 && (
-              <button onClick={handleDeleteAllSections} className="add-section-btn delete-btn">Delete All Sections</button>
+              <button title="Delete All Sections" onClick={handleDeleteAllSections} className={`add-section-btn delete-btn ${confirmingDeleteAllSections ? 'confirm-delete' : ''}`}>
+                {confirmingDeleteAllSections ? <i className="fas fa-trash-alt"></i> : <i className="fas fa-trash-alt"></i>}
+              </button>
             )}
           </div>
         </div>
@@ -2224,9 +2514,9 @@ const formatBytes = (bytes: number, decimals = 2) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
-function BackupManager({ onRestore, setCopyStatus, words, completedWords, settings, onSettingsChange, isPromptOpen, setIsPromptOpen }: { 
-  onRestore: (data: any) => void, 
-  setCopyStatus: (message: string) => void,
+function BackupManager({ onRestore, showToast, words, completedWords, settings, onSettingsChange, isPromptOpen, setIsPromptOpen }: { 
+  onRestore: (data: any) => void,   
+  showToast: (message: string, duration?: number) => void;
   words: Word[],
   completedWords: Word[],
   settings: Settings,
@@ -2256,12 +2546,10 @@ function BackupManager({ onRestore, setCopyStatus, words, completedWords, settin
     const result = await window.electronAPI.createManualBackup(backupName);
     setIsPromptOpen(false); // Close the prompt modal
     if (result.success) {
-      setCopyStatus(`Manual backup "${backupName}" created!`);
-      setTimeout(() => setCopyStatus(''), 2000);
+      showToast(`Manual backup "${backupName}" created!`);      
       fetchBackups(); // Refresh the backup list if the modal is open
     } else {
-      setCopyStatus('Failed to create manual backup.');
-      setTimeout(() => setCopyStatus(''), 2000);
+      showToast('Failed to create manual backup.');      
     }
   };
 
@@ -2305,7 +2593,7 @@ function BackupManager({ onRestore, setCopyStatus, words, completedWords, settin
     if (window.confirm(`Are you sure you want to permanently delete the backup "${backup.name}"?`)) {
       const result = await window.electronAPI.deleteBackup(backup.path);
       if (result.success) {
-        setCopyStatus('Backup deleted.');
+        showToast('Backup deleted.');
         fetchBackups(); // Refresh the list
       } else {
         alert(`Failed to delete backup: ${result.error || 'Unknown error'}`);
@@ -2788,100 +3076,71 @@ const Footer = React.memo(() => {
   );
 });
 
-function App() {
-  // State for the new inbox
+function App() {  
   const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
   const [archivedMessages, setArchivedMessages] = useState<InboxMessage[]>([]);
-  const [trashedMessages, setTrashedMessages] = useState<InboxMessage[]>([]);
-  // State for inline editing
-  const [activeInboxTab, setActiveInboxTab] = useState<'active' | 'archived' | 'trash'>('active');
-  // State for navigation history
+  const [trashedMessages, setTrashedMessages] = useState<InboxMessage[]>([]);  
+  const [activeInboxTab, setActiveInboxTab] = useState<'active' | 'archived' | 'trash'>('active');  
   const [fullTaskViewId, setFullTaskViewId] = useState<number | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  // A ref to hold the latest word data for the click handler
-  const wordsRef = useRef<Word[]>([]);
-
-  // State for the input field
-  const [inputValue, setInputValue] = useState("");
-  // State for the list of words
-  const [words, setWords] = useState<Word[]>([]);
-  // State for word placement algorithm
-  const [wordPlacementIndex, setWordPlacementIndex] = useState(0);
-  // State for completed words
+  const canvasRef = useRef<HTMLCanvasElement>(null);  
+  const wordsRef = useRef<Word[]>([]);  
+  const [inputValue, setInputValue] = useState("");  
+  const [words, setWords] = useState<Word[]>([]);  
+  const [wordPlacementIndex, setWordPlacementIndex] = useState(0);  
   const [completedWords, setCompletedWords] = useState<Word[]>([]);
-  // Consolidated settings state
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [viewHistory, setViewHistory] = useState(['meme']);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [editingWordId, setEditingWordId] = useState<number | null>(null);
-  const [editingText, setEditingText] = useState("");
-  // State for bulk add
-  const [bulkAddText, setBulkAddText] = useState("");
-  // State for the manual backup prompt modal
-  const [isPromptOpen, setIsPromptOpen] = useState(false);
-  // State for hover effects
-  const [hoveredWordId, setHoveredWordId] = useState<number | null>(null);
-  // State for copy feedback.
-  const [copyStatus, setCopyStatus] = useState('');
-  // Ref to track if the initial load is complete to prevent overwriting saved data
-  const isInitialLoad = useRef(true);
-  // State to track if the app is still loading initial data
-  const [isLoading, setIsLoading] = useState(true);
-  // State to track if the app is still loading initial data
-  const [isDirty, setIsDirty] = useState(false);
-
-  // State for debouncing task update notifications
+  const [editingText, setEditingText] = useState("");  
+  const [bulkAddText, setBulkAddText] = useState("");  
+  const [isPromptOpen, setIsPromptOpen] = useState(false);  
+  const [hoveredWordId, setHoveredWordId] = useState<number | null>(null);  
+  const copyStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [copyStatus, setToastStatus] = useState('');  
+  const isInitialLoad = useRef(true);  
+  const [isLoading, setIsLoading] = useState(true);  
+  const [isDirty, setIsDirty] = useState(false);  
   const [lastSaveTime, setLastSaveTime] = useState<number | null>(null);
-  const [autoSaveCountdown, setAutoSaveCountdown] = useState(300); // 5 minutes in seconds
+  const [autoSaveCountdown, setAutoSaveCountdown] = useState(300);
   const AUTO_SAVE_INTERVAL_SECONDS = 300;
-
-  const [updateTimers, setUpdateTimers] = useState<{ [key: number]: NodeJS.Timeout }>({});
-
-  // Ref to hold the latest words state for the debounced function
+  const [updateTimers, setUpdateTimers] = useState<{ [key: number]: NodeJS.Timeout }>({});  
   const wordsRefForDebounce = useRef(words);
-  wordsRefForDebounce.current = words;
-  // State for the new detailed task form
+  wordsRefForDebounce.current = words;  
   const activeCategoryId = settings.activeCategoryId ?? 'all';
   const activeSubCategoryId = settings.activeSubCategoryId ?? 'all';
-
   const [editingViaContext, setEditingViaContext] = useState<number | null>(null);
-
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const newTaskTitleInputRef = useRef<HTMLInputElement>(null);
   const sortSelectRef = useRef<HTMLSelectElement>(null);
   const snoozeTimeSelectRef = useRef<HTMLSelectElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  // State for timer notifications
-  const [timerNotifications, setTimerNotifications] = useState<Word[]>([]);
-  // State for persistent overdue notifications
-  const [overdueNotifications, setOverdueNotifications] = useState<Set<number>>(new Set());
-
-  // Ref to hold the functions of the currently active checklist for context menu actions
-  const activeChecklistRef = useRef<{ handleUndo: () => void; handleRedo: () => void; } | null>(null);
-
-  // Refs to hold the latest state for saving, preventing stale data in closures.
+  const searchInputRef = useRef<HTMLInputElement>(null);  
+  const [timerNotifications, setTimerNotifications] = useState<Word[]>([]);  
+  const [overdueNotifications, setOverdueNotifications] = useState<Set<number>>(new Set());  
+  const activeChecklistRef = useRef<{ handleUndo: () => void; handleRedo: () => void; } | null>(null);  
   const inboxMessagesRef = useRef(inboxMessages);
-  inboxMessagesRef.current = inboxMessages;
-
-  // Ref for archived messages
+  inboxMessagesRef.current = inboxMessages;  
   const archivedMessagesRef = useRef(archivedMessages);
-  archivedMessagesRef.current = archivedMessages;
-
-  // Ref for trashed messages
+  archivedMessagesRef.current = archivedMessages;  
   const trashedMessagesRef = useRef(trashedMessages);
-  trashedMessagesRef.current = trashedMessages;
-
-  // Ref to prevent duplicate 'overdue' inbox messages from being created in rapid succession.
-  const overdueMessageSentRef = useRef(new Set<number>());
-
-  // State for the checklist item response/note editing modal
+  trashedMessagesRef.current = trashedMessages;  
+  const overdueMessageSentRef = useRef(new Set<number>());  
   const [isChecklistPromptOpen, setIsChecklistPromptOpen] = useState(false);
   const [editingChecklistItem, setEditingChecklistItem] = useState<{ sectionId: number; itemId: number; field: 'response' | 'note'; currentText: string; } | null>(null);
-
+  const [confirmingClearCompleted, setConfirmingClearCompleted] = useState(false);
+  const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [focusChecklistItemId, setFocusChecklistItemId] = useState<number | null>(null);
-
-
+  const showToast = (message: string, duration: number = 2000) => {    
+    if (copyStatusTimeoutRef.current) {
+      clearTimeout(copyStatusTimeoutRef.current);
+    }      
+    setToastStatus(message);    
+    copyStatusTimeoutRef.current = setTimeout(() => {
+      setToastStatus('');
+      copyStatusTimeoutRef.current = null;
+    }, duration);
+  };
   const handleToggleImportant = (messageId: number) => {
     let isNowImportant: boolean;
     setInboxMessages(prevMessages => {
@@ -2893,11 +3152,9 @@ function App() {
         return msg;
       });
     });
-    setCopyStatus(isNowImportant ? "Message marked as important." : "Message unmarked as important.");
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast(isNowImportant ? "Message marked as important." : "Message unmarked as important.");
     setIsDirty(true); // Mark that we have unsaved changes
   };
-
   const handleArchiveInboxMessage = (messageId: number) => {
     const messageToArchive = inboxMessages.find(msg => msg.id === messageId);
     if (!messageToArchive) return;
@@ -2906,11 +3163,9 @@ function App() {
     setArchivedMessages(prev => [{ ...messageToArchive, isArchived: true }, ...prev]);
     setInboxMessages(prev => prev.filter(msg => msg.id !== messageId));
 
-    setCopyStatus("Message archived.");
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast("Message archived.");
     setIsDirty(true);
   };
-
   const handleUnarchiveInboxMessage = (messageId: number) => {
     const messageToUnarchive = archivedMessages.find(msg => msg.id === messageId);
     if (!messageToUnarchive) return;
@@ -2919,11 +3174,9 @@ function App() {
     setInboxMessages(prev => [{ ...messageToUnarchive, isArchived: false }, ...prev]);
     setArchivedMessages(prev => prev.filter(msg => msg.id !== messageId));
 
-    setCopyStatus("Message un-archived.");
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast("Message un-archived.");
     setIsDirty(true);
   };
-
   const handleRestoreFromTrash = (messageId: number) => {
     const messageToRestore = trashedMessages.find(msg => msg.id === messageId);
     if (!messageToRestore) return;
@@ -2932,29 +3185,23 @@ function App() {
     setInboxMessages(prev => [messageToRestore, ...prev]);
     setTrashedMessages(prev => prev.filter(msg => msg.id !== messageId));
 
-    setCopyStatus("Message restored from trash.");
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast("Message restored from trash.");
     setIsDirty(true);
   };
-
   const handleDeletePermanently = (messageId: number) => {
     // Permanently remove the message from the trash
     setTrashedMessages(prev => prev.filter(msg => msg.id !== messageId));
 
-    setCopyStatus("Message permanently deleted.");
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast("Message permanently deleted.");
     setIsDirty(true);
   };
-
   const handleEmptyTrash = () => {
     if (window.confirm(`Are you sure you want to permanently delete all ${trashedMessages.length} items in the trash? This cannot be undone.`)) {
       setTrashedMessages([]);
-      setCopyStatus("Trash has been emptied.");
-      setTimeout(() => setCopyStatus(''), 2000);
+      showToast("Trash has been emptied.");
       setIsDirty(true);
     }
   };
-
   const handleDismissArchivedMessage = (messageId: number) => {
     const messageToTrash = archivedMessages.find(m => m.id === messageId);
     if (!messageToTrash) return;
@@ -2963,26 +3210,23 @@ function App() {
     setTrashedMessages(prev => [messageToTrash, ...prev]);
     setArchivedMessages(prev => prev.filter(m => m.id !== messageId));
 
-    setCopyStatus("Message moved from archive to trash.");
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast("Message moved from archive to trash.");
     setIsDirty(true);
   };
   const handleRestoreAllFromTrash = () => {
     if (window.confirm('Are you sure you want to restore all items from the trash?')) {
       setInboxMessages(prev => [...prev, ...trashedMessages]);
       setTrashedMessages([]);
+      showToast('All messages restored from trash.');
       setIsDirty(true);
-      setCopyStatus('All messages restored from trash.');
-      setTimeout(() => setCopyStatus(''), 2000);
     }
   };
   const handleTrashAllArchived = () => {
     if (window.confirm(`Are you sure you want to move all ${archivedMessages.length} archived messages to the trash?`)) {
       setTrashedMessages(prev => [...prev, ...archivedMessages]);
       setArchivedMessages([]);
+      showToast('All archived messages moved to trash.');
       setIsDirty(true);
-      setCopyStatus('All archived messages moved to trash.');
-      setTimeout(() => setCopyStatus(''), 2000);
     }
   };
   const handleTaskOverdue = (wordId: number) => {
@@ -3006,8 +3250,6 @@ function App() {
       return new Set(prev).add(wordId);
     });
   };
-
-
   const [newTask, setNewTask] = useState({
     text: '',
     url: '',
@@ -3036,7 +3278,6 @@ function App() {
     snoozedAt: undefined,
     notes: '',
   });
-
   // Load words from localStorage on initial component mount
   useEffect(() => {
     const loadDataFromStore = async () => {
@@ -3121,8 +3362,7 @@ function App() {
       timestamp: Date.now(),
       wordId: newTask.id,
     }, ...prev]);
-    setCopyStatus('Task duplicated!');
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast('Task duplicated!');
   }, []); // No dependencies on state that would cause re-creation
   
   const handleCompleteWord = React.useCallback((wordToComplete: Word) => {
@@ -3143,9 +3383,7 @@ function App() {
       timestamp: Date.now(),
       wordId: completedWord.id,
     }, ...prev]);
-    setCopyStatus('Task completed!');
-
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast('Task completed!');
 
     // --- Refactored Recurring and Alternating Task Logic ---
 
@@ -3237,7 +3475,6 @@ function App() {
       setCompletedWords(prev => prev.filter(word => word.id !== idToRemove));
     }
 
-    setCopyStatus('Task removed.');
     if (wordToRemove) {
       setInboxMessages(prev => [{
         id: Date.now() + Math.random(),
@@ -3246,7 +3483,7 @@ function App() {
         timestamp: Date.now(),
       }, ...prev]);
     }
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast('Task removed.');
   }, [words, completedWords]);
 
   const setActiveCategoryId = (id: number | 'all') => {
@@ -3495,8 +3732,7 @@ function App() {
     setLastSaveTime(Date.now());
     setAutoSaveCountdown(AUTO_SAVE_INTERVAL_SECONDS); // Reset countdown on manual save
 
-    setCopyStatus('Project saved!');
-    setTimeout(() => setCopyStatus(''), 2000); // Clear message after 2 seconds
+    showToast('Project saved!');
   }, [isLoading, words, completedWords, settings, inboxMessages, archivedMessages, trashedMessages]);
   
   const navigateToView = (view: 'meme' | 'list' | 'reports' | 'inbox') => {
@@ -3719,319 +3955,6 @@ function App() {
     return cleanup;
   }, [handleSaveProject]);
 
-  // Effect to handle commands from the new checklist item context menu
-  useEffect(() => {
-    let editingPayload: { sectionId: number, itemId: number } | null = null;
-    const handleMenuCommand = (payload: { command: string, sectionId?: number, itemId?: number, wordId?: number, color?: string }) => {
-      const { command, sectionId, itemId, wordId } = payload;
-
-      // Handle view/edit commands first as they have a different payload
-      if (command === 'view' && wordId) {
-        setSettings(prev => ({
-          ...prev,
-          activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'ticket' }
-        }));
-        return;
-      }
-      if (command === 'edit' && wordId) {
-        setSettings(prev => ({
-          ...prev,
-          activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'edit' }
-        }));
-        return;
-      }
-
-      // Find the word that contains this checklist
-      // Ensure we have the necessary IDs for item-specific commands
-      if (!sectionId || !itemId) return;
-      const wordContainingChecklist = words.find(w => w.id === wordId || w.checklist?.some(sec => 'items' in sec && sec.items.some(item => item.id === itemId)));
-      if (!wordContainingChecklist || !wordContainingChecklist.checklist) return;
-      
-      let newFocusId: number | null = null;
-      let newSections = (wordContainingChecklist.checklist as ChecklistSection[]).map(sec => {
-        if (sec.id !== sectionId) return sec;
-
-        const itemIndex = sec.items.findIndex(item => item.id === itemId);
-        if (itemIndex === -1) return sec;
-
-        let newItems = [...sec.items];
-        const newItemTemplate = { id: Date.now() + Math.random(), text: 'New Item', isCompleted: false };
-
-        switch (command) {
-          case 'toggle_complete':
-            let toggledItem: ChecklistItem | null = null;
-            newItems = newItems.map(item => {
-              if (item.id !== itemId) return item;
-              const isNowCompleted = !item.isCompleted;
-              if (isNowCompleted) {
-                toggledItem = item;
-              }
-              return { ...item, isCompleted: isNowCompleted };
-            });
-            // Now that newItems is created, we can call the handler
-            if (toggledItem) {
-              handleChecklistCompletion(toggledItem, sectionId, [{...sec, items: newItems}]);
-            }
-            break;
-          case 'delete':
-            newItems.splice(itemIndex, 1);
-            break;
-          case 'copy':
-            navigator.clipboard.writeText(newItems[itemIndex].text);
-            setCopyStatus('Checklist item copied!');
-            setTimeout(() => setCopyStatus(''), 2000);
-            break;
-          case 'duplicate':
-            // This is effectively the same as 'add_after' but with a deep copy of the item
-            const itemToDuplicate = { ...newItems[itemIndex] };
-            const duplicatedItem = { ...itemToDuplicate, id: Date.now() + Math.random(), text: `${itemToDuplicate.text} (Copy)` };
-            newItems.splice(itemIndex + 1, 0, duplicatedItem);
-            break;
-          case 'add_before':
-            newItems.splice(itemIndex, 0, newItemTemplate);
-            break;
-          case 'add_after':
-            newItems.splice(itemIndex + 1, 0, newItemTemplate);
-            break;
-          case 'move_up':
-            if (itemIndex > 0) {
-              const temp = newItems[itemIndex];
-              newItems[itemIndex] = newItems[itemIndex - 1];
-              newItems[itemIndex - 1] = temp;
-            }
-            break;
-          case 'move_down':
-            if (itemIndex < newItems.length - 1) {
-              const temp = newItems[itemIndex];
-              newItems[itemIndex] = newItems[itemIndex + 1];
-              newItems[itemIndex + 1] = temp;
-            }
-            break;
-        }
-        return { ...sec, items: newItems };
-      });
-
-      if (command === 'highlight') {        
-        const { color } = payload; // color will be '#f4d03f', '#c94a4a', etc., or undefined
-        const updatedSections = (wordContainingChecklist.checklist as ChecklistSection[]).map(sec => ({
-            ...sec,
-            items: sec.items.map(item =>
-              item.id === itemId ? { ...item, highlightColor: color } : item
-            )
-        }));
-        // We need to call handleWordUpdate with the newly modified sections
-        handleWordUpdate({ ...wordContainingChecklist, checklist: updatedSections });
-        return; // Stop further processing for this command
-      }
-
-      if (command === 'open_link') {
-        const itemToOpen = newSections.flatMap(s => s.items).find(i => i.id === itemId);
-        if (itemToOpen) {
-          const url = extractUrlFromText(itemToOpen.text);
-          if (url) {
-            window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
-          }
-        }
-      }
-
-      if (command === 'open_link') {
-        const itemToOpen = newSections.flatMap(s => s.items).find(i => i.id === itemId);
-        if (itemToOpen) {
-          const url = extractUrlFromText(itemToOpen.text);
-          if (url) {
-            window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
-          }
-        }
-      }
-
-      if (command === 'copy_link') {
-        const itemToCopy = newSections.flatMap(s => s.items).find(i => i.id === itemId);
-        if (itemToCopy) {
-          const url = extractUrlFromText(itemToCopy.text);
-          if (url) {
-            navigator.clipboard.writeText(url);
-            setCopyStatus('Link copied!');
-            setTimeout(() => setCopyStatus(''), 2000);
-          }
-        }
-      }
-
-      if (command === 'open_note_link') {
-        const itemToOpen = newSections.flatMap(s => s.items).find(i => i.id === itemId);
-        if (itemToOpen?.note) {
-          const url = extractUrlFromText(itemToOpen.note);
-          if (url) {
-            window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
-          }
-        }
-      }
-
-      if (command === 'copy_note_link') {
-        const itemToCopy = newSections.flatMap(s => s.items).find(i => i.id === itemId);
-        if (itemToCopy?.note) {
-          const url = extractUrlFromText(itemToCopy.note);
-          if (url) {
-            navigator.clipboard.writeText(url);
-            setCopyStatus('Link copied from note!');
-            setTimeout(() => setCopyStatus(''), 2000);
-          }
-        }
-      }
-
-      if (command === 'open_response_link' || command === 'copy_response_link') {
-        const item = newSections.flatMap(s => s.items).find(i => i.id === itemId);
-        if (item?.response) {
-          const url = extractUrlFromText(item.response);
-          if (url) {
-            if (command === 'open_response_link') window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
-            else { navigator.clipboard.writeText(url); setCopyStatus('Link copied from response!'); setTimeout(() => setCopyStatus(''), 2000); }
-          }
-        }
-      }
-      if (command === 'copy_note') {
-        const itemToCopy = newSections.flatMap(s => s.items).find(i => i.id === itemId);
-        if (itemToCopy?.note) {
-          navigator.clipboard.writeText(itemToCopy.note);
-          setCopyStatus('Note copied!');
-          setTimeout(() => setCopyStatus(''), 2000);
-        }
-      }
-
-      if (command === 'copy_response') {
-        const itemToCopy = newSections.flatMap(s => s.items).find(i => i.id === itemId);
-        if (itemToCopy?.response) {
-          navigator.clipboard.writeText(itemToCopy.response);
-          setCopyStatus('Response copied!');
-          setTimeout(() => setCopyStatus(''), 2000);
-        }
-      }
-      
-      if (command === 'delete_note' || command === 'delete_response') {
-        const fieldToClear = command === 'delete_note' ? 'note' : 'response';
-        newSections = newSections.map(sec => ({
-          ...sec,
-          items: sec.items.map(item =>
-            item.id === itemId ? { ...item, [fieldToClear]: undefined } : item
-          )
-        }));
-        setCopyStatus(`${fieldToClear.charAt(0).toUpperCase() + fieldToClear.slice(1)} deleted.`);
-        setTimeout(() => setCopyStatus(''), 2000);
-      }
-
-      if (newFocusId) {
-        setFocusChecklistItemId(newFocusId);
-        setEditingViaContext(newFocusId); // Also trigger edit mode for the new item
-      }
-
-      handleWordUpdate({ ...wordContainingChecklist, checklist: newSections });
-    };
-
-    const cleanup = window.electronAPI.on('checklist-item-command', handleMenuCommand);
-    return cleanup;
-  }, [words, handleChecklistCompletion]); // Re-bind if words state changes
-
-  // Effect to handle commands from the new checklist section context menu
-  useEffect(() => {
-    const handleMenuCommand = (payload: { command: string, sectionId?: number, wordId?: number }) => {
-      const { command, sectionId, wordId } = payload;
-
-      // Handle view/edit commands first as they don't need a sectionId
-      if (command === 'view' && wordId) {
-        setSettings(prev => ({
-          ...prev,
-          activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'ticket' }
-        }));
-        return;
-      }
-      if (command === 'edit' && wordId) {
-        setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'edit' } }));
-        return;
-      }
-
-      const wordContainingChecklist = words.find(w => w.checklist?.some(sec => 'items' in sec && sec.id === sectionId));
-      if (!wordContainingChecklist || !wordContainingChecklist.checklist) return;
-
-      let newSections = [...(wordContainingChecklist.checklist as ChecklistSection[])];
-
-      if (command === 'clear_all_highlights') {
-        newSections = newSections.map(sec => ({
-          ...sec,
-          items: sec.items.map(item => ({ ...item, highlightColor: undefined } as ChecklistItem))
-        }));
-        handleWordUpdate({ ...wordContainingChecklist, checklist: newSections });
-        return;
-      }
-      const sectionIndex = newSections.findIndex(s => s.id === sectionId);
-      if (sectionIndex === -1) return;
-
-      switch (command) {
-        case 'copy_section': {
-          const sectionToCopy = newSections.find(s => s.id === sectionId);
-          if (sectionToCopy) {
-            const textToCopy = formatChecklistForCopy([sectionToCopy]);
-            navigator.clipboard.writeText(textToCopy);
-            setCopyStatus('Section copied to clipboard!');
-            setTimeout(() => {
-              setCopyStatus('');
-            }, 2000);
-          }
-          return; // Don't update state, just copy
-        }
-        case 'copy_all_sections': {
-          const textToCopy = formatChecklistForCopy(newSections);
-          navigator.clipboard.writeText(textToCopy);
-          setCopyStatus('All sections copied to clipboard!');
-          return; // Don't update state, just copy
-        }
-        case 'duplicate_section':
-          const sectionToDuplicate = newSections[sectionIndex];
-          const newDuplicatedSection: ChecklistSection = {
-            ...sectionToDuplicate,
-            id: Date.now(),
-            title: `${sectionToDuplicate.title} (Copy)`,
-            // CRITICAL FIX: Give all duplicated items new, unique IDs
-            items: sectionToDuplicate.items.map(item => ({ ...item, id: Date.now() + Math.random() })),
-          };
-          setCopyStatus('Section Duplicated!');
-          setTimeout(() => {
-            setCopyStatus('');
-          }, 2000);
-          newSections.splice(sectionIndex + 1, 0, newDuplicatedSection);
-          break;
-        case 'toggle_all_in_section':
-          // Need to implement this
-          break;
-        case 'delete_section':
-          if (window.confirm(`Are you sure you want to delete this section?`)) {
-            newSections = newSections.filter(s => s.id !== sectionId);
-          } else {
-            return; // Do not proceed with update if user cancels
-          }
-          break;
-        case 'move_section_up':
-          if (sectionIndex > 0) {
-            [newSections[sectionIndex - 1], newSections[sectionIndex]] = [newSections[sectionIndex], newSections[sectionIndex - 1]];
-          }
-          break;
-        case 'move_section_down':
-          if (sectionIndex < newSections.length - 1) {
-            [newSections[sectionIndex], newSections[sectionIndex + 1]] = [newSections[sectionIndex + 1], newSections[sectionIndex]];          
-          }
-          break;
-        case 'undo_checklist':
-          activeChecklistRef.current?.handleUndo();
-          break;
-        case 'redo_checklist':
-          activeChecklistRef.current?.handleRedo();
-          break;
-      }
-      handleWordUpdate({ ...wordContainingChecklist, checklist: newSections });
-    };
-
-    const cleanup = window.electronAPI.on('checklist-section-command', handleMenuCommand);
-    return cleanup;
-  }, [words, handleWordUpdate]);
-
   // Effect to reset the context menu editing state after it has been applied
   useEffect(() => {
     if (editingViaContext !== null) {
@@ -4097,8 +4020,7 @@ function App() {
         const newIndex = (settings.activeBrowserIndex + 1) % settings.browsers.length;
         setSettings(prev => ({ ...prev, activeBrowserIndex: newIndex }));
         const newBrowserName = settings.browsers[newIndex].name;
-        setCopyStatus(`Browser set to: ${newBrowserName}`);
-        setTimeout(() => setCopyStatus(''), 2000);
+        showToast(`Browser set to: ${newBrowserName}`);
       }
     };
     window.addEventListener('keydown', handleBrowserToggle);
@@ -4330,8 +4252,7 @@ function App() {
       timestamp: Date.now(),
       wordId: newWord.id,
     }, ...prev]);
-      setCopyStatus('Task added!');
-      setTimeout(() => setCopyStatus(''), 2000);
+      showToast('Task added!');
       setWords((prevWords) => [...prevWords, newWord]);
       // Reset the new task form
       setNewTask({
@@ -4397,15 +4318,13 @@ function App() {
 
   const handleClearAll = () => {
     setWords([]);
-    setCopyStatus('All open tasks cleared!');
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast('All open tasks cleared!');
     setWordPlacementIndex(0); // Reset the placement index
   };
 
   const handleResetSettings = () => {
     setSettings(defaultSettings);
-    setCopyStatus('Settings have been reset!');
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast('Settings have been reset!');
   };
 
   const handleFontScaleChange = (scale: 'small' | 'medium' | 'large') => {
@@ -4417,11 +4336,21 @@ function App() {
     setSettings(prev => ({ ...prev, ...scales[scale] }));
   };
 
-  const handleClearCompleted = () => {
-    setCompletedWords([]);
-    setCopyStatus('Completed list cleared!');
-    setTimeout(() => setCopyStatus(''), 2000);
+  const handleClearCompleted = () => {    
+    if (confirmingClearCompleted) {
+      setCompletedWords([]);
+      showToast('Completed list cleared!');
+      setConfirmingClearCompleted(false);
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+    } else {
+      setConfirmingClearCompleted(true);
+      // It's good practice to reset other confirmations here
+      // to avoid user confusion, though none are directly related.
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+      confirmTimeoutRef.current = setTimeout(() => setConfirmingClearCompleted(false), 3000);
+    }
   };
+
 
   const handleRandomizeLayout = () => {
     const canvas = canvasRef.current;
@@ -4458,8 +4387,7 @@ function App() {
 
     const wordList = reportHeader + reportBody;
     navigator.clipboard.writeText(wordList).then(() => {
-      setCopyStatus('Open tasks copied!');
-      setTimeout(() => setCopyStatus(''), 2000); // Clear message after 2 seconds
+      showToast('Open tasks copied!');
     }).catch(err => {
       console.error('Failed to copy list: ', err);
     });
@@ -4474,8 +4402,7 @@ function App() {
 
     const fullReport = reportHeader + reportBody;
     navigator.clipboard.writeText(fullReport).then(() => {
-      setCopyStatus('Report copied!');
-      setTimeout(() => setCopyStatus(''), 2000);
+      showToast('Report copied!');
     }).catch(err => {
       console.error('Failed to copy report: ', err);
     });
@@ -4593,8 +4520,7 @@ function App() {
     const reopenedTask: Word = { ...taskToReopen, completedDuration: undefined };
     setWords([reopenedTask, ...words]);
 
-    setCopyStatus('Task reopened!');
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast('Task reopened!');
   };
 
   const handleExport = () => {
@@ -4791,8 +4717,7 @@ function App() {
     if (!messageToTrash) return;
 
     if (messageToTrash.isImportant) {
-      setCopyStatus("Cannot dismiss an important message.");
-      setTimeout(() => setCopyStatus(''), 2000);
+      showToast("Cannot dismiss an important message.");      
       return;
     }
 
@@ -4800,8 +4725,7 @@ function App() {
     setTrashedMessages(prev => [messageToTrash, ...prev]);
     setInboxMessages(prev => prev.filter(m => m.id !== messageId));
 
-    setCopyStatus("Message moved to trash.");
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast("Message moved to trash.");
     setIsDirty(true);
   };
 
@@ -4810,8 +4734,7 @@ function App() {
     setTrashedMessages(prev => [...messagesToTrash, ...prev]);
     setInboxMessages(prev => prev.filter(m => m.isImportant));
 
-    setCopyStatus(`Moved ${messagesToTrash.length} non-important message(s) to trash.`);
-    setTimeout(() => setCopyStatus(''), 2000);
+    showToast(`Moved ${messagesToTrash.length} non-important message(s) to trash.`);
     setIsDirty(true);
   };
 
@@ -4826,7 +4749,7 @@ function App() {
           onUpdate={handleWordUpdate}
           onNotify={handleTimerNotify}
           formatTimestamp={formatTimestamp}
-          setCopyStatus={setCopyStatus}
+          showToast={showToast}
           settings={settings}
           onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
           words={words}
@@ -4863,8 +4786,11 @@ function App() {
             Autosaving in {Math.floor(autoSaveCountdown / 60)}:{(autoSaveCountdown % 60).toString().padStart(2, '0')}
           </div>
         </div>
-      </div>
-      {copyStatus && <div className="copy-status-toast">{copyStatus}</div>}
+      </div>      
+      {
+       // refactor to name this something regarding a Toast 
+       copyStatus && <div className="copy-status-toast toast-notification-central">{copyStatus}</div>
+      }
       {timerNotifications.length > 0 && (
         <div className="timer-notification-container">
           {timerNotifications.map(word => (
@@ -5028,7 +4954,13 @@ function App() {
               title={hoveredWordId ? 'Search Google' : ''} />
           </div>
         )}
-        {settings.currentView === 'reports' && <ReportsView completedWords={completedWords} categories={settings.categories} setCopyStatus={setCopyStatus} />}
+        {settings.currentView === 'reports' && 
+          <ReportsView 
+            completedWords={completedWords} 
+            categories={settings.categories} 
+            showToast={showToast}
+          />
+        }
         {settings.currentView === 'inbox' && (
           <div className="inbox-view">
             <div className="list-header">
@@ -5042,9 +4974,7 @@ function App() {
                     <option value="type">Message Type</option>
                   </select>
                 </div>
-                <button onClick={() => {
-                  handleDismissAllInboxMessages();
-                }} title="Clear All Non-Important Messages"><i className="fas fa-trash"></i> Clear All</button>
+                <button onClick={() => {handleDismissAllInboxMessages()}} title="Clear All Non-Important Messages"><i className="fas fa-trash"></i> Clear All</button>
               </div>
             </div>
             <div className="tab-headers">
@@ -5058,11 +4988,9 @@ function App() {
                     <button onClick={handleDismissAllInboxMessages} title="Move all non-important messages to trash"><i className="fas fa-trash"></i> Clear All</button>
                   </div>
                 );
-
                 if (inboxMessages.length === 0) {
                   return <p>Your inbox is empty.</p>;
-                }
-  
+                }  
                 if (settings.inboxSort === 'type') {
                   const groupedMessages = inboxMessages.reduce((acc, message) => {
                     const type = message.type;
@@ -5493,7 +5421,7 @@ function App() {
                                             onUpdate={handleWordUpdate}
                                             onNotify={handleTimerNotify}
                                             formatTimestamp={formatTimestamp}
-                                            setCopyStatus={setCopyStatus}
+                                            showToast={showToast}
                                             words={words}
                                             setInboxMessages={setInboxMessages}
                                             settings={settings} 
@@ -5517,8 +5445,7 @@ function App() {
                                           <button onClick={() => {
                                             const newAutocompleteState = !word.isAutocomplete;
                                             setWords(words.map(w => w.id === word.id ? { ...w, isAutocomplete: newAutocompleteState } : w));
-                                            setCopyStatus(`Autocomplete ${newAutocompleteState ? 'enabled' : 'disabled'}.`);
-                                            setTimeout(() => setCopyStatus(''), 2000);
+                                            showToast(`Autocomplete ${newAutocompleteState ? 'enabled' : 'disabled'}.`);
                                           }} title="Toggle Autocomplete" className={`icon-button recurring-toggle ${word.isAutocomplete ? 'active' : ''}`}>
                                             <i className="fas fa-robot"></i>
                                           </button>
@@ -5603,7 +5530,7 @@ function App() {
                                     onUpdate={handleWordUpdate}
                                     onNotify={handleTimerNotify}
                                   />
-                              }>
+                              }> 
                                 <>
                                   <TabbedView 
                                     startInEditMode={editingViaContext === word.id}
@@ -5615,7 +5542,7 @@ function App() {
                                     onUpdate={handleWordUpdate}
                                     onNotify={handleTimerNotify}
                                     formatTimestamp={formatTimestamp}
-                                    setCopyStatus={setCopyStatus}
+                                    showToast={showToast}
                                     words={words}
                                     setInboxMessages={setInboxMessages}
                                     settings={settings} 
@@ -5640,8 +5567,7 @@ function App() {
                                   <button onClick={() => {
                                     const newAutocompleteState = !word.isAutocomplete;
                                     setWords(words.map(w => w.id === word.id ? { ...w, isAutocomplete: newAutocompleteState } : w));
-                                    setCopyStatus(`Autocomplete ${newAutocompleteState ? 'enabled' : 'disabled'}.`);
-                                    setTimeout(() => setCopyStatus(''), 2000);
+                                    showToast(`Autocomplete ${newAutocompleteState ? 'enabled' : 'disabled'}.`);
                                   }} title="Toggle Autocomplete" className={`icon-button recurring-toggle ${word.isAutocomplete ? 'active' : ''}`}>
                                     <i className="fas fa-robot"></i>
                                   </button>
@@ -5773,7 +5699,9 @@ function App() {
                 </>
               )}>
                 <div className="completed-actions">
-                  <button className="icon-button" onClick={handleClearCompleted} title="Clear Completed List"><i className="fas fa-trash"></i></button>
+                  <button className={`icon-button ${confirmingClearCompleted ? 'confirm-delete' : ''}`} onClick={handleClearCompleted} title="Clear Completed List">
+                    {confirmingClearCompleted ? <i className="fas fa-trash-alt"></i> : <i className="fas fa-trash-alt"></i>}
+                  </button>
                   <button className="icon-button" onClick={handleCopyReport} title="Copy Report"><i className="fas fa-copy"></i></button>
                 </div>
                 <div className="priority-list-main">
@@ -5808,7 +5736,7 @@ function App() {
                             onUpdate={() => {}} // No updates for completed items, this is correct
                             onNotify={() => {}} // No notifications for completed items
                             formatTimestamp={formatTimestamp}
-                            setCopyStatus={setCopyStatus}
+                            showToast={showToast}
                             onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
                             onDescriptionChange={() => {}}                            
                             settings={settings}
@@ -5848,132 +5776,133 @@ function App() {
 
               return (
                 <>
-            <label><h4>Task Type:</h4>
-              <select value={newTask.taskType} onChange={(e) => setNewTask({ ...newTask, taskType: e.target.value })}>
-                {(settings.taskTypes || []).map(type => (
-                  <option key={type.id} value={type.id}>{type.name}</option>
-                ))}
-              </select>
-            </label>
+                  <label><h4>Task Type:</h4>
+                    <select value={newTask.taskType} onChange={(e) => setNewTask({ ...newTask, taskType: e.target.value })}>
+                      {(settings.taskTypes || []).map(type => (
+                        <option key={type.id} value={type.id}>{type.name}</option>
+                      ))}
+                    </select>
+                  </label>
                   {shouldShow('text') && <label><h4>Task Title:</h4><input ref={newTaskTitleInputRef} type="text" placeholder="Enter a title and press Enter" value={newTask.text} onChange={(e) => setNewTask({ ...newTask, text: e.target.value })} onKeyDown={handleInputKeyDown} /></label>}
                   {shouldShow('url') && <label><h4>URL:</h4><input type="text" placeholder="https://example.com" value={newTask.url} onChange={(e) => setNewTask({ ...newTask, url: e.target.value })} /></label>}
                   {shouldShow('categoryId') && <label><h4>Category:</h4>
-              <select value={newTask.categoryId} onChange={(e) => setNewTask({ ...newTask, categoryId: Number(e.target.value) })}>
-                <CategoryOptions categories={settings.categories} />
-              </select>
+                    <select value={newTask.categoryId} onChange={(e) => setNewTask({ ...newTask, categoryId: Number(e.target.value) })}>
+                      <CategoryOptions categories={settings.categories} />
+                    </select>
                   </label>}
                   {shouldShow('priority') && <label><h4>Priority:</h4>
-              <select value={newTask.priority} onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as any })}>
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
-              </select>
+                    <select value={newTask.priority} onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as any })}>
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Low">Low</option>
+                    </select>
                   </label>}
                   {shouldShow('openDate') && <label><h4>Open Date:</h4>
-              <div className="date-input-group">
-                <input type="datetime-local" value={formatTimestampForInput(newTask.openDate)} onChange={(e) => setNewTask({ ...newTask, openDate: parseInputTimestamp(e.target.value) })} />
-                <div className="button-group">{(() => {
-                    const subtractTime = (amount: number, unit: 'minutes' | 'hours' | 'days') => {
-                      const baseTime = newTask.openDate ? new Date(newTask.openDate) : new Date();
-                      if (unit === 'minutes') baseTime.setMinutes(baseTime.getMinutes() - amount);
-                      if (unit === 'hours') baseTime.setHours(baseTime.getHours() - amount);
-                      if (unit === 'days') baseTime.setDate(baseTime.getDate() - amount);
-                      setNewTask({ ...newTask, openDate: baseTime.getTime() });
-                    };
-                    return <><button className="icon-button" onClick={() => setNewTask({ ...newTask, openDate: undefined })} title="Clear Date"><i className="fas fa-times"></i></button>
-                      <button onClick={() => setNewTask({ ...newTask, openDate: new Date().getTime() })} title="Set to Now">NOW</button>
-                      <button onClick={() => { const d = new Date(newTask.openDate || Date.now()); d.setMinutes(0,0,0); setNewTask({ ...newTask, openDate: d.getTime() }); }} title="Round to Hour">:00</button>
-                      <button onClick={() => subtractTime(15, 'minutes')}>-15m</button> <button onClick={() => subtractTime(30, 'minutes')}>-30m</button>
-                      <button onClick={() => subtractTime(1, 'hours')}>-1h</button> <button onClick={() => subtractTime(2, 'hours')}>-2h</button>
-                      <button onClick={() => subtractTime(1, 'days')}>-1d</button> <button onClick={() => subtractTime(3, 'days')}>-3d</button>
-                    </>;
-                  })()}
-                </div>
-              </div>
+                    <div className="date-input-group">
+                      <input type="datetime-local" value={formatTimestampForInput(newTask.openDate)} onChange={(e) => setNewTask({ ...newTask, openDate: parseInputTimestamp(e.target.value) })} />
+                      <div className="button-group">{(() => {
+                          const subtractTime = (amount: number, unit: 'minutes' | 'hours' | 'days') => {
+                            const baseTime = newTask.openDate ? new Date(newTask.openDate) : new Date();
+                            if (unit === 'minutes') baseTime.setMinutes(baseTime.getMinutes() - amount);
+                            if (unit === 'hours') baseTime.setHours(baseTime.getHours() - amount);
+                            if (unit === 'days') baseTime.setDate(baseTime.getDate() - amount);
+                            setNewTask({ ...newTask, openDate: baseTime.getTime() });
+                          };
+                          return <><button className="icon-button" onClick={() => setNewTask({ ...newTask, openDate: undefined })} title="Clear Date"><i className="fas fa-times"></i></button>
+                            <button onClick={() => setNewTask({ ...newTask, openDate: new Date().getTime() })} title="Set to Now">NOW</button>
+                            <button onClick={() => { const d = new Date(newTask.openDate || Date.now()); d.setMinutes(0,0,0); setNewTask({ ...newTask, openDate: d.getTime() }); }} title="Round to Hour">:00</button>
+                            <button onClick={() => subtractTime(15, 'minutes')}>-15m</button> <button onClick={() => subtractTime(30, 'minutes')}>-30m</button>
+                            <button onClick={() => subtractTime(1, 'hours')}>-1h</button> <button onClick={() => subtractTime(2, 'hours')}>-2h</button>
+                            <button onClick={() => subtractTime(1, 'days')}>-1d</button> <button onClick={() => subtractTime(3, 'days')}>-3d</button>
+                          </>;
+                        })()}
+                      </div>
+                    </div>
                   </label>}
                   {shouldShow('completeBy') && <label><h4>Complete By:</h4>
-            <input type="datetime-local" value={formatTimestampForInput(newTask.completeBy)} onChange={(e) => setNewTask({ ...newTask, completeBy: parseInputTimestamp(e.target.value) })} />
-              <div className="button-group">{(() => {
-                  const addTime = (amount: number, unit: 'minutes' | 'hours' | 'days') => {
-                    const baseTime = newTask.completeBy ? new Date(newTask.completeBy) : new Date();
-                    if (unit === 'minutes') baseTime.setMinutes(baseTime.getMinutes() + amount);
-                    if (unit === 'hours') baseTime.setHours(baseTime.getHours() + amount);
-                    if (unit === 'days') baseTime.setDate(baseTime.getDate() + amount);
-                    setNewTask({ ...newTask, completeBy: baseTime.getTime() });
-                  };
-                  return <><button className="icon-button" onClick={() => setNewTask({ ...newTask, completeBy: undefined })} title="Clear Date"><i className="fas fa-times"></i></button>
-                    <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().getTime() })} title="Set to Now">NOW</button>
-                    <button onClick={() => {
-                      const baseTime = newTask.completeBy ? new Date(newTask.completeBy) : new Date();
-                      baseTime.setMinutes(0, 0, 0); // Set minutes, seconds, and ms to 0
-                      setNewTask({ ...newTask, completeBy: baseTime.getTime() });
-                    }} title="Round to Hour">:00</button>
-                    <button onClick={() => addTime(15, 'minutes')}>+15m</button> <button onClick={() => addTime(30, 'minutes')}>+30m</button>
-                    <button onClick={() => addTime(1, 'hours')}>+1h</button> <button onClick={() => addTime(2, 'hours')}>+2h</button>
-                    <button onClick={() => addTime(1, 'days')}>+1d</button> <button onClick={() => addTime(3, 'days')}>+3d</button>
-                  </>;
-                })()}</div>
+                    <input type="datetime-local" value={formatTimestampForInput(newTask.completeBy)} onChange={(e) => setNewTask({ ...newTask, completeBy: parseInputTimestamp(e.target.value) })} />
+                    <div className="button-group">{(() => {
+                      const addTime = (amount: number, unit: 'minutes' | 'hours' | 'days') => {
+                        const baseTime = newTask.completeBy ? new Date(newTask.completeBy) : new Date();
+                        if (unit === 'minutes') baseTime.setMinutes(baseTime.getMinutes() + amount);
+                        if (unit === 'hours') baseTime.setHours(baseTime.getHours() + amount);
+                        if (unit === 'days') baseTime.setDate(baseTime.getDate() + amount);
+                        setNewTask({ ...newTask, completeBy: baseTime.getTime() });
+                      };
+                      return <><button className="icon-button" onClick={() => setNewTask({ ...newTask, completeBy: undefined })} title="Clear Date"><i className="fas fa-times"></i></button>
+                        <button onClick={() => setNewTask({ ...newTask, completeBy: new Date().getTime() })} title="Set to Now">NOW</button>
+                        <button onClick={() => {
+                          const baseTime = newTask.completeBy ? new Date(newTask.completeBy) : new Date();
+                          baseTime.setMinutes(0, 0, 0); // Set minutes, seconds, and ms to 0
+                          setNewTask({ ...newTask, completeBy: baseTime.getTime() });
+                        }} title="Round to Hour">:00</button>
+                        <button onClick={() => addTime(15, 'minutes')}>+15m</button> <button onClick={() => addTime(30, 'minutes')}>+30m</button>
+                        <button onClick={() => addTime(1, 'hours')}>+1h</button> <button onClick={() => addTime(2, 'hours')}>+2h</button>
+                        <button onClick={() => addTime(1, 'days')}>+1d</button> <button onClick={() => addTime(3, 'days')}>+3d</button>
+                      </>;
+                    })()}</div>
                   </label>}
                   {shouldShow('company') && <label><h4>Company:</h4><input type="text" value={newTask.company} onChange={(e) => setNewTask({ ...newTask, company: e.target.value })} /></label>}
                   {shouldShow('payRate') && <label><h4>Pay Rate ($/hr):</h4><input type="number" value={newTask.payRate || 0} onChange={(e) => setNewTask({ ...newTask, payRate: Number(e.target.value) })} /></label>}
                   {shouldShow('websiteUrl') && <label><h4>Website URL:</h4><input type="text" placeholder="https://company.com" value={newTask.websiteUrl} onChange={(e) => setNewTask({ ...newTask, websiteUrl: e.target.value })} /></label>}
                   {shouldShow('imageLinks') && <label><h4>Image Links:</h4>
-              {(newTask.imageLinks || []).map((link, index) => (
-                <div key={index} className="image-link-edit">
-                  <input type="text" value={link} onChange={(e) => {
-                    const newLinks = [...(newTask.imageLinks || [])];
-                    newLinks[index] = e.target.value;
-                    setNewTask({ ...newTask, imageLinks: newLinks });
-                  }} /><button className="icon-button" onClick={() => setNewTask({ ...newTask, imageLinks: (newTask.imageLinks || []).filter((_, i) => i !== index) })}><i className="fas fa-minus"></i></button>
-                </div>
-              ))}
-              <button className="add-link-btn" onClick={() => setNewTask({ ...newTask, imageLinks: [...(newTask.imageLinks || []), ''] })}>                <i className="fas fa-plus"></i> Add Image Link
-              </button>
+                    {(newTask.imageLinks || []).map((link, index) => (
+                    <div key={index} className="image-link-edit">
+                      <input type="text" value={link} onChange={(e) => {
+                        const newLinks = [...(newTask.imageLinks || [])];
+                        newLinks[index] = e.target.value;
+                        setNewTask({ ...newTask, imageLinks: newLinks });
+                      }} /><button className="icon-button" onClick={() => setNewTask({ ...newTask, imageLinks: (newTask.imageLinks || []).filter((_, i) => i !== index) })}><i className="fas fa-minus"></i></button>
+                    </div>
+                    ))}
+                    <button className="add-link-btn" onClick={() => setNewTask({ ...newTask, imageLinks: [...(newTask.imageLinks || []), ''] })}>
+                      <i className="fas fa-plus"></i> Add Image Link
+                    </button>
                   </label>}
                   {shouldShow('checklist') && <Checklist 
-              sections={newTask.checklist || []} 
-              onUpdate={(newSections) => setNewTask({ ...newTask, checklist: newSections })} 
-              onComplete={handleChecklistCompletion} 
-              isEditable={true}
-              words={words}
-              setInboxMessages={setInboxMessages}
-              checklistRef={activeChecklistRef}
-              wordId={Date.now()} // Use a temporary ID for the new task context
-              setCopyStatus={setCopyStatus}
-              focusItemId={focusChecklistItemId} 
-              onFocusHandled={() => setFocusChecklistItemId(null)}
-              settings={settings} 
-              onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
-              />}
+                    sections={newTask.checklist || []} 
+                    onUpdate={(newSections) => setNewTask({ ...newTask, checklist: newSections })} 
+                    onComplete={handleChecklistCompletion} 
+                    isEditable={true}
+                    words={words}
+                    setInboxMessages={setInboxMessages}
+                    checklistRef={activeChecklistRef}
+                    wordId={Date.now()} // Use a temporary ID for the new task context
+                    showToast={showToast}
+                    focusItemId={focusChecklistItemId} 
+                    onFocusHandled={() => setFocusChecklistItemId(null)}
+                    settings={settings} 
+                    onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                  />}
                   {shouldShow('description') && <DescriptionEditor 
-              description={newTask.description || ''} 
-              onDescriptionChange={(html) => setNewTask({ ...newTask, description: html })} 
-              settings={settings} 
-              onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
-              editorKey="new-task-description"
+                    description={newTask.description || ''} 
+                    onDescriptionChange={(html) => setNewTask({ ...newTask, description: html })} 
+                    settings={settings} 
+                    onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                    editorKey="new-task-description"
                   />}
                   {shouldShow('attachments') && <div className="description-container">
-              <strong>Attachments:</strong>
-              {(newTask.attachments || []).map((file, index) => (
-                <div key={index} className="attachment-edit">
-                  <span className="attachment-name" title={file.path}>📄 {file.name}</span><button className="icon-button" onClick={() => setNewTask({ ...newTask, attachments: (newTask.attachments || []).filter((_, i) => i !== index) })}><i className="fas fa-minus"></i></button>
-                </div>
-              ))}
-              <button className="add-link-btn" onClick={async () => {
-                const newFile = await window.electronAPI.manageFile({ action: 'select' });
-                if (newFile) {
-                  setNewTask({ ...newTask, attachments: [...(newTask.attachments || []), newFile] });
-                }
-              }}><i className="fas fa-plus"></i> Attach File</button>
+                    <strong>Attachments:</strong>
+                    {(newTask.attachments || []).map((file, index) => (
+                      <div key={index} className="attachment-edit">
+                        <span className="attachment-name" title={file.path}>📄 {file.name}</span><button className="icon-button" onClick={() => setNewTask({ ...newTask, attachments: (newTask.attachments || []).filter((_, i) => i !== index) })}><i className="fas fa-minus"></i></button>
+                      </div>
+                    ))}
+                    <button className="add-link-btn" onClick={async () => {
+                      const newFile = await window.electronAPI.manageFile({ action: 'select' });
+                      if (newFile) {
+                        setNewTask({ ...newTask, attachments: [...(newTask.attachments || []), newFile] });
+                      }
+                    }}><i className="fas fa-plus"></i> Attach File</button>
                   </div>}
                   {shouldShow('notes') && <div className="description-container">
-              <strong>Notes:</strong>
-              <DescriptionEditor 
-                description={newTask.notes || ''} 
-                onDescriptionChange={(html) => setNewTask({ ...newTask, notes: html })} 
-                settings={settings} 
-                onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
-                editorKey="new-task-notes" />
+                    <strong>Notes:</strong>
+                    <DescriptionEditor 
+                      description={newTask.notes || ''} 
+                      onDescriptionChange={(html) => setNewTask({ ...newTask, notes: html })} 
+                      settings={settings} 
+                      onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                      editorKey="new-task-notes" />
                   </div>}
                   {shouldShow('isRecurring') && <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isRecurring || false} onChange={(e) => setNewTask({ ...newTask, isRecurring: e.target.checked })} /><span className='checkbox-label-text'>Re-occurring Task</span></label>}
                   {shouldShow('isDailyRecurring') && <label className="checkbox-label flexed-column"><input type="checkbox" checked={newTask.isDailyRecurring || false} onChange={(e) => setNewTask({ ...newTask, isDailyRecurring: e.target.checked })} /><span className='checkbox-label-text'>Repeat Daily</span></label>}
@@ -5984,12 +5913,12 @@ function App() {
                 </>
               );
             })()}
-            <button onClick={() => handleInputKeyDown({ key: 'Enter' } as React.KeyboardEvent<HTMLInputElement>)}><i className="fas fa-plus"></i> Add Task
+            <button onClick={() => handleInputKeyDown({ key: 'Enter' } as React.KeyboardEvent<HTMLInputElement>)}>
+              <i className="fas fa-plus"></i> Add Task
             </button>
           </div>
         </SimpleAccordion>
         <TaskTypeManager settings={settings} setSettings={setSettings} />
-
         <SimpleAccordion title="Global Category Settings">
           <div className="category-manager-item">
             <span>"All" Category Color:</span>
@@ -6180,8 +6109,8 @@ function App() {
             <button onClick={handleImport}>Import Project</button>
           </div>
         </SimpleAccordion>
-        <BackupManager 
-          setCopyStatus={setCopyStatus} 
+        <BackupManager           
+          showToast={showToast}
           words={words} 
           completedWords={completedWords} 
           settings={settings} 
@@ -6193,9 +6122,9 @@ function App() {
           setCompletedWords(data.completedWords || []);
           setSettings(prev => ({ ...defaultSettings, ...data.settings }));
           if (data.inboxMessages) setInboxMessages(data.inboxMessages);
-            setCopyStatus('Backup restored successfully!');
-            setTimeout(() => setCopyStatus(''), 2000);
-        }} />
+            showToast('Backup restored successfully!');            
+          }} 
+        />
 
         {settings.currentView === 'meme' && (
           <>
@@ -6402,7 +6331,7 @@ const renderCustomizedLabel = (props: any) => {
   );
 };
 
-function ReportsView({ completedWords, categories, setCopyStatus }: { completedWords: Word[], categories: Category[], setCopyStatus: (message: string) => void }) {
+function ReportsView({ completedWords, categories, showToast }: { completedWords: Word[], categories: Category[], showToast: (message: string, duration?: number) => void }) {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [activeTab, setActiveTab] = useState('summary');
@@ -6803,8 +6732,11 @@ function ReportsView({ completedWords, categories, setCopyStatus }: { completedW
                         {word.text}
                         <button className="copy-btn" title="Copy Row Data" onClick={() => {
                           const rowData = [word.text, categoryName, formatTimestamp(completionTime), formatTime(word.manualTime || 0), `$${earnings.toFixed(2)}`].join('\t');
-                          navigator.clipboard.writeText(rowData).then(() => setCopyStatus('Row data copied!'));
-                        }}><i className="fas fa-copy"></i></button>;
+                          navigator.clipboard.writeText(rowData).then(() => 
+                            showToast('Row data copied!'));
+                        }}>
+                          <i className="fas fa-copy"></i>
+                        </button>
                       </span>
                     </td>
                     <td>{categoryName}</td>
@@ -6873,8 +6805,7 @@ function ReportsView({ completedWords, categories, setCopyStatus }: { completedW
                 });
                 const tableText = [header, ...rows].join('\n');
                 navigator.clipboard.writeText(tableText).then(() => {
-                  setCopyStatus('Table data copied!');
-                  setTimeout(() => setCopyStatus(''), 2000);
+                  showToast('Table data copied!');                  
                 });
               }}>Copy Table</button>
             </div>
@@ -6907,11 +6838,10 @@ function ReportsView({ completedWords, categories, setCopyStatus }: { completedW
                         <button className="copy-btn" title="Copy Row" onClick={() => {
                           const rowData = [word.text, categoryName, formatTimestamp(completionTime), formatTime(word.manualTime || 0), `$${earnings.toFixed(2)}`].join('\t');;
                           navigator.clipboard.writeText(rowData);;
-                          setCopyStatus('Row copied!');
-                          setTimeout(() => {
-                            setCopyStatus('');
-                          }, 2000);
-                        }}>📋</button>
+                          showToast('Row copied!');                          
+                        }}>
+                          <i className="fas fa-copy"></i>
+                        </button>
                       </td>
                     </tr>
                   );

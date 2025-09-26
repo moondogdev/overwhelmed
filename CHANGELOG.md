@@ -5,33 +5,63 @@ All notable changes to this project will be documented in this file. See `## Log
 ---
 
 ## Current Timeline
-
-### Broken Implementation
-- **Open Link**: seems to open twice
-- **Delete Section**: It works to delete the section but we need to swap views to update it;
-- **Copy Section**: Same as above.
-- **setCopyStatus**: 
- - this notification seems to occur twice and linger? 
- - it requires some sort of timeout and a clear but lets add that to the actual function logic 
-- **`case 'toggle_all_in_section'`**: This was never implemented in the context menu
-
-### To do
-- Organize context menus groupings better by category and separate the All and Individual action
 - **Checklist Section Context Menu**: 
- - **Delete All Notes / Responses**: Implement with a non-blocking, two-click confirmation pattern.
- - Add `Delete All Sections` to Context Menu
+    - **Delete Section & Duplicate Section**: It works to delete the section but we need to swap views to update it;
+        - Fixed by moving the case out of the `function App` and into the `function Checklist`
+        - Updated logic to use payload `if (payload.sectionId) handleDeleteSection(payload.sectionId);`
+        - Delete Section CM and Button point to `handleDeleteSection` 
+        - `handleDeleteSection` requires double click confirmation
+        - Remove native prompts from this logic string
+        - Identical handling for Duplicate section except no double confirmation
 
-- **Checklist Section Main Header**:
- - Checklist main header should receive right click context menu handling actions associated with the "All" options
- - Add `Delete All Sections` UI Button in the Checklist Main Header
+    - **`Move Up` doesnt update until view swap**: need to connect updateHistory
+        - Similar issue, we needed to move the case up into `function Checklist`
+    
+    - **Added Delete All Sections**: `Delete All Sections` added to Context Menu
+
+    - **`case 'toggle_all_in_section'`**: re-implemented
+        - This works again to toggle all checklist items in section via context menu
+    
+    - **Added Delete All Notes**: Can now instantly delete all notes from context menu; no confirmation
+    - **Added Delete All Responses**: Can now instantly delete all responses from context menu; no confirmation
+
+- **setCopyStatus**: this notification seems to occur twice and linger? (Solved by adding the wipe and 2000ms to the underlining logic)
+    - Refactored to `showToast`;
+    - Added the 2000ms delay and wipe to its logic rather than hardcoded
+    - Removed hardcoded 2000 timeout and wipe on every instance 
+    - Renamed from `setCopyStatus("Message")` to `showToast("Message")`
+    - Defined as `const showToast = (message: string, duration: number = 2000) => {`
+    - Feeds to `const [copyStatus, setToastStatus] = useState('');`
+    - Diplays as `copyStatus && <div className="copy-status-toast toast-notification-central">{copyStatus}</div>`
+
+-**Delete All Sections Changed**: 
+    - Updated to doubleclick confirmation instead of prompt in bottom button
+    - Added `Delete All Sections` UI Button in the Checklist Main Header
+
+- **Reimplemented All context menus**:
+    - A lot of the context menu options werent working after the refactoring
+
+- **Checklist Item Context Menu**: 
+    - Highlight now works correctly
+    - Delete Note / Response now works correctly 
+    - Open Link had two cases so it opened twice; removed second one
+
+- **Hide and Show All Notes/Responses in Section buttons**
+    - This is now correctly hooked up to the existing logic to hide/show notes/responses on the section
 
 - **Replace Native Prompts**:
     - All destructive actions (`Delete Section`, `Delete All Checked Items`, etc.) need to be refactored to use a two-click confirmation pattern instead of `window.confirm()`.
 
-- **Bulk Deletion**: Add the 'Delete Checked' handling we already have into the Task View
+- **Bulk Deletion**: Add the 'Delete Checked' handling we already have into the Task View & context menu 
+- **Checklist Section Main Header**:
+ - Checklist main header should receive right click context menu handling actions associated with the "All" options
 
-- **Checklist Section Header**: `checklist-section-actions` 
- - Hook up the "Hide/Show Notes/Responses in Section" toggle buttons to the existing context menu logic.
+ - **Context Menu Refactor**: Refactored the main `useEffect(() => {` to handle all 3 similar context menu options for `handleChecklistCommand`, `handleSectionCommand`, `handleMainHeaderCommand`.
+ 
+### Broken Implementation
+
+### To do
+
 
 ---
 
@@ -152,6 +182,7 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
+- **[1.0.16] - 2025-09-24: Checklist Main Header Context Menu & Command Refactor**: feat(checklist): Add main header context menu and refactor command handling
 - **[1.0.15] - 2025-09-25: Checklist Usability & Collapsible Sections**: feat(checklist): Add collapsible sections, in-line editing, and remove native prompts
 - **[1.0.14] - 2025-09-23: Interactive Checklists & Link Handling**: feat(checklist): Overhaul checklist interactivity, add link handling, and fix bugs
 - **[1.0.13] - 2025-09-23: Interactive Checklist Items**: feat(checklist): Implement fully interactive checklist item UI
@@ -168,6 +199,27 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.16] - 2025-09-24: Checklist Main Header Context Menu & Command Refactor
+
+#### Added
+-   **Main Header Context Menu**: Implemented a new right-click context menu on the main "Checklist" header. This menu provides global actions such as "Expand/Collapse All Sections," "Add/Delete All Notes/Responses," "Copy All Sections," and "Delete All Sections."
+
+#### Changed
+-   **Command Handling Refactor**:
+    -   Created a new, dedicated command handler (`handleMainHeaderCommand`) in the `Checklist` component to correctly process actions from the new main header menu.
+    -   The "View Task" and "Edit Task" options in the new menu now correctly switch the task's view mode.
+-   **Toast Notifications**: The `setCopyStatus` function has been refactored into a more robust `showToast` utility function with a default duration, cleaning up code and improving consistency.
+
+#### Fixed
+-   **Context Menu State Bug**: Fixed a critical bug where "View Task" and "Edit Task" commands from the new main header menu were not working. The new handler now correctly routes these commands to update the parent `App` component's state.
+-   **Prop Drilling Error**: Resolved a `Cannot find name 'setSettings'` error by refactoring the command handler to use the `onSettingsChange` prop, following the correct pattern for child-to-parent state updates.
+-   **IPC & Type Safety**: Fixed a TypeScript error by ensuring the payload sent to `showChecklistMainHeaderContextMenu` correctly matched its interface definition.
+
+#### Summary
+This commit adds a powerful global context menu to the main checklist header and refactors the underlying command handling system to be more robust and correct. It resolves a key bug preventing view-switching from the new menu and improves the overall state management architecture.
 
 ---
 

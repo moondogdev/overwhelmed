@@ -401,6 +401,7 @@ interface Word {
 -   **Description**: A `useEffect` hook in `renderer.tsx` that listens for commands sent from the checklist section context menu.
 -   **Commands Handled**:
     -   `edit_title`: Puts the section title into an inline-editable state.
+    -   `view` / `edit`: Correctly routes task-level commands to update the parent `App` component's state for view switching.
     -   `toggle_collapse`: Expands or collapses the section.
     -   `expand_all` / `collapse_all`: Expands or collapses all checklist sections.
     -   `add_note_to_section` / `add_note_to_all`: Adds an empty note field to items in a specific section or all sections.
@@ -413,6 +414,9 @@ interface Word {
 
 #### `handleUpdateSectionTitle(sectionId: number, newTitle: string)`
 -   **Description**: Updates the `title` for a specific checklist section.
+
+#### `handleMainHeaderCommand(payload)`
+-   **Description**: A dedicated handler within the `Checklist` component that listens for the `checklist-main-header-command` channel. It correctly routes task-level commands like `view` and `edit` to update the parent `App` state via the `onSettingsChange` prop, and passes all other global checklist commands to `handleSectionCommand`.
 
 #### `handleToggleSectionCollapse(sectionId: number)`
 -   **Description**: Toggles the collapsed/expanded state of a single checklist section by updating `settings.openChecklistSectionIds`.

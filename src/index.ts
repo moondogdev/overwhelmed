@@ -635,7 +635,7 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
   ipcMain.on('show-checklist-section-context-menu', (event, payload) => {
-    const { wordId, sectionId, areAllComplete, isSectionOpen, isNotesHidden, isResponsesHidden, x, y, isInEditMode } = payload;
+    const { wordId, sectionId, areAllComplete, isSectionOpen, isNotesHidden, isResponsesHidden, x, y, isInEditMode, isConfirmingDelete } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];
     
@@ -665,19 +665,21 @@ app.whenReady().then(() => {
       },
       { type: 'separator' },
       {
-        label: 'Add Note to All in Section',
+        label: 'Add Notes to All in Section',
         click: () => webContents.send('checklist-section-command', { command: 'add_note_to_section', sectionId }),
       },
       {
-        label: 'Add Note to All Items',
+        label: 'Add Notes to All Sections',
         click: () => webContents.send('checklist-section-command', { command: 'add_note_to_all' }),
       },
       {
         label: payload.isNotesHidden ? 'Show Notes in Section' : 'Hide Notes in Section',
         click: () => webContents.send('checklist-section-command', { command: 'toggle_section_notes', sectionId }),
       },
-      // Add "Show All Notes | Hide All Notes" that toggles responses in all sections    
-      // Add "Delete All Responses" that deletes all responses in all sections
+      {
+        label: 'Delete All Notes',
+        click: () => webContents.send('checklist-section-command', { command: 'delete_all_notes' }),
+      },      
       { type: 'separator' },
       {
         label: 'Add Response to All in Section',
@@ -690,9 +692,11 @@ app.whenReady().then(() => {
       {
         label: payload.isResponsesHidden ? 'Show Responses in Section' : 'Hide Responses in Section',
         click: () => webContents.send('checklist-section-command', { command: 'toggle_section_responses', sectionId }),
-      },             
-      // Add "Show All Responses | Hide All Responses" that toggles responses in all sections    
-      // Add "Delete All Responses" that deletes all responses in all sections
+      },                   
+      {
+        label: 'Delete All Responses',
+        click: () => webContents.send('checklist-section-command', { command: 'delete_all_responses' }),
+      },
       { type: 'separator' },      
       {
         label: 'Clear All Highlights',
@@ -720,10 +724,16 @@ app.whenReady().then(() => {
       {
         label: 'Duplicate Section',
         click: () => webContents.send('checklist-section-command', { command: 'duplicate_section', sectionId }),
+      },      
+      {
+        label: 'Delete All Sections',
+        click: () => webContents.send('checklist-section-command', { command: 'delete_all_sections' }),
+        visible: isInEditMode,
       },
       {
         label: 'Delete Section',
         click: () => webContents.send('checklist-section-command', { command: 'delete_section', sectionId }),
+        visible: isInEditMode,
       },
       { type: 'separator' },
     );
@@ -842,6 +852,90 @@ app.whenReady().then(() => {
     ];
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });
   });
+  ipcMain.on('show-checklist-main-header', (event, payload) => {
+    const { wordId, sectionId, areAllComplete, isSectionOpen, isNotesHidden, isResponsesHidden, x, y, isInEditMode, isConfirmingDelete } = payload;
+    const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];
+    template.push(
+      // Inclde Actions that are for "All" Sections
+      {
+        label: 'Expand All Sections',
+        click: () => webContents.send('checklist-main-header-command', { command: 'expand_all' }),
+      },
+      {
+        label: 'Collapse All Sections',
+        click: () => webContents.send('checklist-main-header-command', { command: 'collapse_all' }),
+      },            
+      { type: 'separator' },      
+      {
+        label: 'Add Notes to All Sections',
+        click: () => webContents.send('checklist-main-header-command', { command: 'add_note_to_all' }),
+      },      
+      {
+        label: 'Delete All Notes',
+        click: () => webContents.send('checklist-main-header-command', { command: 'delete_all_notes' }),
+      },      
+      { type: 'separator' },      
+      {
+        label: 'Add Response to All Items',
+        click: () => webContents.send('checklist-main-header-command', { command: 'add_response_to_all' }),
+      },      
+      {
+        label: 'Delete All Responses',
+        click: () => webContents.send('checklist-main-header-command', { command: 'delete_all_responses' }),
+      },
+      { type: 'separator' },      
+      {
+        label: 'Clear All Highlights',
+        click: () => webContents.send('checklist-main-header-command', { command: 'clear_all_highlights', sectionId }),
+      },      
+      { type: 'separator' },
+      {
+        label: 'Copy All Sections',
+        click: () => webContents.send('checklist-main-header-command', { command: 'copy_all_sections', sectionId }),
+      },      
+      {
+        label: 'Copy All Sections Raw',
+        click: () => webContents.send('checklist-main-header-command', { command: 'copy_all_sections_raw' }),
+      },
+      { type: 'separator' },   
+      {
+        label: 'Delete All Sections',
+        click: () => webContents.send('checklist-main-header-command', { command: 'delete_all_sections' }),        
+      },      
+      { type: 'separator' },
+    );
+    // Dynamically add 'View' or 'Edit' based on the current mode
+    if (isInEditMode) {
+      template.push({
+        label: 'View Task',
+        click: () => webContents.send('checklist-main-header-command', { command: 'view', wordId }),
+      });
+    } else {
+      template.push({
+        label: 'Edit Task',
+        click: () => webContents.send('checklist-main-header-command', { command: 'edit', wordId }),
+      });
+    }
+    template.push(    
+      { type: 'separator' },
+      {
+        label: 'Undo Last Action',
+        // We don't know if it's enabled from here, but we can send the command. The renderer will handle it.
+        click: () => webContents.send('checklist-main-header-command', { command: 'undo_checklist', sectionId }),
+      },
+      {
+        label: 'Redo Last Action',
+        click: () => webContents.send('checklist-main-header-command', { command: 'redo_checklist', sectionId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Inspect Element',
+        click: () => webContents.inspectElement(x, y),
+      },
+    );
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
+  });
   ipcMain.on('show-selection-context-menu', (event, payload) => {
     const webContents = event.sender;
     const { selectionText, x, y } = payload;
@@ -896,8 +990,7 @@ app.whenReady().then(() => {
       try {
         fs.writeFileSync(filePath, csvData, 'utf-8');
       } catch (error) {
-        console.error('Failed to save CSV file:', error);
-        // Optionally, you could show an error dialog to the user
+        console.error('Failed to save CSV file:', error);        
       }
     }
   });

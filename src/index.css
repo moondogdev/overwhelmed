@@ -1698,14 +1698,32 @@ input[type="datetime-local"] + .button-group button {
   gap: 10px;
   margin-bottom: 10px;
 }
-
+.checklist-header-wrap {
+    position: relative;
+}
 .checklist-header .editable-title {
-  cursor: pointer;
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+    font-size: 1em;
 }
 .checklist-header .editable-title:hover {
   text-decoration: underline dashed;
 }
-
+.checklist-header-wrap:hover span.checklist-progress {
+    opacity: 1;
+}
+.checklist-header .checklist-progress {
+    position: absolute;
+    bottom: 0;
+    top: 0;
+    right: calc(-100% - 5px);
+    display: flex;
+    align-items: center;
+    width: 100%;
+    font-size: .58em;
+    opacity: 0;
+}
 .checklist-section-title-input {
   background-color: #3a3f4b;
   border: 1px solid #61dafb;

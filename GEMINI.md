@@ -3,16 +3,16 @@
 The following is a manual for the guided development of a hybrid task management application using Google's Gemini Code Assist.
 
 ## Index
-- ## Application Information
-- ## Coding with Gemini
-- ## Gemini Guidelines (GGl)
-- ## Developer Guide Index
+- **Application Information**
+- **Coding with Gemini**
+- **Gemini Guidelines (GGl)**
+- **Developer Guide Index**
 
 ---
 
 ## Application Information:
-- Application Name: Overwhelmed
-- Developer: Moondog Development, LLC
+### Application Name: Overwhelmed
+**Developer**: Moondog Development, LLC
 
 ### Current Application Features:
 
@@ -102,6 +102,9 @@ See `CHANGELOG.md` for a list of future features to implement. Strickly follow `
 
 All notable changes to this project will be documented in this file @CHANGELOG.md. Please update the separate changelog as development progresses. 
 
+- **[1.0.16] - 2025-09-24: Checklist Main Header Context Menu & Command Refactor**: feat(checklist): Add main header context menu and refactor command handling
+- **[1.0.15] - 2025-09-25: Checklist Usability & Collapsible Sections**: feat(checklist): Add collapsible sections, in-line editing, and remove native prompts
+- **[1.0.14] - 2025-09-23: Interactive Checklists & Link Handling**: feat(checklist): Overhaul checklist interactivity, add link handling, and fix bugs
 - **[1.0.13] - 2025-09-23: Interactive Checklist Items**: feat(checklist): Implement fully interactive checklist item UI
 - **[1.0.12] - 2025-09-23: Checklist Enhancements**: feat(checklist): Add due dates, fix duplication, and improve layout
 - **[1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish**: feat(checklist): Improve checklist UX and add delete note/response actions
@@ -510,6 +513,9 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 59.0: Switch Statement Fall-Through
   - Rule 60.0: Synchronizing `Checklist` State with `updateHistory`
   - Rule 61.0: Avoiding Native Modals for Confirmations and Actions
+  - Rule 62.0: Maintaining the IPC Contract for Type Safety
+  - Rule 63.0: Child-to-Parent State Updates via Callback Props
+  - Rule 64.0: The `useEffect` Dependency Array and Stale Closures
 
 ---
 
@@ -2841,3 +2847,170 @@ function MyComponent() {
   );
 }
 ```
+---
+
+### Developer Guide - Rule 62.0: Maintaining the IPC Contract for Type Safety
+
+This guide explains how to prevent and resolve TypeScript errors related to Inter-Process Communication (IPC) payloads.
+
+#### The Problem: Payload Mismatches
+
+We encountered an error where an object we passed to an `electronAPI` function did not match the type definition in the `Window` interface.
+
+`Argument of type '{...}' is not assignable to parameter of type '{...}'. Type '{...}' is missing the following properties: ...`
+
+This happens when the "contract" between the renderer and the main process is broken. This contract has three parts that must always be kept in sync:
+
+1.  **The Interface (Renderer)**: The TypeScript type definition in `renderer.tsx` that defines the shape of the payload.
+2.  **The Invocation (Renderer)**: The actual object passed to the `window.electronAPI` function call.
+3.  **The Handler (Main Process)**: The `ipcMain.on` handler in `index.ts` that receives and destructures the payload.
+
+If you add a property to the interface, you must also add it to the object you're sending.
+
+#### The Solution: Keep the Contract Synchronized
+
+Always treat these three parts as a single unit. When you modify one, you must check the other two.
+
+##### 1. The Interface Definition (`renderer.tsx`)
+This is the source of truth for the payload's shape.
+
+##### 2. The Invocation in the UI (`renderer.tsx`)
+The object being passed must now include the new properties.
+
+##### 3. The Handler in the Main Process (`index.ts`)
+The main process handler should be updated to receive and use the new properties.
+
+```tsx
+// 1. The Interface Definition (renderer.tsx)
+showChecklistMainHeaderContextMenu: (payload: { 
+  wordId: number, 
+  isNotesHidden: boolean, // Added this property
+  isResponsesHidden: boolean, // Added this property
+  x: number, 
+  y: number 
+}) => void;
+
+```
+```tsx
+// 2. The Invocation in the UI (renderer.tsx)
+window.electronAPI.showChecklistMainHeaderContextMenu({
+  wordId,
+  isNotesHidden: !settings.showChecklistNotes, // Must add this
+  isResponsesHidden: !settings.showChecklistResponses, // Must add this
+  x: e.clientX, 
+  y: e.clientY
+});
+```
+```tsx
+// 3. The Handler in the Main Process (index.ts)
+ipcMain.on('show-checklist-main-header-context-menu', (event, payload) => {
+  const { wordId, isNotesHidden, isResponsesHidden, x, y } = payload; // Destructure new properties
+  const template = [
+    {
+      label: isNotesHidden ? 'Show All Notes' : 'Hide All Notes',
+      // ... use the new properties
+    },
+    // ...
+  ];
+  // ...
+});
+```
+
+---
+
+### Developer Guide - Rule 63.0: Child-to-Parent State Updates via Callback Props
+
+This guide explains the standard React pattern for allowing a child component to update state that lives in a parent component, which is essential for avoiding "prop drilling" errors like `Cannot find name 'setState'`.
+
+#### The Problem: Child Components Cannot Directly Modify Parent State
+
+We encountered an error where the `Checklist` component tried to call `setSettings`, but `setSettings` only exists in the parent `App` component. A child component has no direct access to its parent's state or state-setter functions.
+
+#### The Solution: "Props Down, Events Up"
+
+The correct pattern is to pass a **callback function** from the parent to the child as a prop. The child then calls this function to "request" a state change from the parent.
+
+##### Step 1: Define the Callback Handler in the Parent (`App.tsx`)
+
+The parent component defines a function that knows how to update its own state.
+
+##### Step 2: Pass the Handler Down as a Prop
+
+The parent passes this function down to the child component as a prop (e.g., `onSettingsChange`).
+
+##### Step 3: The Child Calls the Prop to Request a Change
+
+The child component receives `onSettingsChange` as a prop and calls it whenever it needs to update the parent's state. It passes the desired changes as an argument.
+
+This pattern maintains a clear, one-way data flow and is the standard way to manage state between parent and child components in React.
+
+```tsx
+// Step 1: Define the Callback Handler in the Parent (App.tsx)
+const handleSettingsChange = (newSettings: Partial<Settings>) => {
+  setSettings(prev => ({ ...prev, ...newSettings }));
+};
+
+```
+```tsx
+// Step 2: Pass the Handler Down as a Prop
+// In the App component's return statement
+<Checklist
+  // ... other props
+  onSettingsChange={handleSettingsChange}
+/>
+```
+```tsx
+// Step 3: The Child Calls the Prop to Request a Change
+function Checklist({ onSettingsChange, ... }) {
+  // ...
+  const handleSomeAction = () => {
+    // Instead of trying to call setSettings directly...
+    // ...we call the function passed down from the parent.
+    onSettingsChange({ showChecklistNotes: false });
+  };
+  // ...
+}
+```
+---
+
+### Developer Guide - Rule 64.0: The `useEffect` Dependency Array and Stale Closures
+
+This guide explains the importance of the `useEffect` dependency array for preventing bugs caused by "stale closures."
+
+#### The Problem: Functions Using Outdated State
+
+We created a new handler function (`handleMainHeaderCommand`) inside a `useEffect` hook in the `Checklist` component. This handler needed to access props like `settings`, `words`, and `onSettingsChange`.
+
+If we don't tell React that our effect *depends* on these props, a subtle but critical bug occurs:
+1.  The component renders for the first time, and the `useEffect` runs. It creates the `handleMainHeaderCommand` function, which "closes over" the initial values of `settings`, `words`, etc.
+2.  Later, the parent `App` component updates the `settings` state.
+3.  The `Checklist` component re-renders with the new `settings` prop, but the `useEffect` **does not run again** because its dependency array is empty (`[]`).
+4.  When a user triggers the context menu, the old `handleMainHeaderCommand` function is called. It is still referencing the **stale, initial** value of `settings`, not the new one. This leads to incorrect behavior.
+
+#### The Solution: Declare All Dependencies
+
+The rule is simple: **Any prop or state variable from the component's scope that is used inside a `useEffect` hook (or any function defined inside it) MUST be included in the dependency array.**
+
+By including them in the array, we tell React to re-create the `useEffect` (and the `handleMainHeaderCommand` function inside it) whenever any of those dependencies change. This ensures the handler always has access to the latest, freshest props and state.
+
+```tsx
+// In the Checklist component
+useEffect(() => {
+  const handleMainHeaderCommand = (payload) => {
+    // This function USES `onSettingsChange`, `settings`, and `words`.
+    if (payload.command === 'edit' && payload.wordId) {
+      const targetWord = words.find(w => w.id === payload.wordId);
+      if (targetWord) {
+        onSettingsChange({ openAccordionIds: [...settings.openAccordionIds, payload.wordId] });
+      }
+    }
+  };
+
+  const cleanup = window.electronAPI.on('checklist-main-header-command', handleMainHeaderCommand);
+  return cleanup;
+
+}, [onSettingsChange, settings.activeTaskTabs, settings.openAccordionIds, words, /* ...other dependencies... */]); // They MUST be in the dependency array.
+
+```
+
+---

@@ -6,6 +6,7 @@ A log of what was commited to git.
 
 ## Log of Changes
 
+- **[1.0.16] - 2025-09-24: Checklist Main Header Context Menu & Command Refactor**: feat(checklist): Add main header context menu and refactor command handling
 - **[1.0.15] - 2025-09-25: Checklist Usability & Collapsible Sections**: feat(checklist): Add collapsible sections, in-line editing, and remove native prompts
 - **[1.0.14] - 2025-09-23: Interactive Checklists & Link Handling**: feat(checklist): Overhaul checklist interactivity, add link handling, and fix bugs
 - **[1.0.13] - 2025-09-23: Interactive Checklist Items**: feat(checklist): Implement fully interactive checklist item UI
@@ -22,6 +23,22 @@ A log of what was commited to git.
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.16] - 2025-09-24: Checklist Main Header Context Menu & Command Refactor
+**feat(checklist): Add main header context menu and refactor command handling**
+
+This commit introduces a new right-click context menu on the main "Checklist" header, providing a centralized place for global actions like "Expand/Collapse All," "Add/Delete All Notes/Responses," and "Delete All Sections."
+
+#### Features & Fixes:
+-   **Main Header Context Menu**: Added a new context menu to the main checklist header for global actions.
+-   **Command Handling Refactor**:
+    -   Created a new `handleMainHeaderCommand` in the `Checklist` component to correctly process actions from the new menu.
+    -   Fixed a critical bug where "View Task" and "Edit Task" from the new menu were not working.
+-   **Prop Drilling Fix**: Resolved a `Cannot find name 'setSettings'` error by refactoring the command handler to use the `onSettingsChange` prop, following the correct pattern for child-to-parent state updates.
+-   **IPC & Type Safety**: Implemented the full IPC pipeline for the new context menu and fixed a TypeScript error by ensuring the payload sent to `showChecklistMainHeaderContextMenu` matched its interface definition.
+-   **Toast Notifications**: The `setCopyStatus` function was refactored into a more robust `showToast` utility function.
 
 ---
 
