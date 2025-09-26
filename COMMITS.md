@@ -5,8 +5,9 @@ A log of what was commited to git.
 ---
 
 ## Log of Changes
-
-- **[1.0.16] - 2025-09-24: Checklist Main Header Context Menu & Command Refactor**: feat(checklist): Add main header context menu and refactor command handling
+- **[1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls**: feat(time): Implement Time Log Sessions and advanced timer controls
+- **[1.0.17] - 2025-09-26: Time Tracker Log & Checklist Integration**: feat(time): Implement detailed time tracker log and checklist integration
+- **[1.0.16] - 2025-09-25: Checklist Main Header Context Menu & Command Refactor**: feat(checklist): Add main header context menu and refactor command handling
 - **[1.0.15] - 2025-09-25: Checklist Usability & Collapsible Sections**: feat(checklist): Add collapsible sections, in-line editing, and remove native prompts
 - **[1.0.14] - 2025-09-23: Interactive Checklists & Link Handling**: feat(checklist): Overhaul checklist interactivity, add link handling, and fix bugs
 - **[1.0.13] - 2025-09-23: Interactive Checklist Items**: feat(checklist): Implement fully interactive checklist item UI
@@ -25,6 +26,37 @@ A log of what was commited to git.
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
 
 ---
+
+## [1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls
+**feat(time): Implement Time Log Sessions and advanced timer controls**
+
+This commit introduces a major enhancement to the `TimeTrackerLog`, adding a persistent "Time Log Sessions" feature and a suite of advanced controls for managing both live and saved time logs.
+
+#### Time Log Sessions Features:
+-   **Post to Sessions**: A new "Post" button allows users to save the current live time log as a persistent, named session.
+-   **Session Management**: Saved sessions are displayed in a sortable table below the live timer. Users can expand sessions to view their entries.
+-   **Full CRUD for Sessions**:
+    -   **Create**: Post a new session.
+    -   **Read**: View all saved sessions and their entries.
+    -   **Update**: Edit session titles and individual entry descriptions and durations directly in the UI.
+    -   **Delete**: Delete individual entries, clear all entries from a session, or delete entire sessions.
+-   **Session Actions**: A full context menu and UI buttons provide actions to "Restart", "Duplicate", and "Copy" sessions.
+
+#### Live Timer Enhancements:
+-   **Robust Controls**: Added distinct buttons to "Clear Entries" (keeping the title) and "Wipe Timer" (clearing entries and title).
+-   **Duration Editing**: The duration of a live timer entry can now be edited by double-clicking it, allowing for manual corrections.
+-   **Race Condition Fix**: Resolved a potential race condition in the `handlePostTimeLog` function to ensure accurate time capture.
+-   **Improved Bulk Add**: The "Bulk Add" feature is now more flexible in how it detects titles from pasted text.
+
+#### Summary:
+This update transforms the `TimeTrackerLog` into a complete time management system. Users can now not only track live work but also save, review, and edit historical work sessions, providing a comprehensive record of time spent on a task.
+
+---
+
+## [1.0.17] - 2025-09-26: Time Tracker Log & Checklist Integration
+**feat(time): Implement detailed time tracker log and checklist integration**
+
+This commit introduces a complete overhaul of the task timer, evolving it from a simple stopwatch into a detailed `TimeTrackerLog`. It also deeply integrates this new system with the `Checklist`, creating a seamless workflow for time tracking.
 
 ## [1.0.16] - 2025-09-24: Checklist Main Header Context Menu & Command Refactor
 **feat(checklist): Add main header context menu and refactor command handling**

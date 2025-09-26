@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showChecklistNoteContextMenu: (payload: { sectionId: number, itemId: number, hasUrl: boolean, hasNote: boolean, x: number, y: number }) => ipcRenderer.send('show-checklist-note-context-menu', payload),
   showTimeLogItemContextMenu: (payload: { entry: any, index: number, totalEntries: number, x: number, y: number }) => ipcRenderer.send('show-time-log-item-context-menu', payload),
   showTimeLogHeaderContextMenu: (payload: { totalTime: number, timeLog: any[], x: number, y: number }) => ipcRenderer.send('show-time-log-header-context-menu', payload),
+  showTimeLogSessionContextMenu: (payload: { session: any, x: number, y: number }) => ipcRenderer.send('show-time-log-session-context-menu', payload),
   showChecklistResponseContextMenu: (payload: { sectionId: number, itemId: number, hasUrl: boolean, hasResponse: boolean, x: number, y: number }) => ipcRenderer.send('show-checklist-response-context-menu', payload),
   downloadImage: (url: string) => ipcRenderer.invoke('download-image', url), // This was correct
   // It's good practice to define which channels are allowed for two-way communication

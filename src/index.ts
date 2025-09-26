@@ -612,6 +612,15 @@ app.whenReady().then(() => {
         click: () => webContents.send('checklist-item-command', { command: 'add_after', sectionId, itemId }),
       },
       { type: 'separator' },
+      {
+        label: 'Add to Timer',
+        click: () => webContents.send('checklist-item-command', { command: 'send_to_timer', sectionId, itemId }),
+      },
+      {
+        label: 'Add to Timer & Start',
+        click: () => webContents.send('checklist-item-command', { command: 'send_to_timer_and_start', sectionId, itemId }),
+      },
+      { type: 'separator' },
     );
     // Dynamically add 'View' or 'Edit' based on the current mode
     if (isInEditMode) {
@@ -737,6 +746,10 @@ app.whenReady().then(() => {
       {
         label: 'Send All to Timer',
         click: () => webContents.send('checklist-section-command', { command: 'send_section_to_timer', sectionId }),
+      },
+      {
+        label: 'Send All to Timer & Start',
+        click: () => webContents.send('checklist-section-command', { command: 'send_section_to_timer_and_start', sectionId }),
       },
       { type: 'separator' },
       {
@@ -904,9 +917,45 @@ app.whenReady().then(() => {
       { label: 'Copy Total Time', click: () => webContents.send('time-log-header-command', { command: 'copy_total_time', totalTime, timeLog }) },
       { label: 'Copy Log as Text', click: () => webContents.send('time-log-header-command', { command: 'copy_log_as_text', totalTime, timeLog }) },
       { type: 'separator' },
-      { label: 'Delete All Entries', click: () => webContents.send('time-log-header-command', { command: 'delete_all', totalTime, timeLog }) },
+      { label: 'Clear Entries', click: () => webContents.send('time-log-header-command', { command: 'clear_entries', totalTime, timeLog }) },
+      { label: 'Wipe Timer (Delete All & Title)', click: () => webContents.send('time-log-header-command', { command: 'delete_all', totalTime, timeLog }) },
       { type: 'separator' },
       { label: 'Add New Line', click: () => webContents.send('time-log-header-command', { command: 'add_new_line', totalTime, timeLog }) },
+    ];
+    Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });
+  });
+  ipcMain.on('show-time-log-session-context-menu', (event, payload) => {
+    const { session, x, y } = payload;
+    const webContents = event.sender;
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+      {
+        label: 'Edit Title',
+        click: () => webContents.send('time-log-session-command', { command: 'edit_title', session }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Clear Entries',
+        click: () => webContents.send('time-log-session-command', { command: 'clear_entries', session }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Restart Session (Load to Timer)',
+        click: () => webContents.send('time-log-session-command', { command: 'restart_session', session }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Duplicate Session',
+        click: () => webContents.send('time-log-session-command', { command: 'duplicate_session', session }),
+      },
+      {
+        label: 'Copy Session as Text',
+        click: () => webContents.send('time-log-session-command', { command: 'copy_session', session }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Delete Session',
+        click: () => webContents.send('time-log-session-command', { command: 'delete_session', session }),
+      },
     ];
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });
   });
@@ -964,7 +1013,7 @@ app.whenReady().then(() => {
       {
         label: 'Send All Items & Start',
         click: () => webContents.send('checklist-main-header-command', { command: 'send_all_to_timer_and_start' }),
-      },
+      },      
       { type: 'separator' },   
       {
         label: 'Delete All Sections',
