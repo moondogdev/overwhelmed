@@ -1,0 +1,179 @@
+import { Category, ChecklistSection, TimeLogSession, Settings, Word } from './types';
+
+export const formatTime = (ms: number): string => {
+  if (typeof ms !== 'number' || !isFinite(ms)) return '00:00:00';
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (num: number) => num.toString().padStart(2, '0');
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+};
+
+export const formatTimestamp = (ts: number): string => {
+  if (typeof ts !== 'number') return 'N/A';
+  return new Date(ts).toLocaleString();
+};
+
+export const formatDate = (ts: number): string => {
+  if (typeof ts !== 'number') return 'N/A';
+  return new Date(ts).toLocaleDateString();
+};
+
+export const formatBytes = (bytes: number, decimals = 2): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
+export const formatTimestampForInput = (ts: number | undefined): string => {
+  if (!ts) return '';
+  const date = new Date(ts);
+  const timezoneOffset = date.getTimezoneOffset() * 60000;
+  const localDate = new Date(date.getTime() - timezoneOffset);
+  return localDate.toISOString().slice(0, 16);
+};
+
+export const parseInputTimestamp = (datetime: string): number => {
+  return new Date(datetime).getTime();
+};
+
+export const getRelativeDateHeader = (dateStr: string): string => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const taskDate = new Date(year, month - 1, day);
+  const diffTime = taskDate.getTime() - today.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays === -1) return 'Yesterday';
+
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  };
+  return taskDate.toLocaleDateString(undefined, options);
+};
+
+export const getContrastColor = (hexColor: string): string => {
+  if (!hexColor) return '#FFFFFF';
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#000000' : '#FFFFFF';
+};
+
+export const getFontSize = (index: number, total: number, settings: Settings) => {
+  if (total <= 1) {
+    return settings.maxFontSize;
+  }
+  const size = settings.maxFontSize - (index / (total - 1)) * (settings.maxFontSize - settings.minFontSize);
+  return Math.round(size);
+};
+
+export const getNewWordPosition = (canvasWidth: number, canvasHeight: number, newWordMetrics: { width: number, height: number }, wordsRef: React.RefObject<Word[]>) => {
+  if (!canvasWidth || !canvasHeight) {
+    return { x: 320, y: 320 };
+  }
+  const padding = 50;
+  let placementAttempts = 0;
+
+  const checkCollision = (x: number, y: number) => {
+    for (const placedWord of wordsRef.current) {
+      if (!placedWord.width || !placedWord.height) continue;
+      const newWordRect = { left: x - newWordMetrics.width / 2, right: x + newWordMetrics.width / 2, top: y - newWordMetrics.height, bottom: y };
+      const placedWordRect = { left: placedWord.x - placedWord.width / 2, right: placedWord.x + placedWord.width / 2, top: placedWord.y - placedWord.height, bottom: placedWord.y };
+
+      if (newWordRect.left < placedWordRect.right && newWordRect.right > placedWordRect.left && newWordRect.top < placedWordRect.bottom && newWordRect.bottom > placedWordRect.top) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  while (placementAttempts < 500) {
+    const halfWidth = newWordMetrics.width / 2;
+    const x = padding + halfWidth + Math.random() * (canvasWidth - (padding + halfWidth) * 2);
+    const halfHeight = newWordMetrics.height / 2;
+    const y = padding + halfHeight + Math.random() * (canvasHeight - (padding + halfHeight) * 2);
+    if (!checkCollision(x, y)) {
+      return { x, y };
+    }
+    placementAttempts++;
+  }
+  return { x: Math.random() * canvasWidth, y: Math.random() * canvasHeight };
+};
+
+export const formatChecklistForCopy = (sections: ChecklistSection[]): string => {
+  let output = '';
+  for (const section of sections) {
+    const completedCount = section.items.filter(item => item.isCompleted).length;
+    const totalCount = section.items.length;
+    output += `${section.title} (${completedCount}/${totalCount}):\n`;
+    for (const item of section.items) {
+      const status = item.isCompleted ? '[✔]' : '[✗]';
+      output += `  ${status} ${item.text}\n`;
+      if (item.response) {
+        output += `      Response: ${item.response}\n`;
+      }
+    }
+    output += '\n';
+  }
+  return output.trim();
+};
+
+export const formatChecklistSectionRawForCopy = (section: ChecklistSection): string => {
+  return section.items.map(item => item.text).join('\n');
+};
+
+export const extractUrlFromText = (text: string): string | null => {
+  if (!text) return null;
+  const urlRegex = /(https?:\/\/[^\s]+)/;
+  const match = text.match(urlRegex);
+  return match ? match[0] : null;
+};
+
+export const moveCategory = (categories: Category[], categoryId: number, direction: 'up' | 'down'): Category[] => {
+  const newCategories = [...categories];
+  const category = newCategories.find(c => c.id === categoryId);
+  if (!category) return categories;
+  const siblings = newCategories.filter(c => c.parentId === category.parentId);
+  const currentIndex = siblings.findIndex(c => c.id === categoryId);
+  if ((direction === 'up' && currentIndex === 0) || (direction === 'down' && currentIndex === siblings.length - 1)) {
+    return categories;
+  }
+  const swapWithIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+  const swapWithCategory = siblings[swapWithIndex];
+  const originalIndex = newCategories.findIndex(c => c.id === categoryId);
+  const originalSwapWithIndex = newCategories.findIndex(c => c.id === swapWithCategory.id);
+  [newCategories[originalIndex], newCategories[originalSwapWithIndex]] = [newCategories[originalSwapWithIndex], newCategories[originalIndex]];
+  return newCategories;
+};
+
+export const parseTime = (timeStr: string): number => {
+  const parts = timeStr.split(':').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) {
+    return 0;
+  }
+  const [hours, minutes, seconds] = parts;
+  return (hours * 3600 + minutes * 60 + seconds) * 1000;
+};
+
+export const formatTimeLogSessionForCopy = (session: TimeLogSession): string => {
+  let output = `${session.title}\n`;
+  output += `Total Duration: ${formatTime(session.entries.reduce((acc, entry) => acc + entry.duration, 0))}\n`;
+  output += '-----------------\n';
+  for (const entry of session.entries) {
+    output += `${entry.description}: ${formatTime(entry.duration)}\n`;
+  }
+  return output;
+};

@@ -1,0 +1,510 @@
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Word, Settings, InboxMessage, ChecklistItem, ChecklistSection, TimeLogEntry, Attachment, Category } from '../types';
+import { formatTimestampForInput, parseInputTimestamp, formatTimestamp } from '../utils';
+import { TimeTrackerLog } from './TimeTrackerLog';
+import { DescriptionEditor } from './Editors';
+import { Checklist } from './Checklist';
+import { useAppContext } from '../contexts/AppContext';
+import { TimeLeft, TimeOpen } from './TaskComponents';
+
+export interface FullTaskViewProps {
+    task: Word;
+    onClose: () => void;    
+    onUpdate: (updatedWord: Word) => void;    
+}
+
+export function CategoryOptions({ categories }: { categories: Category[] }) {
+    const parentCategories = categories.filter(c => !c.parentId);
+
+    return (
+        <>
+            {parentCategories.map(parent => {
+                const children = categories.filter(sub => sub.parentId === parent.id);
+                return (
+                    <React.Fragment key={parent.id}>
+                        <option value={parent.id}>{parent.name}</option>
+                        {children.map(child => <option key={child.id} value={child.id}>&nbsp;&nbsp;{child.name}</option>)}
+                    </React.Fragment>
+                )
+            })}
+        </>
+    );
+}
+
+export function ActiveFullTaskView({
+  fullTaskViewId,
+  words,
+  completedWords,
+  onClose,
+  onUpdate
+}: Omit<FullTaskViewProps, 'task'> & { fullTaskViewId: number | null; words: Word[]; completedWords: Word[], onClose: () => void, onUpdate: (updatedWord: Word) => void }) {
+  const taskToShow = useMemo(() => {
+    if (!fullTaskViewId) return null;
+    return words.find(w => w.id === fullTaskViewId) || completedWords.find(w => w.id === fullTaskViewId);
+  }, [fullTaskViewId, words, completedWords]);
+
+  if (!fullTaskViewId || !taskToShow) {
+    return null;
+  }
+
+  return (
+    <FullTaskView
+      task={taskToShow}
+      onClose={onClose}
+      onUpdate={onUpdate}
+    />
+  );
+}
+
+export function FullTaskView({ task, onClose, onUpdate }: FullTaskViewProps) {
+    const context = useAppContext();
+
+    return (
+        <div className="full-task-view-container">
+            <div className="full-task-view-header">
+                <button onClick={onClose} className="back-to-list-btn">
+                    <i className="fas fa-arrow-left"></i>
+                    Back to List
+                </button>
+            </div>
+            <div className="full-task-view-content">
+                <TabbedView
+                    word={task}                    
+                    onUpdate={onUpdate}
+                />
+            </div>
+        </div>
+    );
+}
+
+export function TabbedView({
+    word, onUpdate
+}: { word: Word, onUpdate: (updatedWord: Word) => void }) {
+    const {
+        settings, setSettings, words, completedWords, setInboxMessages, showToast,
+        handleChecklistCompletion, activeChecklistRef, focusChecklistItemId, setFocusChecklistItemId,
+        handleGlobalToggleTimer, activeTimerWordId, activeTimerEntry, activeTimerLiveTime,
+        handleGlobalStopTimer, handleAddNewTimeLogEntryAndStart, handleTimerNotify
+    } = useAppContext();
+
+    const initialTab = settings.activeTaskTabs[word.id] || (word.completedDuration ? 'ticket' : 'ticket');
+    const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(initialTab);
+    // This effect synchronizes the internal state with the prop from the parent.
+    useEffect(() => {
+        // This effect is now only for synchronizing with settings, not startInEditMode
+        const newTab = settings.activeTaskTabs[word.id] || 'ticket';
+        if (newTab !== activeTab) setActiveTab(newTab);
+    }, [settings.activeTaskTabs, word.id, activeTab]);
+
+    const handleTabClick = (tab: 'ticket' | 'edit') => {
+        setActiveTab(tab);
+        setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [word.id]: tab } }));
+    };
+
+    const handleFieldChange = (field: keyof Word, value: any) => {
+        onUpdate({ ...word, [field]: value });
+    };
+
+    const handleTaskContextMenu = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const isInEditMode = activeTab === 'edit';
+        const hasCompletedTasks = completedWords.length > 0;
+        window.electronAPI.showTaskContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY, isInEditMode, hasCompletedTasks });
+    };
+
+    // Hooks must be called at the top level, not inside conditionals.
+    const descriptionRef = useRef<HTMLDivElement>(null);
+    const notesRef = useRef<HTMLDivElement>(null);
+    const handleCopyDescription = async () => {
+        if (descriptionRef.current) {
+            try {
+                // Request permission to write to the clipboard
+                await navigator.permissions.query({ name: 'clipboard-write' as PermissionName });
+                const html = descriptionRef.current.innerHTML;
+                const text = descriptionRef.current.innerText;
+                const htmlBlob = new Blob([html], { type: 'text/html' });
+                const textBlob = new Blob([text], { type: 'text/plain' });
+                const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
+                await navigator.clipboard.write(data);
+                showToast('Description copied!');
+            } catch (err) {
+                console.error('Failed to copy description: ', err);
+                showToast('Copy failed!');
+            }
+        }
+    };
+
+    const handleCopyNotes = async () => {
+        if (notesRef.current) {
+            try {
+                await navigator.permissions.query({ name: 'clipboard-write' as PermissionName });
+                // The notes are inside a DescriptionEditor, which has a content-editable div.
+                // We need to find that div to get its innerHTML and innerText.
+                const editorDiv = notesRef.current.querySelector('.rich-text-editor');
+                if (editorDiv) {
+                    const html = editorDiv.innerHTML;
+                    const text = (editorDiv as HTMLElement).innerText;
+                    const htmlBlob = new Blob([html], { type: 'text/html' });
+                    const textBlob = new Blob([text], { type: 'text/plain' });
+                    const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
+                    await navigator.clipboard.write(data);
+                    showToast('Notes copied!');
+                }
+            } catch (err) {
+                console.error('Failed to copy notes: ', err);
+                showToast('Copy failed!');
+            }
+        }
+    };
+
+    const handleCopyAll = async () => {
+        if (descriptionRef.current && notesRef.current) {
+            try {
+                await navigator.permissions.query({ name: 'clipboard-write' as PermissionName });
+                const descriptionHtml = `<h3>Description</h3>${descriptionRef.current.innerHTML}`;
+                const editorDiv = notesRef.current.querySelector('.rich-text-editor');
+                const notesHtml = editorDiv ? `<h3>Notes</h3>${editorDiv.innerHTML}` : '';
+                const combinedHtml = `${descriptionHtml}<hr>${notesHtml}`;
+
+                const descriptionText = `Description\n${descriptionRef.current.innerText}`;
+                const notesText = editorDiv ? `\n\nNotes\n${(editorDiv as HTMLElement).innerText}` : '';
+                const combinedText = `${descriptionText}${notesText}`;
+
+                const htmlBlob = new Blob([combinedHtml], { type: 'text/html' });
+                const textBlob = new Blob([combinedText], { type: 'text/plain' });
+                const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
+                await navigator.clipboard.write(data);
+                showToast('All content copied!');
+            } catch (err) {
+                console.error('Failed to copy all: ', err);
+                showToast('Copy failed!');
+            }
+        }
+    };
+
+    const tabContentRef = useRef<HTMLDivElement>(null);
+
+    const tabHeaders = (
+        <div className="tab-headers" style={{ marginTop: '5px' }}>
+            <button onClick={() => handleTabClick('ticket')} className={activeTab === 'ticket' ? 'active' : ''}>Task</button>
+            {!word.completedDuration && ( // Only show Edit tab for non-completed items
+                <button onClick={() => handleTabClick('edit')} className={activeTab === 'edit' ? 'active' : ''}>Edit</button>
+            )}
+        </div>
+    );
+
+    return (
+        <div className="tab-container">
+            {tabHeaders}
+            <div className="tab-content" ref={tabContentRef}>
+                {activeTab === 'ticket' && (
+                    <div className="ticket-display-view">
+                        <h3 onContextMenu={handleTaskContextMenu}>{word.text} (ID: {word.id})</h3>
+                        {word.url && <p><strong>URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.url}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.url); showToast('URL copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
+                        <p><strong>Category:</strong> {settings.categories.find(c => c.id === word.categoryId)?.name || 'Uncategorized'}</p>
+                        <p><strong>Priority:</strong> {word.priority || 'Medium'}</p>
+                        <p><strong>Open Date:</strong> {formatTimestamp(word.openDate)}</p>
+                        <p><strong>Time Open:</strong> <TimeOpen startDate={word.createdAt} /></p>
+                        {word.completeBy && <p><strong>Complete By:</strong> {formatTimestamp(word.completeBy)}</p>}
+                        {word.completeBy && <p><strong>Time Left:</strong> <TimeLeft word={word} onUpdate={onUpdate} onNotify={handleTimerNotify} settings={settings} /></p>}
+                        {word.company && <p><strong>Company:</strong> <span className="link-with-copy">{word.company}<button className="icon-button copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(word.company); showToast('Company copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
+                        <div className="work-timer-container"><strong>Work Timer:</strong>
+                            <TimeTrackerLog
+                                word={word}
+                                onUpdate={onUpdate}
+                                showToast={showToast}
+                                handleGlobalToggleTimer={handleGlobalToggleTimer}
+                                activeTimerWordId={activeTimerWordId}
+                                activeTimerEntry={activeTimerEntry}
+                                activeTimerLiveTime={activeTimerLiveTime}
+                                handleAddNewTimeLogEntryAndStart={handleAddNewTimeLogEntryAndStart}
+                                handleGlobalStopTimer={handleGlobalStopTimer}
+                            />
+                        </div>
+                        <div><strong>Task Cost:</strong>
+                            <span> ${(((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0)).toFixed(2)}</span>
+                        </div>
+                        {word.websiteUrl && <p><strong>Website URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: word.websiteUrl, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{word.websiteUrl}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(word.websiteUrl); showToast('Website URL copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
+                        <div><strong>Image Links:</strong>
+                            <div className="image-links-display">
+                                {(word.imageLinks || []).map((link, index) => (
+                                    <div key={index} className="image-link-item">
+                                        <img src={link} alt={`Image ${index + 1}`} />
+                                        <div className="image-link-actions">
+                                            <button className="icon-button" onClick={() => window.electronAPI.downloadImage(link)} title="Download Image"><i className="fas fa-download"></i></button>
+                                            <button className="icon-button" onClick={() => { navigator.clipboard.writeText(link); showToast('Image URL copied!'); }} title="Copy URL"><i className="fas fa-copy"></i></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div><strong>Attachments:</strong>
+                            <div className="attachments-display">
+                                {(word.attachments || []).map((file, index) => (
+                                    <div key={index} className="attachment-item">
+                                        <span className="attachment-name" onClick={() => window.electronAPI.manageFile({ action: 'open', filePath: file.path })} title={`Open ${file.name}`}>
+                                            📄 {file.name}
+                                        </span>
+                                        {/* The remove button is only shown in the edit view for clarity */}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        {tabHeaders}
+                        <div className="description-container" onContextMenu={(e) => {
+                            const target = e.target as HTMLElement;
+                            // If the user right-clicks a link, show the link menu. Otherwise, show the ticket menu.
+                            if (target.tagName === 'A') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const url = target.getAttribute('href');
+                                if (url) window.electronAPI.send('show-link-context-menu', url);
+                            } else {
+                                handleTaskContextMenu(e);
+                            }
+                        }} onClick={(e) => { // Also handle left-clicks for links
+                            const target = e.target as HTMLElement;
+                            if (target.tagName === 'A') {
+                                e.preventDefault();
+                                const url = target.getAttribute('href');
+                                if (url) window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
+                            }
+                        }}>
+                            <div className="description-header" onContextMenu={handleTaskContextMenu}>
+                                <strong>Description:</strong>
+                                <button className="icon-button copy-btn" title="Copy Description Text" onClick={handleCopyDescription}><i className="fas fa-copy"></i></button>
+                                <button className="icon-button copy-btn" title="Copy Description HTML" onClick={() => {
+                                    navigator.clipboard.writeText(word.description || ''); showToast('Description HTML copied!');
+                                }}><i className="fas fa-code"></i></button>
+                                <button className="icon-button copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}><i className="fas fa-copy"></i> All</button>
+                            </div>
+                            <Checklist
+                                sections={word.checklist || []}
+                                onUpdate={(newSections) => onUpdate({ ...word, checklist: newSections })}
+                                onComplete={handleChecklistCompletion}
+                                words={words}
+                                setInboxMessages={setInboxMessages}
+                                word={word}
+                                wordId={word.id}
+                                onWordUpdate={onUpdate}
+                                checklistRef={activeChecklistRef}
+                                showToast={showToast}
+                                isEditable={false}
+                                focusItemId={focusChecklistItemId}
+                                onFocusHandled={() => setFocusChecklistItemId(null)}
+                                settings={settings}
+                                handleAddNewTimeLogEntryAndStart={handleAddNewTimeLogEntryAndStart}
+                                onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                            />
+                            <DescriptionEditor
+                                description={word.description || ''}
+                                onDescriptionChange={(html) => handleFieldChange('description', html)}
+                                settings={settings}
+                                onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                                editorKey={`task-description-${word.id}`} />
+                        </div>
+                        <div className="description-container" ref={notesRef}>
+                            <div className="description-header">
+                                <strong>Notes:</strong>
+                                <button className="icon-button copy-btn" title="Copy Notes Text" onClick={handleCopyNotes}><i className="fas fa-copy"></i></button>
+                                <button className="icon-button copy-btn" title="Copy Notes HTML" onClick={() => {
+                                    navigator.clipboard.writeText(word.notes || ''); showToast('Notes HTML copied!');
+                                }}><i className="fas fa-code"></i></button>
+                            </div>
+                            <DescriptionEditor
+                                description={word.notes || ''}
+                                onDescriptionChange={(html) => handleFieldChange('notes', html)}
+                                settings={settings}
+                                onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                                editorKey={`task-notes-${word.id}`} />
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'edit' && !word.completedDuration && (
+                    <div className="word-item-details-form">
+                        <label><h4>Task Title (ID: {word.id}):</h4>
+                            <input type="text" value={word.text} onChange={(e) => handleFieldChange('text', e.target.value)} />
+                        </label>
+                        <label><h4>Category:</h4>
+                            <select value={word.categoryId || ''} onChange={(e) => handleFieldChange('categoryId', Number(e.target.value))}>
+                                <CategoryOptions categories={settings.categories} />
+                            </select>
+                        </label>
+                        <label><h4>Task Title URL:</h4>
+                            <input type="text" value={word.url || ''} onChange={(e) => handleFieldChange('url', e.target.value)} placeholder="https://example.com" />
+                        </label>
+                        <label><h4>Priority:</h4><select value={word.priority || 'Medium'} onChange={(e) => handleFieldChange('priority', e.target.value as any)}>
+                            <option value="High">High</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Low">Low</option>
+                        </select>
+                        </label>
+                        <label><h4>Open Date:</h4>
+                            <div className="date-input-group">
+                                <input type="datetime-local" value={formatTimestampForInput(word.openDate)} onChange={(e) => handleFieldChange('openDate', parseInputTimestamp(e.target.value))} />
+                                <div className="button-group">{(() => {
+                                    const subtractTime = (amount: number, unit: 'minutes' | 'hours' | 'days') => {
+                                        const baseTime = word.openDate ? new Date(word.openDate) : new Date();
+                                        if (unit === 'minutes') baseTime.setMinutes(baseTime.getMinutes() - amount);
+                                        if (unit === 'hours') baseTime.setHours(baseTime.getHours() - amount);
+                                        if (unit === 'days') baseTime.setDate(baseTime.getDate() - amount);
+                                        handleFieldChange('openDate', baseTime.getTime());
+                                    };
+                                    return <><button className="icon-button" onClick={() => handleFieldChange('openDate', undefined)} title="Clear Date"><i className="fas fa-times"></i></button>
+                                        <button onClick={() => handleFieldChange('openDate', new Date().getTime())} title="Set to Now">NOW</button>
+                                        <button onClick={() => { const d = new Date(word.openDate || Date.now()); d.setMinutes(0, 0, 0); handleFieldChange('openDate', d.getTime()); }} title="Round to Hour">:00</button>
+                                        <button onClick={() => subtractTime(15, 'minutes')}>-15m</button> <button onClick={() => subtractTime(30, 'minutes')}>-30m</button>
+                                        <button onClick={() => subtractTime(1, 'hours')}>-1h</button> <button onClick={() => subtractTime(2, 'hours')}>-2h</button>
+                                        <button onClick={() => subtractTime(1, 'days')}>-1d</button> <button onClick={() => subtractTime(3, 'days')}>-3d</button>
+                                    </>;
+                                })()}
+                                </div>
+                            </div>
+                        </label>
+                        <label><h4>Complete By:</h4>
+                            <div className="date-input-group">
+                                <input type="datetime-local" value={formatTimestampForInput(word.completeBy)} onChange={(e) => handleFieldChange('completeBy', parseInputTimestamp(e.target.value))} />
+                                <div className="button-group">{(() => {
+                                    const addTime = (amount: number, unit: 'minutes' | 'hours' | 'days') => {
+                                        const baseTime = word.completeBy ? new Date(word.completeBy) : new Date();
+                                        if (unit === 'minutes') baseTime.setMinutes(baseTime.getMinutes() + amount);
+                                        if (unit === 'hours') baseTime.setHours(baseTime.getHours() + amount);
+                                        if (unit === 'days') baseTime.setDate(baseTime.getDate() + amount);
+                                        handleFieldChange('completeBy', baseTime.getTime());
+                                    };
+                                    return <><button className="icon-button" onClick={() => handleFieldChange('completeBy', undefined)} title="Clear Date"><i className="fas fa-times"></i></button>
+                                        <button onClick={() => handleFieldChange('completeBy', new Date().getTime())} title="Set to Now">NOW</button>
+                                        <button onClick={() => {
+                                            const baseTime = word.completeBy ? new Date(word.completeBy) : new Date();
+                                            baseTime.setMinutes(0, 0, 0); 
+                                            handleFieldChange('completeBy', baseTime.getTime());
+                                        }} title="Round to Hour">:00</button>
+                                        <button onClick={() => addTime(15, 'minutes')}>+15m</button> <button onClick={() => addTime(30, 'minutes')}>+30m</button>
+                                        <button onClick={() => addTime(1, 'hours')}>+1h</button> <button onClick={() => addTime(2, 'hours')}>+2h</button>
+                                        <button onClick={() => addTime(1, 'days')}>+1d</button> <button onClick={() => addTime(3, 'days')}>+3d</button>
+                                    </>;
+                                })()}</div>
+                            </div>
+                        </label>
+                        <label><h4>Company:</h4>
+                            <input type="text" value={word.company || ''} onChange={(e) => handleFieldChange('company', e.target.value)} />
+                        </label>
+                        <label><h4>Pay Rate ($/hr):</h4>
+                            <input type="number" value={word.payRate || 0} onChange={(e) => handleFieldChange('payRate', Number(e.target.value))} />
+                        </label>
+                        <label><h4>Website URL:</h4>
+                            <input type="text" value={word.websiteUrl || ''} onChange={(e) => handleFieldChange('websiteUrl', e.target.value)} placeholder="https://company.com" />
+                        </label>
+                        <label><h4>Image Links:</h4>
+                            {(word.imageLinks || []).map((link, index) => (
+                                <div key={index} className="image-link-edit">
+                                    <input type="text" value={link} onChange={(e) => {
+                                        const newLinks = [...(word.imageLinks || [])];
+                                        newLinks[index] = e.target.value;
+                                        handleFieldChange('imageLinks', newLinks);
+                                    }} /><button className="icon-button" onClick={() => handleFieldChange('imageLinks', (word.imageLinks || []).filter((_, i) => i !== index))}><i className="fas fa-minus"></i></button>
+                                </div>
+                            ))}
+                        </label><button className="add-link-btn" onClick={() => handleFieldChange('imageLinks', [...(word.imageLinks || []), ''])}>
+                            <i className="fas fa-plus"></i> Add Image Link
+                        </button>
+                        <label><h4>Attachments:</h4>
+                            {(word.attachments || []).map((file, index) => (
+                                <div key={index} className="attachment-edit">
+                                    <span className="attachment-name" onClick={() => window.electronAPI.manageFile({ action: 'open', filePath: file.path })} title={`Open ${file.name}`}>
+                                        📄 {file.name}
+                                    </span>
+                                    <button className="icon-button" onClick={() => handleFieldChange('attachments', (word.attachments || []).filter((_, i) => i !== index))}><i className="fas fa-minus"></i></button>
+                                </div>
+                            ))}
+                        </label><button className="add-link-btn" onClick={async () => {
+                            const newFile = await window.electronAPI.manageFile({ action: 'select' });
+                            if (newFile) {
+                                handleFieldChange('attachments', [...(word.attachments || []), newFile]);
+                            }
+                        }}><i className="fas fa-plus"></i> Attach File</button>
+                        {tabHeaders}
+                        <div className="description-header" style={{ marginBottom: '10px' }}>
+                            <strong>Description:</strong>
+                            <button className="icon-button copy-btn" title="Copy Description Text" onClick={handleCopyDescription}><i className="fas fa-copy"></i></button>
+                            <button className="icon-button copy-btn" title="Copy Description HTML" onClick={() => {
+                                navigator.clipboard.writeText(word.description || ''); showToast('Description HTML copied!');
+                            }}><i className="fas fa-code"></i></button>
+                            <button className="icon-button copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}><i className="fas fa-copy"></i> All</button>
+                        </div>
+                        <Checklist
+                            sections={word.checklist || []}
+                            onUpdate={(newSections) => handleFieldChange('checklist', newSections)}
+                            onComplete={handleChecklistCompletion}
+                            isEditable={true}
+                            onWordUpdate={onUpdate}
+                            word={word}
+                            words={words}
+                            setInboxMessages={setInboxMessages}
+                            checklistRef={activeChecklistRef}
+                            wordId={word.id}
+                            showToast={showToast}
+                            focusItemId={focusChecklistItemId}
+                            onFocusHandled={() => setFocusChecklistItemId(null)}
+                            settings={settings}
+                            onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                            handleAddNewTimeLogEntryAndStart={handleAddNewTimeLogEntryAndStart}
+                        />
+                        <DescriptionEditor
+                            description={word.description || ''}
+                            onDescriptionChange={(html) => handleFieldChange('description', html)}
+                            settings={settings}
+                            onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                            editorKey={`edit-description-${word.id}`} />
+                        <div className="description-container">
+                            <strong>Notes:</strong>
+                            <DescriptionEditor
+                                description={word.notes || ''}
+                                onDescriptionChange={(html) => handleFieldChange('notes', html)}
+                                settings={settings}
+                                onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                                editorKey={`edit-notes-${word.id}`} />
+                        </div>
+                        <label className="checkbox-label flexed-column">
+                            <input type="checkbox" checked={word.isRecurring || false} onChange={(e) => handleFieldChange('isRecurring', e.target.checked)} />
+                            <span className="checkbox-label-text">Re-occurring Task</span>
+                        </label>
+                        <label className="checkbox-label flexed-column">
+                            <input type="checkbox" checked={word.isDailyRecurring || false} onChange={(e) => handleFieldChange('isDailyRecurring', e.target.checked)} />
+                            <span className="checkbox-label-text">Repeat Daily</span>
+                        </label>
+                        <label className="checkbox-label flexed-column">
+                            <input type="checkbox" checked={word.isWeeklyRecurring || false} onChange={(e) => handleFieldChange('isWeeklyRecurring', e.target.checked)} />
+                            <span className="checkbox-label-text">Repeat Weekly</span>
+                        </label>
+                        <label className="checkbox-label flexed-column">
+                            <input type="checkbox" checked={word.isMonthlyRecurring || false} onChange={(e) => handleFieldChange('isMonthlyRecurring', e.target.checked)} />
+                            <span className="checkbox-label-text">Repeat Monthly</span>
+                        </label>
+                        <label className="checkbox-label flexed-column">
+                            <input type="checkbox" checked={word.isYearlyRecurring || false} onChange={(e) => handleFieldChange('isYearlyRecurring', e.target.checked)} />
+                            <span className="checkbox-label-text">Repeat Yearly</span>
+                        </label>
+                        <label className="checkbox-label flexed-column">
+                            <input type="checkbox" checked={word.isAutocomplete || false} onChange={(e) => handleFieldChange('isAutocomplete', e.target.checked)} />
+                            <span className="checkbox-label-text">Autocomplete on Deadline</span>
+                        </label>
+                        <label><h4>Starts Task on Complete:</h4>
+                            <select
+                                value={word.startsTaskIdOnComplete || ''}
+                                onChange={(e) => handleFieldChange('startsTaskIdOnComplete', e.target.value ? Number(e.target.value) : undefined)}
+                            >
+                                <option value="">-- None --</option>
+                                {words
+                                    .filter(w => w.id !== word.id) 
+                                    .map(w => (
+                                        <option key={w.id} value={w.id}>{w.text}</option>
+                                    ))}
+                            </select>
+                        </label>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}

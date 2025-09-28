@@ -4,108 +4,85 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
-## Current Timeline
-- The `TimeTrackerLog` component is now fully featured with live timer and saved session management.
+### MiniPlayer V2: Work Session Manager
+
+This plan outlines the steps to evolve the `MiniPlayer` from a simple timer display into an interactive "Work Session Manager," allowing users to queue up tasks and navigate between them seamlessly.
+
+---
+
+#### **Phase 1: UI Overhaul & "Work Session" Modal**
+
+The goal of this phase is to redesign the MiniPlayer and create the main UI for managing the work session queue.
+
+1.  **Redesign MiniPlayer UI**:
+    -   Update the `MiniPlayer` component to have a more structured layout. It should clearly display:
+        -   The parent **Task Title**.
+        -   The current **Log Entry Description**.
+        -   The live-updating timer.
+    -   Add a new "playlist" icon button (`<i class="fas fa-list-ol"></i>`) that will open the Work Session Manager.
+
+2.  **Create `WorkSessionManager` Modal**:
+    -   Create a new modal component, `WorkSessionManager`, that opens when the playlist icon is clicked.
+    -   This modal will be the central hub for managing the session.
+
+3.  **Global State for Work Session**:
+    -   In `useGlobalTimer.ts`, add a new state variable: `workSessionQueue: number[]`. This array will store the IDs of the tasks in the current work session.
+
+4.  **Display the Queue**:
+    -   The `WorkSessionManager` modal will display the list of tasks from the `workSessionQueue`.
+    -   For each task in the queue, it should show the task title and have a "Remove" button.
+    -   Implement drag-and-drop or up/down arrows to allow reordering of tasks within the queue.
+
+---
+
+#### **Phase 2: Adding Tasks to the Work Session**
+
+This phase focuses on providing multiple ways for the user to populate their work session queue.
+
+1.  **"Add to Session" from Task List**:
+    -   In `ListView.tsx`, add a new button or context menu option to each task accordion: "Add to Work Session".
+    -   When clicked, this action will append the task's ID to the `workSessionQueue` state in `useGlobalTimer`.
+
+2.  **Task Search within the Modal**:
+    -   Inside the `WorkSessionManager` modal, add a search input field.
+    -   As the user types, it should search and display a filtered list of all open tasks from the main `words` state.
+    -   Each search result should have a "+" button to add it to the current `workSessionQueue`.
+
+3.  **Checklist Integration**:
+    -   In `Checklist.tsx`, add a new context menu option to the main checklist header: "Add Parent Task to Work Session".
+
+---
+
+#### **Phase 3: Implementing Player Navigation**
+
+This phase makes the MiniPlayer fully interactive, allowing navigation through the work session queue.
+
+1.  **Add Navigation Buttons**:
+    -   Add "Next" (`<i class="fas fa-step-forward"></i>`) and "Previous" (`<i class="fas fa-step-backward"></i>`) buttons to the `MiniPlayer` UI.
+
+2.  **Implement `handleNextTask`**:
+    -   In `useGlobalTimer.ts`, create a new handler, `handleNextTask()`.
+    -   This function will:
+        1.  Call `handleGlobalStopTimer()` to correctly save the duration of the current entry.
+        2.  Find the index of the current `activeTimerWordId` in the `workSessionQueue`.
+        3.  Get the ID of the next task in the queue.
+        4.  Call `handleAddNewTimeLogEntryAndStart()` for the next task, automatically creating a new log entry like "Starting work on [Next Task Name]".
+
+3.  **Implement `handlePreviousTask`**:
+    -   Create a `handlePreviousTask()` handler with similar logic for navigating backward in the queue.
+
+4.  **Auto-Play Feature (Optional)**:
+    -   Add a new setting in `useSettings`: `autoplayNextInSession: boolean`.
+    -   If this setting is true, when a user manually stops a timer or completes a task that is part of the session, `handleNextTask()` should be called automatically.
+
+---
 
 ### To do
-- The `renderer.tsx` file is becoming very large. The next major task should be to refactor the `TimeTrackerLog` component into its own dedicated file (`src/components/TimeTrackerLog.tsx`) to improve code organization and maintainability.
 
----
-
-### Time Tracker Mini-Player: Implementation Plan
-
-This plan outlines the steps to create a global, persistent "mini-player" overlay for the `TimeTrackerLog`.
-
-#### **Phase 1: Global State and UI Scaffolding**
-
-The goal of this phase is to "lift" the state of the currently running timer out of the individual `TimeTrackerLog` component and into the main `App` component, making it globally accessible.
-
-1.  **Global Timer State**:
-    -   In the main `App` component (`renderer.tsx`), create new state variables to track the globally active timer:
-        -   `activeTimerWordId: number | null`: Stores the ID of the task whose timer is running.
-        -   `activeTimerEntry: TimeLogEntry | null`: Stores a copy of the specific log entry that is running.
-        -   `activeTimerLiveTime: number`: Stores the live elapsed time for the running entry.
-
-2.  **Refactor `TimeTrackerLog`**:
-    -   Modify the `TimeTrackerLog` component. Instead of managing its own live timer with `setInterval`, it will now receive the `activeTimer...` state as props from `App`.
-    -   The `handleToggleTimer` function will now call a new handler in `App` (e.g., `handleGlobalToggleTimer`) to update the global state.
-
-3.  **Create the `MiniPlayer` Component**:
-    -   Create a new, simple React component named `MiniPlayer`.
-    -   It will be rendered at the top level of the `App` component, likely in a fixed position at the bottom of the screen.
-    -   For now, it will just display the description and live-updating time of the `activeTimerEntry`. It will only be visible if `activeTimerWordId` is not `null`.
-
----
-
-#### **Phase 2: Core Player Controls**
-
-This phase focuses on making the `MiniPlayer` interactive.
-
-1.  **Global Timer Handlers**:
-    -   In the `App` component, create global handlers for timer actions:
-        -   `handleGlobalToggleTimer(wordId, entryId)`: This will find the correct task and entry, toggle its `isRunning` state, and update the global `activeTimer...` state.
-        -   `handleGlobalStopTimer()`: A function to stop any currently running timer. This will be used when starting a new timer to enforce the "single active timer" rule globally.
-
-2.  **Implement Player Buttons**:
-    -   Add "Pause," "Stop," and "Go to Task" buttons to the `MiniPlayer` component.
-    -   **Pause**: Will call `handleGlobalToggleTimer`.
-    -   **Stop**: Will call `handleGlobalStopTimer`, clearing the global timer state.
-    -   **Go to Task**: Will use the existing `navigateToTask(activeTimerWordId)` function to jump the user directly to the task associated with the running timer.
-
----
-
-#### **Phase 3: Advanced Integration & UX Polish**
-
-This final phase ensures the mini-player is fully integrated with the rest of the application's logic.
-
-1.  **Checklist Integration**:
-    -   Update the "Send to Timer & Start" handlers in the `Checklist` component (`handleSendToTimer`, `handleSendSectionToTimer`, etc.).
-    -   When these are called, they must now use the new global `handleGlobalToggleTimer` to ensure the `MiniPlayer` appears and reflects the newly started timer.
-
-2.  **"Post Log" Integration**:
-    -   Update the `handlePostTimeLog` function. When a log is posted, it must also call `handleGlobalStopTimer` to ensure the `MiniPlayer` is hidden, as the live session has ended.
-
-3.  **Styling and Positioning**:
-    -   Apply final CSS to the `MiniPlayer` to give it a clean, unobtrusive, "MP3 player" look.
-    -   Ensure it is positioned correctly with a fixed `z-index` so it always appears above other content.
-
----
-
-### Major Refactor: Componentization and Renaming
-
-This plan outlines the steps to break down the monolithic `renderer.tsx` file into smaller, more manageable components and to update legacy naming conventions throughout the codebase.
-
-#### **Phase 1: Component Extraction**
-
-The goal of this phase is to extract large, self-contained pieces of UI into their own component files. This will be done one component at a time to ensure stability.
-
-1.  **Create `src/components` Directory**: Create a new directory `src/components` to house our new component files.
-
-2.  **Refactor `TimeTrackerLog`**:
-    -   Create a new file: `src/components/TimeTrackerLog.tsx`.
-    -   Move the entire `TimeTrackerLog` component, along with its related helper functions (`formatTime`, `parseTime`, etc.) and its specific type interfaces (`TimeLogEntry`, `TimeLogSession`), from `renderer.tsx` into the new file.
-    -   Update `renderer.tsx` to import and use the new `TimeTrackerLog` component.
-
-3.  **Refactor `Checklist`**:
-    -   Create a new file: `src/components/Checklist.tsx`.
-    -   Move the `Checklist` component and its related helpers (`formatChecklistForCopy`, etc.) into the new file.
-
-4.  **Refactor `ReportsView`**:
-    -   Create a new file: `src/components/ReportsView.tsx`.
-    -   Move the `ReportsView` and `ReportFilters` components into the new file.
-
-5.  **Refactor `DescriptionEditor` and Modals**:
-    -   Create a new file: `src/components/Editors.tsx`.
-    -   Move the `DescriptionEditor`, `LinkModal`, and `PromptModal` components into this new file.
-
----
-
-#### **Phase 2: Rename `Word` to `Task`**
-
-The goal of this phase is to update the legacy naming convention of `Word` to the more accurate `Task`. This will be a global find-and-replace operation, but it must be done carefully.
+-   **Major Refactor: Rename `Word` to `Task`**: This plan outlines the steps to update the legacy naming convention of `Word` to the more accurate `Task`. This will be a global find-and-replace operation, but it must be done carefully.
 
 1.  **Interface Renaming**:
-    -   In `renderer.tsx` (or a new `src/types.ts` file), rename the `Word` interface to `Task`.
+    -   In `src/types.ts`, rename the `Word` interface to `Task`.
 
 2.  **Global Find & Replace (Case-Sensitive)**:
     -   `Word` -> `Task` (for type annotations, e.g., `word: Word` becomes `task: Task`).
@@ -113,101 +90,29 @@ The goal of this phase is to update the legacy naming convention of `Word` to th
     -   `wordId` -> `taskId` (for props and variables).
     -   `handleWordUpdate` -> `handleTaskUpdate`.
     -   `handleCompleteWord` -> `handleCompleteTask`.
+    -   ...and all other related function and variable names (`activeTimerWordId`, etc.).
 
 3.  **Verification**: After the find-and-replace, manually review all modified files (`renderer.tsx`, `index.ts`, `preload.ts`, and all new component files) to catch any instances that were missed or incorrectly changed.
+
+-   **Major Refactor: Rename `copyStatus` to `toastMessage`**: This plan outlines the steps to update the legacy naming convention of `copyStatus` to the more accurate `toastMessage`. This will improve codebase clarity, as the feature evolved from a simple "copy status" indicator to the application's central toast notification system.
+
+1.  **State Renaming in `useUIState.ts`**:
+    -   Rename `const [copyStatus, setToastStatus] = useState('');` to `const [toastMessage, setToastMessage] = useState('');`.
+    -   Update the `showToast` function to use `setToastMessage`.
+    -   Update the return object to export `toastMessage` instead of `copyStatus`.
+
+2.  **Global Find & Replace (Case-Sensitive)**:
+    -   `copyStatus` -> `toastMessage` (for state variables and props).
+    -   `setToastStatus` -> `setToastMessage` (for the state setter).
+
+3.  **Update `AppContext.ts`**:
+    -   In the `AppContextType` interface, rename `copyStatus: string;` to `toastMessage: string;`.
+
+4.  **Verification**: After the find-and-replace, manually review all modified files (`renderer.tsx`, `useUIState.ts`, `AppContext.ts`, `useAppListeners.ts`, and any components that might use it directly) to ensure all instances have been correctly updated.
 
 ---
 
 ## Future Features 
--   ### **Checklists**:
-    -   ### **Time Tracker Log: Implementation Plan**
-        This plan outlines the steps to evolve the current `ManualStopwatch` into a detailed time tracking log system.
-
-        #### **Phase 1: Data Structure & Core Component Setup**
-        The goal of this phase is to establish the foundational data structures and create the new component that will replace `ManualStopwatch`.
-        1.  **Define the `TimeLogEntry` Interface**:
-            -   Create a new TypeScript interface to represent a single entry in the time log.
-            -   **Fields**: `id: number`, `description: string`, `duration: number` (in milliseconds), `startTime?: number` (timestamp for when it started running), `isRunning?: boolean`.
-        2.  **Update the `Word` Interface**:
-            -   Add a new optional property to the `Word` interface: `timeLog?: TimeLogEntry[]`.
-            -   This will hold the array of time log entries for a task.
-            -   We will keep the old `manualTime` fields for now to ensure backward compatibility and migrate data later.
-        3.  **Create the `TimeTrackerLog` Component**:
-            -   Create a new React component named `TimeTrackerLog`.
-            -   It will accept `word` and `onUpdate` as props, just like `ManualStopwatch`.
-            -   Inside `TabbedView`, replace the call to `<ManualStopwatch />` with `<TimeTrackerLog />`.
-        4.  **Initial Render Logic**:
-            -   The `TimeTrackerLog` component will render the main header: `<header>Worktime Total: {totalTime}</header>`.
-            -   It will calculate `totalTime` by summing the `duration` of all entries in `word.timeLog`.
-            -   It will map over `word.timeLog` and render a static list item for each entry, displaying its `description` and formatted `duration`.
-        
-        ---
-        
-        #### **Phase 2: Basic Entry Management (CRUD)**
-        This phase focuses on allowing the user to create, edit, and delete individual time log entries.
-        1.  **Add New Entries**:
-            -   Add an "+ Add New Line" button.
-            -   When clicked, it will add a new, empty `TimeLogEntry` object to the `word.timeLog` array and call `onUpdate`.
-            -   The new entry should immediately be put into an "edit" state.
-        2.  **In-Place Description Editing**:
-            -   Implement state within `TimeTrackerLog` to track the `editingEntryId`.
-            -   When a user double-clicks an entry's description, set `editingEntryId` to that entry's ID.
-            -   Use conditional rendering: if an entry's ID matches `editingEntryId`, render an `<input>` field; otherwise, render the static text.
-            -   When the input loses focus (`onBlur`) or the user presses "Enter," update the description for that entry and set `editingEntryId` back to `null`.
-            -   The input field for a new or edited entry should be autofocused.
-        3.  **Delete Entries**:
-            -   Add a delete button (`<i class="fas fa-trash"></i>`) to each entry.
-            -   When clicked, filter the `timeLog` array to remove that entry and call `onUpdate`.
-            -   We will implement our standard two-click confirmation pattern to prevent accidental deletion.
-        
-        ---
-        
-        #### **Phase 3: Core Timer Functionality**
-        This phase brings the time tracking logic to life for each individual entry.
-        1.  **Single Active Timer**:
-            -   Establish a rule: only one time log entry can be running at a time across the entire task.
-            -   When a "start" button is clicked for an entry, ensure any other running entry is stopped first.
-        2.  **Start/Stop/Resume Logic**:
-            -   Add a record/pause icon button to each entry.
-            -   **On Start/Resume**:
-                -   Set the entry's `isRunning` flag to `true`.
-                -   Set its `startTime` to `Date.now()`.
-                -   Call `onUpdate`.
-            -   **On Pause**:
-                -   Calculate the elapsed time: `Date.now() - entry.startTime`.
-                -   Add the elapsed time to the entry's `duration`.
-                -   Set `isRunning` to `false` and clear the `startTime`.
-                -   Call `onUpdate`.
-        3.  **Live Timer Display**:
-            -   Inside `TimeTrackerLog`, create a `useEffect` hook with a `setInterval` (that runs every second).
-            -   This effect will find the currently running entry (where `isRunning` is `true`).
-            -   It will calculate the live elapsed time and update a local state variable, causing the UI for that specific entry's timer and the total header time to update in real-time.
-        
-        ---
-        
-        #### **Phase 4: Advanced Features & UX Polish**
-        This final phase adds the remaining quality-of-life features.
-        1.  **Reordering Entries**:
-            -   Add "Move Up" and "Move Down" buttons to each entry.
-            -   Implement the handler logic to change the item's position in the `timeLog` array, similar to how we reorder checklist items.
-        2.  **Bulk Add from Text**:
-            -   Add a `textarea` for bulk-adding entries.
-            -   When the user adds text, split it by newlines. For each line, create a new `TimeLogEntry` with the line as the description and a duration of 0.
-        3.  **Context Menus**:
-            -   **Item Context Menu**: Create a context menu for each log entry with actions like "Edit Description," "Delete," "Duplicate," and "Move Up/Down."
-            -   **Header Context Menu**: Create a context menu for the header with actions like "Copy Total Time," "Copy Log as Text," and "Delete All Entries."
-        4.  **Data Migration**:
-            -   Create a one-time migration logic. When `TimeTrackerLog` mounts, if `word.timeLog` is empty but `word.manualTime` has a value, create a single `TimeLogEntry` with the description "Legacy Timed Entry" and the duration from `word.manualTime`. This preserves old data.
-        - Time Tracker per Checklist item in a Task: 
-            - Checkbox option on a checklist section that makes the checklist function where, as we add a checklist item, it starts a timer next to that item:
-                #### `Time Tracker (Example)`:
-                ### Checklist            
-                #### **My Checklist Section: 0:48 [x] Time Tracker? `(show clock icon here maybe? if time tracker is toggled on, show total timer in header)`
-                - Item with only 14s showing a resume record icon: 0:14 [•] < (Resume Recording Time) 
-                - Item that is currently being recorded: 0:34 [=] < (Pause Timer)
-                - `[input placeholder="Add item to start timer"/][+]` < input and button
-            - Checklist Item: Individual Time Trackers for Checklist Items - like the ability to track time on a singular checklist item with no additional logic attached
-
 - ### Linked / Looped Tasks:
     - Task Series Loop: Need to implement a series of tasks that are using the new linked task loop logic
     - Linked Task Offset: Add offset to the Linked task so the deadline of the link task starts + the value input
@@ -311,8 +216,9 @@ The goal of this phase is to update the legacy naming convention of `Word` to th
 
 ## Log of Changes
 
-- **[1.0.17] - 2025-09-26: Time Tracker Log & Checklist Integration**: feat(time): Implement detailed time tracker log and checklist integration
+- **[1.0.19] - 2025-09-27: Full Refactor to Hook-Based Architecture**: refactor: Complete full refactor to hook-based architecture and MiniPlayer
 - **[1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls**: feat(time): Implement Time Log Sessions and advanced timer controls
+- **[1.0.17] - 2025-09-26: Time Tracker Log & Checklist Integration**: feat(time): Implement detailed time tracker log and checklist integration
 - **[1.0.16] - 2025-09-25: Checklist Main Header Context Menu & Command Refactor**: feat(checklist): Add main header context menu and refactor command handling
 - **[1.0.15] - 2025-09-25: Checklist Usability & Collapsible Sections**: feat(checklist): Add collapsible sections, in-line editing, and remove native prompts
 - **[1.0.14] - 2025-09-23: Interactive Checklists & Link Handling**: feat(checklist): Overhaul checklist interactivity, add link handling, and fix bugs
@@ -332,6 +238,21 @@ The goal of this phase is to update the legacy naming convention of `Word` to th
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
 
 ---
+
+## [1.0.19] - 2025-09-27: Full Refactor to Hook-Based Architecture
+**refactor: Complete full refactor to hook-based architecture**
+
+This commit marks the completion of a major architectural refactoring. The monolithic `renderer.tsx` file, which previously contained thousands of lines of mixed state, UI logic, and event handlers, has been completely overhauled.
+
+#### Changes:
+-   **Hook-Based Architecture**: All application state and logic have been extracted from `renderer.tsx` and organized into a suite of single-responsibility custom hooks:
+    -   `useTaskState`: Manages all task-related data and actions.
+    -   `useUIState`: Manages global UI state (modals, toasts, loading indicators).
+    -   `useSettings`: Manages all user-configurable settings.
+    -   `useDataPersistence`: Handles all data loading, saving, import, and export logic.
+    -   `useGlobalTimer`: Manages the state for the globally active timer, laying the foundation for the MiniPlayer component.
+-   **Orchestrator Component**: The `App` component in `renderer.tsx` is now a clean "orchestrator." Its sole responsibility is to initialize these hooks and provide their state to the rest of the application via the `AppContext`.
+-   **Improved Maintainability**: This new architecture makes the codebase significantly easier to read, debug, and extend. Each piece of logic is now located in a predictable, self-contained file.
 
 ## [1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls
 **feat(time): Implement Time Log Sessions and advanced timer controls**

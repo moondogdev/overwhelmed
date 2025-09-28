@@ -73,12 +73,26 @@ This section provides a high-level overview of the project's folder and file str
 │
 ├── src/                  # All of our application's source code lives here.
 │   ├── assets/           # Static assets like images.
-│   ├── declarations.d.ts # (Rule 16) TypeScript type definitions for non-code assets.
+│   ├── assets.d.ts       # (Rule 16) TypeScript type definitions for non-code assets.
+│   ├── components/       # Reusable React components.
+│   │   ├── AppLayout.tsx # The main layout component for the application.
+│   │   ├── Checklist.tsx # The component for rendering and managing checklists.
+│   │   ├── Editors.tsx   # Contains rich text editors and modals.
+│   │   └── ...           # Other UI components like ReportsView, TimeTrackerLog, etc.
+│   ├── config.ts         # Contains the default settings configuration for the application.
+│   ├── contexts/         # React context definitions.
+│   │   └── AppContext.ts # Defines the shape of the global application context.
+│   ├── hooks/            # Custom React hooks that contain all application logic.
+│   │   ├── useTaskState.ts # Manages all state related to tasks.
+│   │   ├── useUIState.ts   # Manages global UI state (modals, toasts, etc.).
+│   │   └── ...             # All other single-responsibility hooks.
 │   ├── index.css         # (Rule 26) Global stylesheet for the entire application.
 │   ├── index.html        # (Rule 26) The simple HTML shell for our React app.
 │   ├── index.ts          # (Rule 27) The Electron main process entry point (the "backend").
 │   ├── preload.ts        # (Rule 28) The secure bridge between the main and renderer processes.
-│   └── renderer.tsx      # (Rule 29) The React application entry point (the "frontend").
+│   ├── renderer.tsx      # (Rule 29) The React application entry point, now a clean "orchestrator".
+│   ├── types.ts          # Contains all shared TypeScript interfaces for the application.
+│   └── utils.ts          # Contains globally shared helper functions (e.g., formatTime).
 │
 ├── .eslintrc.json        # (Rule 17) Configuration for ESLint to enforce code style.
 ├── .gitignore            # (Rule 25) Tells Git which files and folders to ignore.
@@ -102,7 +116,10 @@ See `CHANGELOG.md` for a list of future features to implement. Strickly follow `
 
 All notable changes to this project will be documented in this file @CHANGELOG.md. Please update the separate changelog as development progresses. 
 
-- **[1.0.16] - 2025-09-24: Checklist Main Header Context Menu & Command Refactor**: feat(checklist): Add main header context menu and refactor command handling
+- **[1.0.19] - 2025-09-27: Full Refactor to Hook-Based Architecture**: refactor: Complete full refactor to hook-based architecture and MiniPlayer
+- **[1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls**: feat(time): Implement Time Log Sessions and advanced timer controls
+- **[1.0.17] - 2025-09-26: Time Tracker Log & Checklist Integration**: feat(time): Implement detailed time tracker log and checklist integration
+- **[1.0.16] - 2025-09-25: Checklist Main Header Context Menu & Command Refactor**: feat(checklist): Add main header context menu and refactor command handling
 - **[1.0.15] - 2025-09-25: Checklist Usability & Collapsible Sections**: feat(checklist): Add collapsible sections, in-line editing, and remove native prompts
 - **[1.0.14] - 2025-09-23: Interactive Checklists & Link Handling**: feat(checklist): Overhaul checklist interactivity, add link handling, and fix bugs
 - **[1.0.13] - 2025-09-23: Interactive Checklist Items**: feat(checklist): Implement fully interactive checklist item UI
@@ -336,6 +353,12 @@ Please keep this consistent to keep the maintainer from having to make frequent 
 
 ### Log of Issues and Lessons
 
+#### [1.0.19] - The "Orchestrator" Component Pattern
+-   **Issue**: The main `App` component in `renderer.tsx` had grown to thousands of lines, mixing state management, UI logic, event handling, and data persistence. This made it extremely difficult to maintain, debug, and add new features without introducing side effects.
+-   **Lesson**: The solution was a complete refactoring into a **hook-based architecture**. All related state and logic were extracted into dedicated, single-responsibility custom hooks (e.g., `useTaskState`, `useUIState`, `useSettings`, `useDataPersistence`). The `App` component was reduced to a clean **"orchestrator"** whose only job is to initialize these hooks and provide their state to the rest of the application via the `AppContext`. This pattern dramatically improves code organization, maintainability, and scalability. It also makes individual pieces of logic easier to test and reuse.
+
+---
+
 #### [1.0.12] - State Management for Duplication
 -   **Issue**: When duplicating a checklist section or item, the new items were created with the same unique IDs as the originals. This caused a critical bug where updating a duplicated item (e.g., adding a note) would incorrectly apply the change to the original item as well.
 -   **Lesson**: This was a classic "shallow copy" vs. "deep copy" problem. Simply spreading an object (`{...itemToCopy}`) only copies the top-level properties. For nested data like checklist items, we must perform a "deep copy" to ensure that all nested items also receive new, unique IDs. The fix was to explicitly map over the nested `items` array and generate a new `id` for each one during the duplication process.
@@ -454,15 +477,15 @@ This approach gives me the direct context I need to make the change accurately, 
 ## Developer Guide Index
   - Rule 01.0: Adding a New Context Menu
   - Rule 02.0: Generating Unique Keys in React
-  - Rule 03.0: Handling `onClick` with Function Arguments
+  - Rule 03.0: Handling `onClick` with Function Arguments (Still Relevant)
   - Rule 04.0: Preventing Data Loss with `electron-store`
-  - Rule 05.0: Child-to-Parent Communication with Refs
+  - Rule 05.0: Child-to-Parent Communication with Refs (Partially Deprecated)
   - Rule 06.0: Centralized Notification Logic
   - Rule 07.0: Data Migration for Component Props
   - Rule 08.0: Codebase Naming Conventions (`Word` vs. `Task`)
   - Rule 09.0: Graceful Shutdown and Data Integrity
   - Rule 10.0: Debouncing Notifications for Frequent Updates
-  - Rule 11.0: Disabling Interactive Elements in `contentEditable`
+  - Rule 11.0: Disabling Interactive Elements in `contentEditable` (Still an Open Issue)
   - Rule 12.0: Preventing Overdue Notification Race Conditions
   - Rule 13.0: Data Persistence and State Management
   - Rule 14.0: Forcing Component State Reset with `key`
@@ -490,7 +513,7 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 36.0: Commiting Changes
   - Rule 37.0: Using the VS Code Source Control UI
   - Rule 38.0: Using Font Awesome Icons
-  - Rule 39.0: Central Toast Notifications (`setCopyStatus`)
+  - Rule 39.0: Central Toast Notifications (`setCopyStatus` - To be refactored)
   - Rule 40.0: State Management for Tabbed Views (e.g., Inbox/Archive)
   - Rule 41.0: Prefer Named Handlers for UI Actions
   - Rule 42.0: Creating Reusable Components and Helpers
@@ -500,16 +523,16 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 46.0: The `TaskAccordionHeader` Component
   - Rule 47.0: The `Dropdown` Component
   - Rule 48.0: Handling Events on Nested Elements
-  - Rule 49.0: Prefer `outline` for Hover Effects on Interactive Items
-  - Rule 50.0: State Management for Modals Editing Nested Data
+  - Rule 49.0: Prefer `outline` for Hover Effects on Interactive Items (UI/UX Best Practice)
+  - Rule 50.0: State Management for Modals Editing Nested Data (Superseded by In-Place Editing)
   - Rule 51.0: Formatting Text for Clipboard
   - Rule 52.0: Atomic State Updates for Looping Tasks
   - Rule 53.0: Understanding Event Propagation (Bubbling)
   - Rule 54.0: State Management for In-Place Editing
   - Rule 55.0: Creating Stable Hover-Action Menus
   - Rule 56.0: Component Definition and Re-Renders
-  - Rule 57.0: Creating Focused Context Menus for Nested Elements
-  - Rule 58.0: Prop Drilling
+  - Rule 57.0: Creating Focused Context Menus for Nested Elements (Application of Rule 53.0)
+  - Rule 58.0: Prop Drilling (Superseded by Rule 69.0)
   - Rule 59.0: Switch Statement Fall-Through
   - Rule 60.0: Synchronizing `Checklist` State with `updateHistory`
   - Rule 61.0: Avoiding Native Modals for Confirmations and Actions
@@ -519,7 +542,8 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 65.0: On-the-Fly Data Migration in Components
   - Rule 66.0: Enforcing Business Logic in State Handlers
   - Rule 67.0: Live UI Updates with `setInterval`
-  - Rule 68.0: Cross-Component State Updates
+  - Rule 68.0: Cross-Component State Updates (Application of Rule 69.0)
+  - Rule 69.0: The Orchestrator Component and Custom Hooks
 
 ---
 
@@ -3014,6 +3038,263 @@ useEffect(() => {
   return cleanup;
 
 }, [onSettingsChange, settings.activeTaskTabs, settings.openAccordionIds, words, /* ...other dependencies... */]); // They MUST be in the dependency array.
+
+```
+
+---
+
+### Developer Guide - Rule 65.0: On-the-Fly Data Migration in Components
+
+This guide explains how to safely evolve a component's data structure without crashing the application when it encounters old data. This is an extension of Rule 07.0.
+
+#### The Problem: Breaking Changes in Data Structures
+
+As an application grows, you will inevitably need to change the shape of your data. We faced this when we upgraded the `TimeTrackerLog` component.
+
+-   **Old Format**: Time was stored in a single `manualTime: number` property on the `Word` object.
+-   **New Format**: We introduced a more complex `timeLog: TimeLogEntry[]` array to store individual timed entries.
+
+This created a critical problem: any existing task with time tracked using the old `manualTime` property would lose that data because the new component only knew how to read from the `timeLog` array.
+
+#### The Solution: On-the-Fly Migration with `useEffect`
+
+Instead of writing a complex, one-time migration script for the entire `config.json` file, we built the migration logic directly into the `TimeTrackerLog` component. This makes the component resilient and backward-compatible. We use a `useEffect` hook that runs once to perform this check.
+
+This pattern ensures that the component can handle both old and new data formats gracefully, preserves user data, and is transparent to the rest of the application.
+
+```tsx
+// File: src/components/TimeTrackerLog.tsx
+
+// Phase 4.4: One-time data migration from old system
+useEffect(() => {
+  // If timeLog is missing/empty AND there's legacy manualTime data...
+  if ((!word.timeLog || word.timeLog.length === 0) && (word.manualTime || 0) > 0 && !word.timeLogSessions) {
+    // ...create a new entry from the old data.
+    const legacyEntry: TimeLogEntry = {
+      id: Date.now(),
+      description: 'Legacy Timed Entry',
+      duration: word.manualTime || 0,
+      isRunning: false,
+      createdAt: Date.now(),
+    };
+    // Update the word object with the new timeLog array.
+    onUpdate({ ...word, timeLog: [legacyEntry] });
+  }
+}, [word.timeLog, word.manualTime, onUpdate, word.timeLogSessions]);
+
+```
+
+---
+
+### Developer Guide - Rule 66.0: Enforcing Business Logic in State Handlers
+
+This guide establishes a best practice for writing state update handlers: they should not just set state, but also enforce the application's business rules.
+
+#### The Problem: Unchecked State Updates
+
+It's easy to write a handler that simply updates state without any checks. For example, a "Dismiss Message" button could just filter an item out of an array. However, this can lead to unintended consequences if there are business rules that should prevent the action.
+
+For our Inbox, we have a rule: **"Important messages cannot be dismissed."** A simple handler that just removes the message from the `inboxMessages` array would violate this rule.
+
+#### The Solution: Add Guard Clauses to Handlers
+
+The correct pattern is to add "guard clauses" at the beginning of your state handler functions. These clauses check for business rules and exit early if a condition is not met, often providing feedback to the user.
+
+This makes our state management more robust and predictable. The component calling `handleDismissInboxMessage` doesn't need to know about the "important" rule; the rule is enforced by the state handler itself, which is the single source of truth for that piece of logic.
+
+```tsx
+// File: src/hooks/useInboxState.ts
+
+const handleDismissInboxMessage = useCallback((messageId: number) => {
+  const messageToTrash = inboxMessages.find(m => m.id === messageId);
+  if (!messageToTrash) return;
+
+  // This is the guard clause that enforces the business rule.
+  if (messageToTrash.isImportant) {
+    showToast("Cannot dismiss an important message.");
+    return; // Exit the function early.
+  }
+
+  // If the guard clause passes, proceed with the state update.
+  setTrashedMessages(prev => [messageToTrash, ...prev]);
+  setInboxMessages(prev => prev.filter(m => m.id !== messageId));
+  showToast("Message moved to trash.");
+  setIsDirty(true);
+}, [inboxMessages, showToast, setIsDirty]);
+
+```
+
+---
+
+### Developer Guide - Rule 67.0: Live UI Updates with `setInterval`
+
+This guide explains the standard pattern for creating a live-updating timer in the UI, as seen in our `TimeTrackerLog` and `MiniPlayer`.
+
+#### The Problem: Displaying Real-Time Elapsed Time
+
+When a timer is running, we need the UI to tick up every second. We can't just rely on React re-renders, as they may not happen on a consistent schedule.
+
+#### The Solution: `useEffect` with `setInterval`
+
+The standard React pattern for this is to use a `useEffect` hook to set up an interval that updates a local state variable.
+
+1.  **The `useEffect` Hook**: This hook runs when the component mounts. It sets up a `setInterval` that executes a function every 1000 milliseconds (1 second).
+2.  **The State Update**: Inside the interval, we calculate the new "live" time by taking the entry's saved `duration` and adding the time that has passed since it started (`Date.now() - entry.startTime`). We then update a local state variable (e.g., `activeTimerLiveTime`) with this new value.
+3.  **The UI**: The component's JSX then renders this local state variable, which causes the displayed time to update every second.
+4.  **Cleanup**: The `useEffect` hook returns a cleanup function that calls `clearInterval`. This is critical to prevent memory leaks by ensuring the interval is destroyed when the component unmounts.
+
+This pattern provides a reliable and efficient way to create live-updating elements in a React application.
+
+```tsx
+// File: src/hooks/useGlobalTimer.ts
+
+useEffect(() => {
+  // 1. Set up the interval.
+  const timerInterval = setInterval(() => {
+    // Check if there is an active timer entry.
+    if (activeTimerEntry && activeTimerEntry.startTime) {
+      // 2. Calculate the live time and update state.
+      const liveTime = activeTimerEntry.duration + (Date.now() - activeTimerEntry.startTime);
+      setActiveTimerLiveTime(liveTime);
+    }
+  }, 1000);
+
+  // 4. Return the cleanup function.
+  return () => clearInterval(timerInterval);
+}, [activeTimerEntry]); // Re-run the effect if the active entry changes.
+
+```
+
+---
+
+### Developer Guide - Rule 68.0: Cross-Component State Updates
+
+This guide explains how an action in one component can trigger a state update in a completely different, unrelated component using our central `AppContext`.
+
+#### The Problem: How Does the Checklist Talk to the MiniPlayer?
+
+We needed a way for the "Send to Timer & Start" button in the `Checklist` component to make the `MiniPlayer` appear and start its timer. These two components are not direct parent/child and have no knowledge of each other.
+
+#### The Solution: Centralized Handlers in Context
+
+Our hook-based architecture solves this problem cleanly.
+
+1.  **The Global State Hook (`useGlobalTimer`)**: This hook defines the state for the active timer (`activeTimerWordId`, etc.) and the function that knows how to change it (`handleAddNewTimeLogEntryAndStart`).
+
+2.  **The Orchestrator (`App.tsx`)**: The root `App` component initializes `useGlobalTimer` and passes the `handleAddNewTimeLogEntryAndStart` function into the `AppContext`.
+
+3.  **The Action Component (`Checklist.tsx`)**: The `Checklist` component consumes the `AppContext` and gets access to `handleAddNewTimeLogEntryAndStart`. Its "Start" button simply calls this function.
+
+4.  **The Display Component (`MiniPlayer.tsx`)**: The `MiniPlayer` component also consumes the `AppContext`. It reads the `activeTimerWordId` state. When the `Checklist` component's action updates this state, the `MiniPlayer` sees the change and automatically re-renders to show the active timer.
+
+This pattern creates a "one-way data flow" where components don't talk to each other directly. Instead, they either call functions from a central source of truth (the context) or react to state changes from it. This makes the application architecture much easier to understand and maintain.
+
+```tsx
+// File: src/hooks/useGlobalTimer.ts
+export function useGlobalTimer(...) {
+  // ...
+  const handleAddNewTimeLogEntryAndStart = useCallback((wordId: number, description: string) => {
+    // ... logic to stop the old timer and start a new one ...
+    setActiveTimerWordId(wordId);
+    setActiveTimerEntry(newEntry);
+  }, [/* ... */]);
+  // ...
+}
+
+// File: src/renderer.tsx
+function App() {
+  // ...
+  const globalTimerState = useGlobalTimer({ words, setWords });
+  const appContextValue = {
+    // ... other values
+    handleAddNewTimeLogEntryAndStart: globalTimerState.handleAddNewTimeLogEntryAndStart,
+  };
+  // ...
+}
+
+// File: src/components/Checklist.tsx
+export function Checklist(...) {
+  const { handleAddNewTimeLogEntryAndStart } = useAppContext(); // Consume from context
+  // ...
+  const handleSendToTimerAndStart = (itemText: string) => {
+    // Call the global handler from the context.
+    handleAddNewTimeLogEntryAndStart(wordId, itemText);
+  };
+  // ...
+}
+
+```
+
+---
+
+### Developer Guide - Rule 69.0: The Orchestrator Component and Custom Hooks
+
+This guide explains the primary architectural pattern of the application: the **Orchestrator Component** pattern, which leverages custom React hooks for state management.
+
+#### The Problem: The Monolithic Component
+
+Originally, the root `<App>` component in `renderer.tsx` was a massive, monolithic file responsible for everything: managing task state, handling UI interactions, running timers, sending notifications, and persisting data. This made the code difficult to read, debug, and maintain. Any small change had the potential to break unrelated features.
+
+#### The Solution: Custom Hooks and an Orchestrator
+
+We refactored the entire application to follow a modern, hook-based architecture.
+
+1.  **Single-Responsibility Hooks**: All application logic was extracted into a suite of custom hooks, each with a single, clear responsibility. These hooks live in the `src/hooks/` directory.
+    -   `useTaskState`: Manages all state and handlers for creating, updating, and deleting tasks.
+    -   `useUIState`: Manages global UI state like modals, toasts, and loading indicators.
+    -   `useSettings`: Manages all user-configurable settings.
+    -   `useDataPersistence`: Handles all data loading, saving, import, and export.
+    -   ...and others for notifications, navigation, etc.
+
+2.  **The Orchestrator Component**: The `<App>` component in `renderer.tsx` was transformed into a clean "orchestrator." Its only job is to:
+    -   Initialize all the custom hooks in the correct order.
+    -   Pass the necessary state and setters between them (e.g., passing `showToast` from `useUIState` to `useTaskState`).
+    -   Assemble the final, comprehensive context value using `useAppContextValue`.
+    -   Render the top-level `AppLayout` within the `AppContext.Provider`.
+
+This pattern makes the codebase highly modular, scalable, and easy to navigate. To understand how a specific feature works, you can now go directly to its dedicated hook file.
+
+```tsx
+// File: src/renderer.tsx
+
+function App() {  
+  // =================================================================================
+  // I. STATE & REFS (The Orchestration)
+  // =================================================================================
+
+  // Initialize all the single-responsibility hooks.
+  const uiState = useUIState({ ... });  
+  const settingsState = useSettings({ ... });
+  const inboxState = useInboxState({ ... });
+  const taskState = useTaskState({ ... });
+  const globalTimerState = useGlobalTimer({ ... });
+  // ... and so on for all other hooks.
+
+  // Pass state between hooks where necessary.
+  // e.g., `taskState` needs `settings` from `settingsState`.
+
+  // =================================================================================
+  // II. RENDER LOGIC
+  // =================================================================================
+  
+  // Set up global event listeners.
+  useAppListeners({ ... });
+
+  // Assemble the final context value from all the hooks.
+  const appContextValue = useAppContextValue({
+    taskState,
+    inboxState,
+    settingsState,
+    // ... all other hook states
+  });    
+
+  // Render the AppLayout inside the provider.
+  return (
+    <AppContext.Provider value={appContextValue}>
+      <AppLayout />      
+    </AppContext.Provider>
+  );
+}
 
 ```
 

@@ -1,88 +1,75 @@
 # Project Definitions & Declaratives
 
-This file serves as a central glossary for the project's key functions (handlers), state variables, and constants. Its purpose is to provide a clear, at-a-glance understanding of the application's logic and naming conventions.
+This file serves as a central glossary for the project's key architectural components, primarily its custom hooks. Its purpose is to provide a clear, at-a-glance understanding of where specific logic and state are managed.
 
 This document should be updated whenever new declarative logic is implemented.
 
 ---
 
-## State Variables
+## Custom Hooks
 
-### `words: Word[]`
--   **Description**: The primary state array holding all active, open tasks.
--   **Note**: The name `words` is a historical artifact from the application's origin as a word cloud generator. It should be interpreted as `tasks`. See Rule 08.0.
+This application follows an **Orchestrator Component** pattern (see Rule 69.0). The root `<App>` component initializes all the custom hooks below and provides their state to the entire application via the `AppContext`.
 
-### `completedWords: Word[]`
--   **Description**: The state array holding all completed tasks.
+### `useTaskState`
+-   **File**: `src/hooks/useTaskState.ts`
+-   **Responsibility**: Manages all state and logic directly related to creating, updating, deleting, and managing tasks.
+-   **Exposed State**: `words`, `completedWords`, `confirmingClearCompleted`.
+-   **Exposed Handlers**: `handleCompleteWord`, `removeWord`, `handleDuplicateTask`, `handleReopenTask`, `handleClearCompleted`, `handleCreateNewTask`, `handleWordUpdate`, `handleChecklistCompletion`, `handleClearAll`, `handleBulkAdd`, `handleCopyList`, `handleTogglePause`, `moveWord`.
 
-### `inboxMessages: InboxMessage[]`
--   **Description**: The state array holding all active messages in the user's inbox.
+### `useUIState`
+-   **File**: `src/hooks/useUIState.ts`
+-   **Responsibility**: Manages all global UI state, such as loading indicators, modals, the "dirty" (unsaved) flag, and the central toast notification system. It also holds the state for the "Add New Task" form.
+-   **Exposed State**: `isLoading`, `isDirty`, `lastSaveTime`, `autoSaveCountdown`, `isPromptOpen`, `copyStatus` (toast message), `newTask`, `searchQuery`, etc.
+-   **Exposed Handlers**: `setIsLoading`, `setIsDirty`, `showToast`, `focusAddTaskInput`, etc.
 
-### `archivedMessages: InboxMessage[]`
--   **Description**: The state array holding all archived messages, separate from the active inbox.
+### `useSettings`
+-   **File**: `src/hooks/useSettings.ts`
+-   **Responsibility**: Manages the large `settings` object, which contains all user-configurable preferences for the application.
+-   **Exposed State**: `settings`.
+-   **Exposed Handlers**: `setSettings`, `setActiveCategoryId`, `handleResetSettings`, `handleAccordionToggle`, etc.
 
-### `trashedMessages: InboxMessage[]`
--   **Description**: The state array holding all trashed messages, separate from the active inbox and archive.
+### `useInboxState`
+-   **File**: `src/hooks/useInboxState.ts`
+-   **Responsibility**: Manages the state for the three inbox tabs (Active, Archived, Trash) and all handlers for moving messages between them.
+-   **Exposed State**: `inboxMessages`, `archivedMessages`, `trashedMessages`.
+-   **Exposed Handlers**: `handleArchiveInboxMessage`, `handleRestoreFromTrash`, `handleEmptyTrash`, `handleToggleImportant`, etc.
 
-### `copyStatus: string`
--   **Description**: The state variable that controls the application's central toast notification system.
--   **Note**: The name is a historical artifact. It should be interpreted as `toastMessage`. See Rule 39.0.
+### `useDataPersistence`
+-   **File**: `src/hooks/useDataPersistence.ts`
+-   **Responsibility**: Manages all interaction with the filesystem via `electron-store`. This includes loading all data on startup, handling manual saves, auto-saves, imports, and exports.
+-   **Exposed Handlers**: `handleSaveProject`, `handleExport`, `handleImport`.
 
-### `settings: Settings`
--   **Description**: A large state object that holds all user-configurable settings, such as UI preferences, categories, external links, and notification levels.
+### `useNotifications`
+-   **File**: `src/hooks/useNotifications.ts`
+-   **Responsibility**: Manages the state and logic for all time-based notifications, including overdue task alerts and approaching deadline warnings.
+-   **Exposed State**: `timerNotifications`, `overdueNotifications`.
+-   **Exposed Handlers**: `handleTaskOverdue`, `handleSnooze`, `handleSnoozeAll`, `handleCompleteAllOverdue`, etc.
 
-### `isDirty: boolean`
--   **Description**: A boolean flag that tracks if there are unsaved changes in the application state. It controls the "Save Project" button's appearance and the "Save and Quit" dialog.
+### `useGlobalTimer`
+-   **File**: `src/hooks/useGlobalTimer.ts`
+-   **Responsibility**: Manages the state for the single, globally active timer shown in the "Mini Player."
+-   **Exposed State**: `activeTimerWordId`, `activeTimerEntry`, `activeTimerLiveTime`.
+-   **Exposed Handlers**: `handleGlobalToggleTimer`, `handleGlobalStopTimer`, `handleAddNewTimeLogEntryAndStart`.
 
-### `settings.taskTypes: TaskType[]`
--   **Description**: An array within the `settings` object that stores the user-defined task types, including their name and the list of fields they display.
+### `useEditingState`
+-   **File**: `src/hooks/useEditingState.ts`
+-   **Responsibility**: Manages the state for in-place editing of a task's title in the main list view.
+-   **Exposed State**: `editingWordId`, `editingText`.
+-   **Exposed Handlers**: `handleEdit`, `handleEditChange`, `handleEditKeyDown`.
 
-### `settings.openChecklistSectionIds: number[]`
--   **Description**: An array within the `settings` object that stores the IDs of checklist sections that are currently expanded. This allows the UI to remember which sections are open or collapsed.
+### `useNavigation`
+-   **File**: `src/hooks/useNavigation.ts`
+-   **Responsibility**: Manages the application's view history for browser-style back/forward navigation.
+-   **Exposed State**: `viewHistory`, `historyIndex`.
+-   **Exposed Handlers**: `navigateToView`, `navigateToTask`, `goBack`, `goForward`.
 
-### `settings.openChecklistSectionIds: number[]`
--   **Description**: An array within the `settings` object that stores the IDs of checklist sections that are currently expanded. This allows the UI to remember which sections are open or collapsed.
+### `useAppListeners`
+-   **File**: `src/hooks/useAppListeners.ts`
+-   **Responsibility**: A special hook that contains no state. Its only job is to set up all the `useEffect` listeners for IPC events coming from the main process (e.g., context menu commands, shutdown requests). It acts as the central hub for all communication received from the backend.
 
-### `settings.showChecklistResponses: boolean`
--   **Description**: A boolean flag within the `settings` object that controls the global visibility of all `response` fields in checklists.
-
-### `settings.showChecklistNotes: boolean`
--   **Description**: A boolean flag within the `settings` object that controls the global visibility of all `note` fields in checklists.
-
-### `editingItemId: number | null`
--   **Description**: A state variable that holds the `id` of the checklist item currently being edited directly in the list. This enables the in-place editing feature in both "Task" and "Edit" views.
-
-### `editingItemText: string`
--   **Description**: A state variable that holds the text content for the checklist item identified by `editingItemId`.
-
-### `focusChecklistItemId: number | null`
--   **Description**: A state variable used to programmatically set focus on a specific checklist item's input field, typically after it has been newly created.
----
-### `editingResponseForItemId: number | null` / `editingNoteForItemId: number | null`
--   **Description**: State variables that hold the `id` of a checklist item for which a `response` or `note` is being edited in the read-only "Task" view. This enables the quick-add/edit feature without switching the entire task to "Edit" mode.
-
-### `focusSubInputKey: string | null`
--   **Description**: A state variable that holds a unique key (e.g., `"response-123"`) for a checklist sub-input field (`response` or `note`). It is used in the "Edit" view to programmatically focus the correct input field immediately after it is created.
-
-### `Checklist` Component State
--   **Description**: The following state variables are managed locally within the `Checklist` component to handle its UI interactions.
-
-#### `editingSectionId: number | null`
--   **Description**: Holds the `id` of the checklist section whose title is currently being edited in-line.
-
-#### `editingSectionTitle: string`
--   **Description**: Holds the text content for the section title input field identified by `editingSectionId`.
-
-#### `confirmingDelete...: number | null` or `boolean`
--   **Description**: A family of state variables (`confirmingDeleteNotes`, `confirmingDeleteSectionResponses`, etc.) that track the two-click confirmation state for destructive actions. They hold a section ID or a boolean to indicate that the next click should confirm the deletion.
-
-#### `history: ChecklistSection[][]` / `historyIndex: number`
--   **Description**: State variables that manage the local undo/redo history for all changes made to the checklist. `history` is an array of snapshots, and `historyIndex` points to the current state within that array.
-
----
-### `subInputRefs: RefObject`
--   **Description**: A React `ref` object that stores references to all the dynamically rendered `response` and `note` input fields in the checklist, keyed by a unique string (e.g., `"response-123"`). This allows for programmatic focusing of specific inputs.
----
+### `useAppContextValue`
+-   **File**: `src/hooks/useAppContextValue.ts`
+-   **Responsibility**: A helper hook that takes the state objects returned by all the other hooks and assembles them into the final, flat `AppContextType` object that is passed to the `AppContext.Provider`.
 
 ## Interfaces
 
@@ -117,7 +104,8 @@ interface Browser {
 interface Category {
   id: number;
   name: string;
-  color: string;
+  parentId?: number; // If present, this is a sub-category
+  color?: string; // Add color property
 }
 ```
 ---  
@@ -144,24 +132,7 @@ interface ChecklistSection {
 }
 ```
 ---
-### `FullTaskViewProps` Interface
-```ts
-interface FullTaskViewProps {
-  task: Word;
-  onClose: () => void;
-  onUpdate: (updatedWord: Word) => void;
-  onNotify: (word: Word) => void;
-  formatTimestamp: (ts: number) => string;
-  setCopyStatus?: (message: string) => void;
-  settings: Settings;
-  onSettingsChange: (newSettings: Partial<Settings>) => void;
-  words: Word[];
-  setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>;
-  onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
-  onTabChange: (wordId: number, tab: 'ticket' | 'edit') => void;
-  onDescriptionChange: (html: string) => void;
-}
-```
+### `FullTaskViewProps` Interface (deprecated)
 ---
 ### `InboxMessage` Interface
 ```ts
@@ -196,27 +167,7 @@ interface PromptModalProps {
 }
 ```
 ---
-### `TabbedViewProps` Interface
-```ts
-interface TabbedViewProps {
-  word: Word;
-  onUpdate: (updatedWord: Word) => void;
-  onTabChange: (wordId: number, tab: 'ticket' | 'edit') => void;
-  onNotify: (word: Word) => void;
-  formatTimestamp: (ts: number) => string;
-  setCopyStatus: (message: string) => void;  
-  onSettingsChange: (newSettings: Partial<Settings>) => void;
-  onDescriptionChange: (html: string) => void;
-  settings: Settings;
-  startInEditMode?: boolean;
-  words: Word[];
-  onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
-  setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>;
-  className?: string;
-  wordId: number;
-  checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>;
-}
-```
+### `TabbedViewProps` Interface (deprecated)
 ---
 ### `TaskType` Interface
 ```ts
@@ -337,97 +288,6 @@ interface Word {
 
 ---
 
-## Handlers (Functions)
-
-### `handleSaveProject()`
--   **Description**: The central function for manually saving the entire application state (`words`, `settings`, `inboxMessages`, etc.) to the `config.json` file via `electron-store`.
-
-### `handleCompleteWord(wordToComplete: Word)`
--   **Description**: Handles the logic for completing a task. It moves the task from the `words` array to the `completedWords` array, calculates its final duration, and handles the creation of recurring tasks if applicable.
-
-### `handleWordUpdate(updatedWord: Word)`
--   **Description**: The primary handler for updating any property of an existing task. It also includes debouncing logic to prevent spamming the inbox with "Task updated" messages during rapid edits.
-
-### `handleTaskOverdue(wordId: number)`
--   **Description**: The single gatekeeper function for processing an overdue task. It creates a persistent toast notification and sends a message to the inbox, using a `ref` to prevent duplicate notifications for the same task. See Rule 12.0.
-
-### `handleSnooze(wordToSnooze: Word, duration?: 'low' | 'medium' | 'high')`
--   **Description**: Snoozes an overdue task for a configured duration. It updates the task's `lastNotified` timestamp to prevent it from re-triggering an alert until the snooze period is over.
-
-### `navigateToView(view: 'meme' | 'list' | 'reports' | 'inbox')`
--   **Description**: Handles navigation between the main application views. It manages the browser-style back/forward history state.
-
-### `getRelativeDateHeader(dateStr: string)`
--   **Description**: A helper function that takes a date string (e.g., "2025-09-22") and returns a user-friendly, relative date format. It produces outputs like "Today", "Tomorrow", or "Saturday, September 27, 2025" and includes the year if it's not the current year.
-
-### `getContrastColor(hexColor: string)`
--   **Description**: A helper function that takes a hex color string and returns either black ('#000000') or white ('#FFFFFF') to ensure the highest contrast for text readability against that color.
-
-### `formatChecklistForCopy(sections: ChecklistSection[]): string`
--   **Description**: A helper function that takes an array of checklist sections and formats them into a clean, plain-text string suitable for copying to the clipboard. It follows the rules in `Rule 51.0`, including completion status (`[✔]`) and public `response` fields, while excluding private `note` fields.
-
-### `handleDeleteChecked(sectionId?: number)`
--   **Description**: Deletes all completed (`isCompleted: true`) checklist items. If a `sectionId` is provided, it only deletes checked items within that specific section. If no `sectionId` is provided, it deletes all checked items across the entire checklist.
-
-### `handleUpdateItemDueDate(sectionId: number, itemId: number, newDueDate: number | undefined)`
--   **Description**: Updates the `dueDate` for a specific checklist item. Setting `newDueDate` to `undefined` clears the date.
-
-### `handleUpdateItemText(sectionId: number, itemId: number, newText: string)`
--   **Description**: Updates the `text` for a specific checklist item. This is used by the in-place editing input field.
-
-### `handleUpdateItemResponse(sectionId: number, itemId: number, newResponse: string)` / `handleUpdateItemNote(sectionId: number, itemId: number, newNote: string)`
--   **Description**: Updates the `response` or `note` field for a specific checklist item. If the field does not exist, it is created.
-
-### `handleDeleteItemResponse(sectionId: number, itemId: number)` / `handleDeleteItemNote(sectionId: number, itemId: number)`
--   **Description**: Deletes the `response` or `note` for a specific checklist item by setting its value to `undefined`.
-
-### `handleDeleteItem(sectionId: number, itemId: number)`
--   **Description**: Deletes an entire checklist item from a specific section.
-
-### `handleUpdateItemDueDateFromPicker(sectionId: number, itemId: number, dateString: string)`
--   **Description**: A dedicated handler for the checklist item's date picker input. It correctly parses the `YYYY-MM-DD` string to a local timezone timestamp to prevent off-by-one-day errors.
-
-### `checklist-item-command` Listener
--   **Description**: A `useEffect` hook in `renderer.tsx` that listens for commands sent from the various checklist-related context menus. It acts as a central router to perform actions on checklist items, notes, and responses.
--   **Commands Handled**:
-    -   `edit_note` / `edit_response`: Creates the note/response field if it doesn't exist, then puts it into an inline-editable state directly in the UI, eliminating the need for a modal.
-    -   `copy_note` / `copy_response`: Copies the text content of the note/response to the clipboard.
-    -   `delete_note` / `delete_response`: Deletes the note/response from the item.
-    -   `open_link` / `copy_link`: Opens or copies the first URL found in the main item text.
-    -   `open_note_link` / `copy_note_link`: Opens or copies the first URL found in a note.
-    -   `open_response_link` / `copy_response_link`: Opens or copies the first URL found in a response.
----
-### `checklist-section-command` Listener
--   **Description**: A `useEffect` hook in `renderer.tsx` that listens for commands sent from the checklist section context menu.
--   **Commands Handled**:
-    -   `edit_title`: Puts the section title into an inline-editable state.
-    -   `view` / `edit`: Correctly routes task-level commands to update the parent `App` component's state for view switching.
-    -   `toggle_collapse`: Expands or collapses the section.
-    -   `expand_all` / `collapse_all`: Expands or collapses all checklist sections.
-    -   `add_note_to_section` / `add_note_to_all`: Adds an empty note field to items in a specific section or all sections.
-    -   `add_response_to_section` / `add_response_to_all`: Adds an empty response field to items in a specific section or all sections.
-    -   `copy_section_raw` / `copy_all_sections_raw`: Copies the raw text content of a section or all sections to the clipboard.
-    -   `clear_all_highlights`: Removes the highlight color from all items in a section.
-
-### `Checklist` Component Handlers
--   **Description**: The following handlers are defined within the `Checklist` component to manage its local state and UI.
-
-#### `handleUpdateSectionTitle(sectionId: number, newTitle: string)`
--   **Description**: Updates the `title` for a specific checklist section.
-
-#### `handleMainHeaderCommand(payload)`
--   **Description**: A dedicated handler within the `Checklist` component that listens for the `checklist-main-header-command` channel. It correctly routes task-level commands like `view` and `edit` to update the parent `App` state via the `onSettingsChange` prop, and passes all other global checklist commands to `handleSectionCommand`.
-
-#### `handleToggleSectionCollapse(sectionId: number)`
--   **Description**: Toggles the collapsed/expanded state of a single checklist section by updating `settings.openChecklistSectionIds`.
-
-#### `handleDeleteAllNotes()` / `handleDeleteAllResponses()`
--   **Description**: Implements the logic for the two-click confirmation pattern to delete all notes or responses from every item in the checklist.
-
----
-
----
-
 ## Components
 
 ### `TaskAccordionHeader`
@@ -438,52 +298,6 @@ interface Word {
 
 ### `ClickableText`
 -   **Description**: A React component that takes a text string as a prop. It uses `extractUrlFromText` to find any URL within the text. If a URL is found, it renders the text with the URL as a clickable `<a>` tag that opens the link externally. Otherwise, it renders the text as a normal `<span>`.
-
-#### Inbox Handlers
-
-### `handleToggleImportant(messageId: number)`
--   **Description**: Toggles the `isImportant` boolean flag on a specific message within the `inboxMessages` state array.
-
-### `handleArchiveInboxMessage(messageId: number)`
--   **Description**: Moves a message from the `inboxMessages` array to the `archivedMessages` array.
-
-### `handleUnarchiveInboxMessage(messageId: number)`
--   **Description**: Moves a message from the `archivedMessages` array back to the `inboxMessages` array.
-
-### `handleDismissInboxMessage(messageId: number)`
--   **Description**: Moves a message from the active `inboxMessages` array to the `trashedMessages` array. It will not move messages flagged as important.
-
-### `handleDismissArchivedMessage(messageId: number)`
--   **Description**: Moves a message from the `archivedMessages` array to the `trashedMessages` array.
-
-### `handleRestoreFromTrash(messageId: number)`
--   **Description**: Restores a single message from the `trashedMessages` array back to the active `inboxMessages` array.
-
-### `handleDeletePermanently(messageId: number)`
--   **Description**: Permanently deletes a single message from the `trashedMessages` array.
-
-### `handleEmptyTrash()`
--   **Description**: Permanently deletes all messages from the `trashedMessages` array after a user confirmation.
-
-### `handleRestoreAllFromTrash()`
--   **Description**: Restores all messages from the `trashedMessages` array back to the active `inboxMessages` array.
-
-### `handleTrashAllArchived()`
--   **Description**: Moves all messages from the `archivedMessages` array to the `trashedMessages` array after a user confirmation.
-
-#### Task Type Handlers
-
-### `handleUpdateTaskType(updatedType: TaskType)`
--   **Description**: Updates a specific task type in the `settings.taskTypes` array with new data (e.g., a new name or a different set of fields).
-
-### `handleAddTaskType()`
--   **Description**: Adds a new, blank task type to the `settings.taskTypes` array.
-
-### `handleDeleteTaskType(typeId: string)`
--   **Description**: Deletes a task type from the `settings.taskTypes` array after user confirmation.
-
-### `handleFieldToggle(typeId: string, fieldName: keyof Word)`
--   **Description**: Toggles the visibility of a specific field for a given task type by adding or removing it from the type's `fields` array.
 
 ---
 

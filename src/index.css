@@ -1875,15 +1875,8 @@ input[type="datetime-local"] + .button-group button {
     opacity: 1;
 }
 .checklist-header .checklist-progress {
-    position: absolute;
-    bottom: 0;
-    top: 0;
-    right: calc(-100% - 5px);
-    display: flex;
-    align-items: center;
-    width: 100%;
+    display: block;
     font-size: .58em;
-    opacity: 0;
 }
 .checklist-section-title-input {
   background-color: #3a3f4b;
@@ -2332,4 +2325,49 @@ header.checklist-section-header .checklist-header {
 .task-id-display {
   font-size: 0.7em;
   color: #888;
+}
+
+
+/* --- Mini Player --- */
+.mini-player {
+  position: fixed;
+  bottom: 25px; /* Position it above the main footer */
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #1a1d23;
+  border: 1px solid #4a4f5b;
+  border-radius: 8px;
+  padding: 8px 15px;
+  display: flex;
+  align-items: center;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  width: 400px;
+}
+
+.mini-player-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  flex-grow: 1;
+  margin-right: 15px;
+}
+
+.mini-player-description {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 250px; /* Adjust as needed */
+}
+
+.mini-player-controls {
+  display: flex;
+  gap: 10px;
+}
+
+.mini-player-controls .icon-button {
+  font-size: 1.2em;
+  color: #a9b7c6;
+  padding: 5px;
 }

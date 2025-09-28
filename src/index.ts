@@ -907,6 +907,11 @@ app.whenReady().then(() => {
         label: 'Delete',
         click: () => webContents.send('time-log-item-command', { command: 'delete', entry, index }),
       },
+      { type: 'separator' },
+      {
+        label: 'Inspect Element',
+        click: () => webContents.inspectElement(x, y),
+      },
     ];
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });
   });
@@ -921,6 +926,8 @@ app.whenReady().then(() => {
       { label: 'Wipe Timer (Delete All & Title)', click: () => webContents.send('time-log-header-command', { command: 'delete_all', totalTime, timeLog }) },
       { type: 'separator' },
       { label: 'Add New Line', click: () => webContents.send('time-log-header-command', { command: 'add_new_line', totalTime, timeLog }) },
+      { type: 'separator' },
+      { label: 'Inspect Element', click: () => webContents.inspectElement(x, y) },
     ];
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });
   });
@@ -955,6 +962,11 @@ app.whenReady().then(() => {
       {
         label: 'Delete Session',
         click: () => webContents.send('time-log-session-command', { command: 'delete_session', session }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Inspect Element',
+        click: () => webContents.inspectElement(x, y),
       },
     ];
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });

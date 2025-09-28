@@ -5,6 +5,8 @@ A log of what was commited to git.
 ---
 
 ## Log of Changes
+
+- **[1.0.19] - 2025-09-27: Full Refactor to Hook-Based Architecture**: refactor: Complete full refactor to hook-based architecture and MiniPlayer
 - **[1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls**: feat(time): Implement Time Log Sessions and advanced timer controls
 - **[1.0.17] - 2025-09-26: Time Tracker Log & Checklist Integration**: feat(time): Implement detailed time tracker log and checklist integration
 - **[1.0.16] - 2025-09-25: Checklist Main Header Context Menu & Command Refactor**: feat(checklist): Add main header context menu and refactor command handling
@@ -26,6 +28,21 @@ A log of what was commited to git.
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
 
 ---
+
+## [1.0.19] - 2025-09-27: Full Refactor to Hook-Based Architecture
+**refactor: Complete full refactor to hook-based architecture**
+
+This commit marks the completion of a major architectural refactoring. The monolithic `renderer.tsx` file, which previously contained thousands of lines of mixed state, UI logic, and event handlers, has been completely overhauled.
+
+#### Changes:
+-   **Hook-Based Architecture**: All application state and logic have been extracted from `renderer.tsx` and organized into a suite of single-responsibility custom hooks:
+    -   `useTaskState`: Manages all task-related data and actions.
+    -   `useUIState`: Manages global UI state (modals, toasts, loading indicators).
+    -   `useSettings`: Manages all user-configurable settings.
+    -   `useDataPersistence`: Handles all data loading, saving, import, and export logic.
+    -   `useGlobalTimer`: Manages the state for the globally active timer, laying the foundation for the MiniPlayer component.
+-   **Orchestrator Component**: The `App` component in `renderer.tsx` is now a clean "orchestrator." Its sole responsibility is to initialize these hooks and provide their state to the rest of the application via the `AppContext`.
+-   **Improved Maintainability**: This new architecture makes the codebase significantly easier to read, debug, and extend. Each piece of logic is now located in a predictable, self-contained file.
 
 ## [1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls
 **feat(time): Implement Time Log Sessions and advanced timer controls**

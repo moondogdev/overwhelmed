@@ -1,0 +1,166 @@
+import React from 'react';
+
+export interface Attachment {
+  name: string;
+  path: string;
+}
+
+export interface ChecklistItem {
+  id: number;
+  text: string;
+  isCompleted: boolean;
+  response?: string;
+  note?: string;
+  dueDate?: number; // Timestamp for individual due date
+  highlightColor?: string;
+}
+
+export interface TimeLogEntry {
+  id: number;
+  description: string;
+  duration: number; // in milliseconds
+  startTime?: number; // timestamp for when it started running
+  isRunning?: boolean;
+  createdAt?: number; // Timestamp for when the entry was created
+}
+
+export interface TimeLogSession {
+  id: number;
+  title: string;
+  entries: TimeLogEntry[];
+  createdAt?: number; // Timestamp for when the session was created
+}
+
+export interface ChecklistSection {
+  id: number;
+  title: string;
+  items: ChecklistItem[];
+}
+
+export interface Word {
+  id: number;
+  text: string;
+  x: number; // Add x coordinate
+  y: number; // Add y coordinate
+  // New Task Manager Fields
+  url?: string;
+  priority?: 'High' | 'Medium' | 'Low';
+  categoryId?: number;
+  completeBy?: number; // Storing as a timestamp
+  company?: string;
+  websiteUrl?: string;
+  imageLinks?: string[];
+  description?: string;
+  attachments?: Attachment[];
+  checklist?: ChecklistSection[] | ChecklistItem[]; // Support both for migration
+  notes?: string;
+  // Add dimensions for hit detection
+  width?: number;
+  height?: number;
+  openDate: number; // Use a separate field for the editable open date
+  createdAt: number; // Timestamp of when the word was created
+  isPaused?: boolean;
+  pausedDuration?: number;
+  completedDuration?: number; // The final duration when completed
+  manualTime?: number; // Manually tracked time in ms
+  payRate?: number; // Dollars per hour
+  isRecurring?: boolean;
+  isDailyRecurring?: boolean;
+  isWeeklyRecurring?: boolean;
+  isMonthlyRecurring?: boolean;
+  isYearlyRecurring?: boolean;
+  isAutocomplete?: boolean;
+  lastNotified?: number; // Timestamp of the last notification sent for this task
+  snoozeCount?: number; // How many times the task has been snoozed
+  snoozedAt?: number; // Timestamp of when the last snooze was initiated
+  manualTimeRunning?: boolean;
+  taskType?: string; // New property for task types
+  startsTaskIdOnComplete?: number; // ID of the task to start when this one is completed
+  manualTimeStart?: number; // Timestamp when manual timer was started
+  timeLog?: TimeLogEntry[];
+  timeLogSessions?: TimeLogSession[];
+  timeLogTitle?: string;
+}
+
+export interface InboxMessage {
+  id: number;
+  type: 'overdue' | 'timer-alert' | 'created' | 'completed' | 'deleted' | 'updated';
+  text: string;
+  timestamp: number;
+  wordId?: number; // Optional: link back to the task
+  sectionId?: number; // Optional: for checklist items
+  isImportant?: boolean;
+  isArchived?: boolean;
+}
+
+export interface Browser {
+  name: string;
+  path: string;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  parentId?: number; // If present, this is a sub-category
+  color?: string; // Add color property
+}
+
+export interface TaskType {
+  id: string; // e.g., 'billing', 'research'
+  name: string; // e.g., 'Billing', 'Research'
+  fields: (keyof Word)[]; // Array of field names to show for this type
+}
+
+export interface ExternalLink {
+  name: string;
+  url: string;
+  openInDefault?: boolean;
+}
+
+export interface PrioritySortConfig {
+  [key: string]: { key: keyof Word | 'timeOpen', direction: 'ascending' | 'descending' } | null;
+}
+
+export interface Settings {
+  fontFamily: string;
+  fontColor: string;
+  shadowColor: string;
+  shadowBlur: number;
+  shadowOffsetX: number;
+  shadowOffsetY: number;
+  isOverlayEnabled: boolean;
+  overlayColor: string;
+  overlayOpacity: number;
+  isDebugModeEnabled: boolean;
+  minFontSize: number;
+  maxFontSize: number;
+  browsers: Browser[];
+  activeBrowserIndex: number;
+  categories: Category[];
+  externalLinks: ExternalLink[];
+  currentView: 'meme' | 'list' | 'reports' | 'inbox';
+  activeCategoryId?: number | 'all';
+  activeSubCategoryId?: number | 'all';
+  warningTime: number; // in minutes
+  isSidebarVisible: boolean;
+  openAccordionIds: number[]; // Persist open accordions
+  activeTaskTabs: { [key: number]: 'ticket' | 'edit' }; // Persist active tab per task
+  timerNotificationLevel: 'silent' | 'low' | 'medium' | 'high';
+  prioritySortConfig?: PrioritySortConfig;
+  autoBackupLimit?: number;
+  snoozeTime: 'low' | 'medium' | 'high'; // New setting for snooze duration
+  editorHeights?: { [key: string]: string };
+  useDefaultBrowserForSearch?: boolean; // New global setting
+  inboxSort?: 'date-desc' | 'date-asc' | 'type';
+  openInboxGroupTypes?: string[];
+  taskTypes?: TaskType[];
+  openChecklistSectionIds?: number[]; // New setting to store open/collapsed checklist sections
+  showChecklistResponses?: boolean; // New setting to toggle response visibility
+  showChecklistNotes?: boolean; // New setting to toggle note visibility
+  allCategoryColor?: string;
+}
+
+export interface AccordionProps {
+  title: React.ReactNode;
+  children: React.ReactNode;
+}
