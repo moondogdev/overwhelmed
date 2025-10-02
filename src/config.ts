@@ -45,4 +45,7 @@ export const defaultSettings: Settings = {
     { id: 'research', name: 'Research', fields: ['text', 'url', 'notes', 'description', 'attachments'] },
   ],
   showChecklistNotes: true, // Default to showing notes
+  autoplayNextInSession: false, // Default to off
+  workSessionQueue: [],
+  checklistTemplates: [],
 };

@@ -264,7 +264,19 @@ export function TaskAccordionHeader({
   );
 }
 
-export function TaskAccordion({ title, children, isOpen, onToggle, word, settings, completedWords }: { title: React.ReactNode, children: React.ReactNode, isOpen: boolean, onToggle: () => void, word: Word, settings: Settings, completedWords: Word[] }) {
+export function TaskAccordion({ 
+  title, 
+  children, 
+  isOpen, 
+  onToggle, 
+  word, 
+  settings, 
+  completedWords,
+  onUpdate,
+  onNotify
+}: { 
+  title: React.ReactNode, children: React.ReactNode, isOpen: boolean, onToggle: () => void, word: Word, settings: Settings, completedWords: Word[], onUpdate?: (word: Word) => void, onNotify?: (word: Word) => void 
+}) {
   const [content, headerActions] = React.Children.toArray(children);
 
   return (

@@ -156,8 +156,7 @@ export function MemeView() {
     if (!settings.isDebugModeEnabled) return;
     event.preventDefault();
     if (hoveredWordId) {
-      const clickedWord = words.find(w => w.id === hoveredWordId);
-      console.log('Inspecting word:', clickedWord);
+      const clickedWord = words.find(w => w.id === hoveredWordId);      
       window.electronAPI.showContextMenu();
     }
   };

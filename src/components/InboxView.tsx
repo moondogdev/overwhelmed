@@ -3,6 +3,7 @@ import { InboxMessage, Settings } from '../types';
 import { formatTimestamp } from '../utils';
 import { SimpleAccordion } from './SidebarComponents';
 import { useAppContext } from '../contexts/AppContext';
+import './styles/InboxView.css'
 
 export function InboxView() {
   const {

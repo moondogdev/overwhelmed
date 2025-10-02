@@ -6,6 +6,7 @@ import { useNavigation } from './useNavigation';
 import { useNotifications } from './useNotifications';
 import { useDataPersistence } from './useDataPersistence';
 import { useInboxState } from './useInboxState';
+import { useGlobalTimer } from './useGlobalTimer';
 
 interface UseAppListenersProps {
   taskState: ReturnType<typeof useTaskState>;
@@ -15,6 +16,7 @@ interface UseAppListenersProps {
   notificationsState: ReturnType<typeof useNotifications>;
   dataPersistenceState: ReturnType<typeof useDataPersistence>;
   inboxState: ReturnType<typeof useInboxState>;
+  globalTimerState: ReturnType<typeof useGlobalTimer>;
   snoozeTimeSelectRef: React.RefObject<HTMLSelectElement>;
 }
 
@@ -26,6 +28,7 @@ export function useAppListeners({
   notificationsState, 
   dataPersistenceState, 
   inboxState, 
+  globalTimerState,
   snoozeTimeSelectRef 
 }: UseAppListenersProps) {
   // Effect to handle mouse back/forward navigation
@@ -56,12 +59,21 @@ export function useAppListeners({
   useEffect(() => {
     const handleGetDataForQuit = () => {
       // This logic doesn't need the canvas, so it's safe here.
-      // It just sends the current state.
-      window.electronAPI.send('data-for-quit', { words: taskState.words, completedWords: taskState.completedWords, settings: settingsState.settings, inboxMessages: inboxState.inboxMessages, archivedMessages: inboxState.archivedMessages, trashedMessages: inboxState.trashedMessages });
+      // It sends the refs, which are guaranteed to have the latest state.
+      window.electronAPI.send('data-for-quit', { 
+        words: taskState.wordsRef.current, 
+        completedWords: taskState.completedWordsRef.current, 
+        settings: settingsState.settingsRef.current, 
+        inboxMessagesRef: inboxState.inboxMessagesRef, 
+        archivedMessagesRef: inboxState.archivedMessagesRef, 
+        trashedMessagesRef: inboxState.trashedMessagesRef, 
+        activeTimerWordIdRef: globalTimerState.activeTimerWordIdRef, 
+        activeTimerEntryRef: globalTimerState.activeTimerEntryRef 
+      });
     };
     const cleanup = window.electronAPI.on('get-data-for-quit', handleGetDataForQuit);
     return cleanup;
-  }, [taskState.words, taskState.completedWords, settingsState.settings, inboxState.inboxMessages, inboxState.archivedMessages, inboxState.trashedMessages]);
+  }, [taskState.wordsRef, taskState.completedWordsRef, settingsState.settings, inboxState.inboxMessagesRef, inboxState.archivedMessagesRef, inboxState.trashedMessagesRef, globalTimerState.activeTimerWordIdRef, globalTimerState.activeTimerEntryRef]);
 
   // Effect to handle commands from the ticket context menu
   useEffect(() => {
@@ -89,11 +101,18 @@ export function useAppListeners({
         case 'trash':
           taskState.removeWord(wordId);
           break;
+        case 'add_to_session':
+          settingsState.setSettings(prev => ({
+            ...prev,
+            workSessionQueue: [...(prev.workSessionQueue || []), wordId]
+          }));
+          uiState.showToast(`Added "${targetWord.text}" to work session.`);
+          break;
       }
     };
     const cleanup = window.electronAPI.on('context-menu-command', handleMenuCommand);
     return cleanup;
-  }, [taskState, settingsState]);
+  }, [taskState, settingsState, globalTimerState, uiState]);
 
   // Effect to handle commands from the toast context menu
   useEffect(() => {
@@ -243,6 +262,22 @@ export function useAppListeners({
     return cleanup;
   }, [settingsState.settings]);
 
+  // Effect to handle search for stock photos from selection context menu
+  useEffect(() => {
+    const handleStockPhotoSearch = (selectionText: string) => {
+      const selectionTextDashes = selectionText.toLowerCase().replace(/\s+/g, '-');
+      const searchUrl = `https://depositphotos.com/photos/${selectionTextDashes}.html?filter=all`;
+      const activeBrowser = settingsState.settings.browsers[settingsState.settings.activeBrowserIndex];
+      const payload = {
+        url: searchUrl,
+        browserPath: activeBrowser?.path, // Always use the active browser's path.
+      };
+      window.electronAPI.openExternalLink(payload);
+    };
+    const cleanup = window.electronAPI.on('search-stock-photos-selection', handleStockPhotoSearch);
+    return cleanup;
+  }, [settingsState.settings]);
+
   // Effect for global context menu on text selection
   useEffect(() => {
     const handleGlobalContextMenu = (e: MouseEvent) => {
@@ -268,4 +303,13 @@ export function useAppListeners({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [dataPersistenceState.handleSaveProject]);
+
+  // Effect to handle generic toast messages from the main process
+  useEffect(() => {
+    const handleShowToast = (message: string) => {
+      uiState.showToast(message);
+    };
+    const cleanup = window.electronAPI.on('show-toast', handleShowToast);
+    return cleanup;
+  }, [uiState.showToast]);
 }

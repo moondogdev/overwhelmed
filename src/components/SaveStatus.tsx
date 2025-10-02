@@ -15,7 +15,7 @@ export function SaveStatus() {
   return (
     <div className="clock-save-container">
       <div className="header-center-stack">
-        <div className="current-browser-display">Active Browser: <b>{settings.browsers[settings.activeBrowserIndex]?.name || 'Default'}</b></div>
+        <div className="current-browser-display">Active Browser: <b>{(settings.browsers && settings.browsers[settings.activeBrowserIndex]?.name) || 'Default'}</b></div>
       </div>
       <div className="save-status-container">
         <button

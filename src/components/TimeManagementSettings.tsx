@@ -3,15 +3,16 @@ import { SimpleAccordion } from './SidebarComponents';
 import { useAppContext } from '../contexts/AppContext';
 
 export function TimeManagementSettings() {
-  const { settings, setSettings, snoozeTimeSelectRef } = useAppContext();
+  const { settings, setSettings, snoozeTimeSelectRef, setIsWorkSessionManagerOpen } = useAppContext();
   const id = -2; // A unique negative ID for this accordion
-  const isOpen = settings.openAccordionIds.includes(id);
+  const isOpen = (settings.openAccordionIds || []).includes(id);
 
   const handleToggle = (newIsOpen: boolean) => {
     setSettings(prev => {
+      const currentOpenIds = prev.openAccordionIds || [];
       const newOpenIds = newIsOpen 
-        ? [...prev.openAccordionIds, id] 
-        : prev.openAccordionIds.filter(i => i !== id);
+        ? [...currentOpenIds, id] 
+        : currentOpenIds.filter(i => i !== id);
       return { ...prev, openAccordionIds: newOpenIds };
     });
   };
@@ -39,6 +40,16 @@ export function TimeManagementSettings() {
         </select>
         <p style={{ fontSize: '12px', margin: '0' }}>How long to hide an overdue alert when you click "Snooze".</p>
       </label>
+      <label className="checkbox-label flexed-column">
+        <input 
+          type="checkbox" 
+          checked={settings.autoplayNextInSession || false} 
+          onChange={(e) => setSettings(prev => ({ ...prev, autoplayNextInSession: e.target.checked }))} />
+        <span className='checkbox-label-text'>Autoplay Next in Session</span>
+      </label>
+      <button onClick={() => setIsWorkSessionManagerOpen(true)} style={{ marginTop: '10px' }}>
+        <i className="fas fa-list-ol"></i> Manage Work Session
+      </button>
     </SimpleAccordion>
   );
 }

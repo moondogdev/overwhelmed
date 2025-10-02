@@ -14,6 +14,7 @@ import { useNavigation } from './hooks/useNavigation';
 import { useUIState } from './hooks/useUIState';
 import { useDataPersistence } from './hooks/useDataPersistence';
 import { AppContext } from './contexts/AppContext';
+import { Word, ChecklistSection } from './types';
 
 function App() {  
   // =================================================================================
@@ -26,11 +27,7 @@ function App() {
   const sortSelectRef = useRef<HTMLSelectElement>(null);
   const snoozeTimeSelectRef = useRef<HTMLSelectElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);  
-  const activeChecklistRef = useRef<{ handleUndo: () => void; handleRedo: () => void; } | null>(null);  
-  // These refs track state values for IPC calls where direct state access isn't possible.
-  const inboxMessagesRef = useRef<any[]>([]);
-  const archivedMessagesRef = useRef<any[]>([]);
-  const trashedMessagesRef = useRef<any[]>([]);
+  const activeChecklistRef = useRef<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; } | null>(null);  
 
   // --- UI, Settings, and Task State (managed by custom hooks) ---
   // We need `setSettings` for `uiState`, but `showToast` from `uiState` for `settingsState`.
@@ -41,31 +38,26 @@ function App() {
   const { newTask, setNewTask, bulkAddText, setBulkAddText, isLoading, setIsLoading, isDirty, setIsDirty, setLastSaveTime, setAutoSaveCountdown, showToast, focusAddTaskInput } = uiState;
   
   const settingsState = useSettings({ showToast });
-  const { settings, setSettings, handleAccordionToggle } = settingsState;
+  const { settings, setSettings, settingsRef, handleAccordionToggle } = settingsState;
 
   // --- Inbox State (managed by custom hook) ---
   const inboxState = useInboxState({ showToast, setIsDirty: uiState.setIsDirty });
-  const { inboxMessages, setInboxMessages, archivedMessages, setArchivedMessages, trashedMessages, setTrashedMessages } = inboxState;
-
-  // Keep refs synchronized with the latest state.
-  inboxMessagesRef.current = inboxMessages;
-  archivedMessagesRef.current = archivedMessages;
-  trashedMessagesRef.current = trashedMessages;
+  const { inboxMessages, setInboxMessages, archivedMessages, setArchivedMessages, trashedMessages, setTrashedMessages, inboxMessagesRef, archivedMessagesRef, trashedMessagesRef } = inboxState;
 
   const taskState = useTaskState({
     setInboxMessages, showToast, newTask, setNewTask, bulkAddText, setBulkAddText, settings,
   });
-  const { words, setWords, completedWords, setCompletedWords, handleCompleteWord, removeWord, handleWordUpdate, handleChecklistCompletion, handleClearAll, handleCopyList, handleTogglePause } = taskState;
+  const { words, setWords, completedWords, setCompletedWords, handleCompleteWord: originalHandleCompleteWord, removeWord, handleWordUpdate, handleChecklistCompletion, handleClearAll, handleCopyList, handleTogglePause, wordsRef, completedWordsRef } = taskState;
 
   // --- Global Timer State (managed by custom hook) ---
   const globalTimerState = useGlobalTimer({
-    words, setWords,
+    words, setWords, settings
   });
-  const { handleAddNewTimeLogEntryAndStart } = globalTimerState;
+  const { activeTimerWordId, activeTimerEntry, setActiveTimerWordId, setActiveTimerEntry, setActiveTimerLiveTime, handleNextEntry, handlePreviousEntry, handleGlobalResetTimer, handleStartSession, handleStartTaskFromSession, handleClearActiveTimer, handleNextChapter, handlePreviousChapter, handleGlobalToggleTimer, handlePrimeTask, handlePostLog, handlePostAndResetLog, handleResetAllLogEntries, handlePostAndComplete, activeTimerWordIdRef, activeTimerEntryRef } = globalTimerState;
 
   // --- Notifications State (managed by custom hook) ---
   const notificationsState = useNotifications({
-    words, setWords, settings, setInboxMessages, handleCompleteWord, removeWord, isLoading
+    words, setWords, settings, setInboxMessages, handleCompleteWord: originalHandleCompleteWord, removeWord, isLoading
   });
 
   // --- Editing State (managed by custom hook) ---
@@ -84,7 +76,9 @@ function App() {
     isDirty, setIsDirty,
     words, setWords,
     completedWords, setCompletedWords,
-    settings, setSettings,
+    wordsRef,
+    completedWordsRef,
+    settings, settingsRef, setSettings,
     inboxMessages, setInboxMessages,
     archivedMessages, setArchivedMessages,
     trashedMessages, setTrashedMessages,
@@ -94,7 +88,25 @@ function App() {
     setLastSaveTime,
     setAutoSaveCountdown,
     showToast,
+    activeTimerWordId,
+    activeTimerWordIdRef,
+    activeTimerEntry,
+    activeTimerEntryRef,
+    handleGlobalToggleTimer,
+    setActiveTimerWordId,
+    setActiveTimerEntry,
+    setActiveTimerLiveTime,
   });
+
+  // --- Combined Handlers for Cross-Hook Logic ---
+  const handleCompleteWord = (wordToComplete: Word) => {
+    originalHandleCompleteWord(wordToComplete);
+    // If autoplay is on and the completed task was in the session, move to the next one.    
+    if (settings.autoplayNextInSession && settings.workSessionQueue.includes(wordToComplete.id)) {
+      // A small timeout ensures the state updates from completion settle before starting the next task.
+      setTimeout(() => globalTimerState.handleNextTask(), 100);
+    }
+  };
 
   // =================================================================================
   // II. RENDER LOGIC
@@ -107,6 +119,7 @@ function App() {
     notificationsState, 
     dataPersistenceState, 
     inboxState, 
+    globalTimerState, 
     snoozeTimeSelectRef 
   });
 
@@ -125,13 +138,27 @@ function App() {
     // Pass remaining standalone props
     showToast,
     handleClearAll,
+    handleCompleteWord,
     handleCopyList,
     handleWordUpdate,
     handleAccordionToggle,
     focusAddTaskInput,
     handleChecklistCompletion,
-    handleAddNewTimeLogEntryAndStart,
+    handleGlobalToggleTimer,
     handleTogglePause,
+    handleGlobalResetTimer,
+    handleNextEntry,
+    handleClearActiveTimer,
+    handlePreviousEntry,
+    handleStartSession,
+    handlePrimeTask,
+    handleNextChapter,
+    handlePreviousChapter,
+    handlePostLog,
+    handlePostAndComplete,
+    handlePostAndResetLog,
+    handleResetAllLogEntries,
+    handleStartTaskFromSession,
     // Pass remaining refs
     searchInputRef, sortSelectRef, snoozeTimeSelectRef, activeChecklistRef, newTaskTitleInputRef,
   });    

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { InboxMessage } from '../types';
 
 interface UseInboxStateProps {
@@ -19,6 +19,22 @@ export function useInboxState({
   const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>(initialInbox);
   const [archivedMessages, setArchivedMessages] = useState<InboxMessage[]>(initialArchived);
   const [trashedMessages, setTrashedMessages] = useState<InboxMessage[]>(initialTrashed);
+
+  // Refs to hold the latest state for background processes
+  const inboxMessagesRef = useRef(inboxMessages);
+  const archivedMessagesRef = useRef(archivedMessages);
+  const trashedMessagesRef = useRef(trashedMessages);
+
+  // Keep refs updated with the latest state
+  useEffect(() => {
+    inboxMessagesRef.current = inboxMessages;
+  }, [inboxMessages]);
+  useEffect(() => {
+    archivedMessagesRef.current = archivedMessages;
+  }, [archivedMessages]);
+  useEffect(() => {
+    trashedMessagesRef.current = trashedMessages;
+  }, [trashedMessages]);
 
   const handleToggleImportant = useCallback((messageId: number) => {
     let isNowImportant: boolean;
@@ -128,6 +144,9 @@ export function useInboxState({
     inboxMessages, setInboxMessages,
     archivedMessages, setArchivedMessages,
     trashedMessages, setTrashedMessages,
+    inboxMessagesRef,
+    archivedMessagesRef,
+    trashedMessagesRef,
     handleToggleImportant,
     handleArchiveInboxMessage,
     handleUnarchiveInboxMessage,

@@ -79,6 +79,57 @@ This phase makes the MiniPlayer fully interactive, allowing navigation through t
 
 ### To do
 
+Excellent question. You've correctly identified that the Checklist.tsx component has become a "monolithic component," handling far too many responsibilities. It's managing complex state, a large number of event handlers, and rendering a deeply nested UI all in one place. This makes it difficult to read, maintain, and add new features to without breaking something.
+
+Let's break down why it's so large and formulate a clear, step-by-step plan to refactor it.
+
+Analysis: What's Causing the Bloat?
+State Overload: The component manages over 20 useState and useRef hooks for everything from editing state (editingItemId) and confirmation states (confirmingDeleteSectionId) to its own local undo/redo history (history).
+Handler Proliferation: There are more than 30 handle... functions for every conceivable action (adding, deleting, updating, duplicating, moving, toggling, etc.) for items, sections, notes, and responses.
+Massive useEffect for IPC: The useEffect hook that listens for and handles context menu commands is enormous. It contains a huge switch statement and many if/else blocks, mixing UI logic with data manipulation.
+Complex, Nested JSX: The return statement is very long and contains multiple levels of .map() loops (for sections, then for items). Each level has its own header, action buttons, and complex conditional rendering logic, making the overall structure hard to follow.
+The Refactoring Plan: From Monolith to Modular
+Our goal is to apply the same Orchestrator Component pattern we used for the main App (see Rule 69.0). We will separate the UI (what it looks like) from the logic (how it works).
+
+Here is the step-by-step plan:
+
+Phase 1: Extract UI into Dumb Components
+The first step is to break the large JSX structure into smaller, more focused "presentational" components. These components will be "dumb" – their only job is to render UI based on the props they receive. They won't contain any complex logic themselves.
+
+Create ChecklistItem.tsx:
+
+We'll create a new component that is responsible for rendering just a single checklist item.
+We will move the JSX from the section.items.map(...) loop into this new component.
+It will receive props like item, isEditable, editingItemId, and all the necessary handlers (handleToggleItem, handleUpdateItemText, etc.).
+Create ChecklistSection.tsx:
+
+We'll create a component responsible for rendering a single checklist section.
+We will move the JSX from the history[historyIndex].map(...) loop into this component.
+This component will render its own header and then map over its items, using the new ChecklistItem component we created in the previous step.
+Create ChecklistHeader.tsx:
+
+We'll create a component for the main "Checklist" header at the very top.
+This will contain the global action buttons (Expand/Collapse All, Add Note to All, etc.).
+Phase 2: Extract Logic into a Custom Hook
+Once the UI is separated, we will extract all the state management and handler functions into a dedicated custom hook. This will be the "brain" of the checklist.
+
+Create useChecklist.ts:
+We'll create a new custom hook file at src/hooks/useChecklist.ts.
+We will move all the useState, useRef, and useEffect hooks from Checklist.tsx into this new hook.
+All 30+ handle... functions will also be moved into this hook.
+The hook will take the essential props (sections, onUpdate, wordId, etc.) and return an object containing all the state and handlers that the new UI components need.
+Phase 3: Re-assemble as an Orchestrator
+Finally, we will rewrite the Checklist.tsx component to be a clean "orchestrator."
+
+The New Checklist.tsx:
+Its only job will be to call our new useChecklist() hook to get all the state and logic.
+It will then render the new UI components (ChecklistHeader, ChecklistSection, etc.), passing them the state and handlers they need from the hook.
+By the end of this process, Checklist.tsx will be a small, easy-to-read file that clearly shows how the logic from the hook is connected to the presentational UI components. This modular structure will make the entire feature vastly easier to debug and extend in the future.
+
+This is a significant but very important refactoring task. We should proceed phase by phase to ensure stability.
+
+Ready to begin with Phase 1?
+
 -   **Major Refactor: Rename `Word` to `Task`**: This plan outlines the steps to update the legacy naming convention of `Word` to the more accurate `Task`. This will be a global find-and-replace operation, but it must be done carefully.
 
 1.  **Interface Renaming**:

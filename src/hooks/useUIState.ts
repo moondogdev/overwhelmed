@@ -13,6 +13,7 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
   const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isDirty, setIsDirty] = useState(false);
+  const [isWorkSessionManagerOpen, setIsWorkSessionManagerOpen] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState<number | null>(null);
   const [autoSaveCountdown, setAutoSaveCountdown] = useState(300);
   const [focusChecklistItemId, setFocusChecklistItemId] = useState<number | null>(null);
@@ -75,6 +76,7 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
     isPromptOpen, setIsPromptOpen, isLoading, setIsLoading, isDirty, setIsDirty, lastSaveTime, setLastSaveTime,
     autoSaveCountdown, setAutoSaveCountdown, focusChecklistItemId, setFocusChecklistItemId, searchQuery, setSearchQuery,
     isAddTaskOpen, setIsAddTaskOpen, editingViaContext, setEditingViaContext, newTask, setNewTask,
+    isWorkSessionManagerOpen, setIsWorkSessionManagerOpen,
     focusAddTaskInput,
     copyStatus,
     showToast,

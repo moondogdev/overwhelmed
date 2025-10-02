@@ -2,6 +2,7 @@ import React from 'react';
 import { Word, Settings } from '../types';
 import { TimeLeft } from './TaskComponents';
 import { useAppContext } from '../contexts/AppContext';
+import './styles/Notifications.css';
 
 interface NotificationCenterProps {}
 

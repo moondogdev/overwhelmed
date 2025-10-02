@@ -1,20 +1,21 @@
 import React from 'react';
-import { Word, Category, Settings, TimeLogEntry, ChecklistItem, ChecklistSection } from '../types';
-import { getContrastColor, getRelativeDateHeader, formatTimestamp, formatTime } from '../utils';
+import { Word, Category } from '../types';
+import { getContrastColor, getRelativeDateHeader, formatTimestamp, formatTime, } from '../utils';
 import { TaskAccordion, TaskAccordionHeader, Stopwatch, Dropdown } from './TaskComponents';
 import { TabbedView, CategoryOptions } from './TaskView';
 import { useAppContext } from '../contexts/AppContext';
 import { SimpleAccordion } from './SidebarComponents';
+import './styles/ListView.css';
 
 export function ListView() {
   const {
     words, completedWords, setWords, settings, setSettings, searchQuery, setSearchQuery, editingWordId, setEditingWordId,
     editingText, handleEditChange, handleEditKeyDown, editingViaContext, confirmingClearCompleted, handleClearAll,
     handleCopyList, handleClearCompleted, handleCompleteWord, moveWord, removeWord, handleWordUpdate,
-    handleAccordionToggle, handleReopenTask, handleDuplicateTask, handleTogglePause, setActiveCategoryId,
+    handleAccordionToggle, handleReopenTask, handleDuplicateTask, handleTogglePause, setActiveCategoryId, handleNextTask, handlePreviousTask,
     setActiveSubCategoryId, focusAddTaskInput, setNewTask, setFullTaskViewId, searchInputRef, sortSelectRef,
     activeChecklistRef, showToast, setInboxMessages, handleChecklistCompletion, focusChecklistItemId,
-    setFocusChecklistItemId, handleGlobalToggleTimer, handleGlobalStopTimer, handleAddNewTimeLogEntryAndStart,
+    setFocusChecklistItemId, handleGlobalToggleTimer, handleGlobalStopTimer,
     activeTimerWordId, activeTimerEntry, activeTimerLiveTime, handleTimerNotify
   } = useAppContext();
 
@@ -235,16 +236,22 @@ export function ListView() {
                   return (
                     <div key={dateStr} className="date-group-container">
                       <h4 className={`date-group-header ${isNoDueDate ? 'no-due-date-header' : ''}`}>
-                        {headerText}
+                        {headerText} 
                         <span className="date-group-task-count">{taskCountText}</span>
                       </h4>
                       {wordsOnDate.map((word, index) => (
                         <div key={word.id} className="priority-list-item" data-word-id={word.id}>
                           {editingWordId === word.id ? (
-                            <input type="text" value={editingText} onChange={handleEditChange} onKeyDown={(e) => handleEditKeyDown(e, word.id)} onBlur={() => setEditingWordId(null)} autoFocus />
-                          ) : (
+                            <input type="text" value={editingText} onChange={handleEditChange} onKeyDown={(e) => handleEditKeyDown(e, word.id)} onBlur={() => setEditingWordId(null)} autoFocus/>
+                          ) : (                            
                             <TaskAccordion word={word} isOpen={settings.openAccordionIds.includes(word.id)} onToggle={() => handleAccordionToggle(word.id)} settings={settings} completedWords={completedWords} title={<TaskAccordionHeader word={word} settings={settings} onCategoryClick={(e, catId, parentId) => { e.stopPropagation(); setActiveCategoryId(parentId || catId); if (parentId) { setActiveSubCategoryId(catId); } else { setActiveSubCategoryId('all'); } }} allWords={[...words, ...completedWords]} onUpdate={handleWordUpdate} onNotify={handleTimerNotify} />}>
-                              <><TabbedView word={word} onUpdate={handleWordUpdate} /><div className="word-item-display"><span className="stopwatch date-opened">Started at: {formatTimestamp(word.createdAt)}</span><Stopwatch word={word} onTogglePause={handleTogglePause} /></div></>
+                              <><TabbedView 
+                                  word={word} 
+                                  onUpdate={handleWordUpdate} 
+                                  // FIX: Pass the setSettings function from the context directly.
+                                  // This ensures the prop chain is consistent.
+                                  onSettingsChange={setSettings} 
+                                /><div className="word-item-display"><span className="stopwatch date-opened">Started at: {formatTimestamp(word.createdAt)}</span><Stopwatch word={word} onTogglePause={handleTogglePause} /></div></>
                               <div className="list-item-controls"><button onClick={() => { const newAutocompleteState = !word.isAutocomplete; setWords(words.map(w => w.id === word.id ? { ...w, isAutocomplete: newAutocompleteState } : w)); showToast(`Autocomplete ${newAutocompleteState ? 'enabled' : 'disabled'}.`); }} title="Toggle Autocomplete" className={`icon-button recurring-toggle ${word.isAutocomplete ? 'active' : ''}`}><i className="fas fa-robot"></i></button><Dropdown trigger={<button title="Recurring Options" className={`icon-button recurring-toggle ${word.isRecurring || word.isDailyRecurring || word.isWeeklyRecurring || word.isMonthlyRecurring || word.isYearlyRecurring ? 'active' : ''}`}><i className="fas fa-sync-alt"></i></button>}><button onClick={() => handleWordUpdate({ ...word, isRecurring: !word.isRecurring })} className={word.isRecurring ? 'active' : ''}>Re-occur on Complete</button><button onClick={() => handleWordUpdate({ ...word, isDailyRecurring: !word.isDailyRecurring })} className={word.isDailyRecurring ? 'active' : ''}>Repeat Daily</button><button onClick={() => handleWordUpdate({ ...word, isWeeklyRecurring: !word.isWeeklyRecurring })} className={word.isWeeklyRecurring ? 'active' : ''}>Repeat Weekly</button><button onClick={() => handleWordUpdate({ ...word, isMonthlyRecurring: !word.isMonthlyRecurring })} className={word.isMonthlyRecurring ? 'active' : ''}>Repeat Monthly</button><button onClick={() => handleWordUpdate({ ...word, isYearlyRecurring: !word.isYearlyRecurring })} className={word.isYearlyRecurring ? 'active' : ''}>Repeat Yearly</button></Dropdown><button className="icon-button" title="View Full Page" onClick={(e) => { e.stopPropagation(); setFullTaskViewId(word.id); }}><i className="fas fa-expand-arrows-alt"></i></button><button onClick={() => handleCompleteWord(word)} className="icon-button complete-btn" title="Complete Task"><i className="fas fa-check"></i></button>{currentSortConfig === null && (<><button className="icon-button" onClick={() => { const targetWord = filteredWords[index - 1]; if (targetWord) moveWord(word.id, targetWord.id); }} disabled={index === 0} title="Move Up"><i className="fas fa-arrow-up"></i></button><button className="icon-button" onClick={() => { const targetWord = filteredWords[index + 1]; if (targetWord) moveWord(word.id, targetWord.id); }} disabled={index === filteredWords.length - 1} title="Move Down"><i className="fas fa-arrow-down"></i></button></>)}<button onClick={() => removeWord(word.id)} className="icon-button remove-btn" title="Delete Task"><i className="fas fa-trash"></i></button></div>
                             </TaskAccordion>
                           )}
@@ -257,10 +264,16 @@ export function ListView() {
             ) : (filteredWords.map((word, index) => (
               <div key={word.id} className="priority-list-item" data-word-id={word.id}>
                 {editingWordId === word.id ? (
-                  <input type="text" value={editingText} onChange={handleEditChange} onKeyDown={(e) => handleEditKeyDown(e, word.id)} onBlur={() => setEditingWordId(null)} autoFocus />
+                  <input type="text" value={editingText} onChange={handleEditChange} onKeyDown={(e) => handleEditKeyDown(e, word.id)} onBlur={() => setEditingWordId(null)} autoFocus/>
                 ) : (
                   <TaskAccordion word={word} isOpen={settings.openAccordionIds.includes(word.id)} onToggle={() => handleAccordionToggle(word.id)} settings={settings} completedWords={completedWords} title={<TaskAccordionHeader word={word} settings={settings} onCategoryClick={(e, catId, parentId) => { e.stopPropagation(); setActiveCategoryId(parentId || catId); if (parentId) { setActiveSubCategoryId(catId); } else { setActiveSubCategoryId('all'); } }} allWords={[...words, ...completedWords]} onUpdate={handleWordUpdate} onNotify={handleTimerNotify} />}>
-                    <><TabbedView word={word} onUpdate={handleWordUpdate} /><div className="word-item-display"><span className="stopwatch date-opened">Started at: {formatTimestamp(word.createdAt)}</span><Stopwatch word={word} onTogglePause={handleTogglePause} /></div></>
+                    <><TabbedView 
+                        word={word} 
+                        onUpdate={handleWordUpdate} 
+                        // FIX: Pass the setSettings function from the context directly.
+                        // This ensures the prop chain is consistent.
+                        onSettingsChange={setSettings} 
+                      /><div className="word-item-display"><span className="stopwatch date-opened">Started at: {formatTimestamp(word.createdAt)}</span><Stopwatch word={word} onTogglePause={handleTogglePause} /></div></>
                     <div className="list-item-controls"><button onClick={() => { const newAutocompleteState = !word.isAutocomplete; setWords(words.map(w => w.id === word.id ? { ...w, isAutocomplete: newAutocompleteState } : w)); showToast(`Autocomplete ${newAutocompleteState ? 'enabled' : 'disabled'}.`); }} title="Toggle Autocomplete" className={`icon-button recurring-toggle ${word.isAutocomplete ? 'active' : ''}`}><i className="fas fa-robot"></i></button><Dropdown trigger={<button title="Recurring Options" className={`icon-button recurring-toggle ${word.isRecurring || word.isDailyRecurring || word.isWeeklyRecurring || word.isMonthlyRecurring || word.isYearlyRecurring ? 'active' : ''}`}><i className="fas fa-sync-alt"></i></button>}><button onClick={() => handleWordUpdate({ ...word, isRecurring: !word.isRecurring })} className={word.isRecurring ? 'active' : ''}>Re-occur on Complete</button><button onClick={() => handleWordUpdate({ ...word, isDailyRecurring: !word.isDailyRecurring })} className={word.isDailyRecurring ? 'active' : ''}>Repeat Daily</button><button onClick={() => handleWordUpdate({ ...word, isWeeklyRecurring: !word.isWeeklyRecurring })} className={word.isWeeklyRecurring ? 'active' : ''}>Repeat Weekly</button><button onClick={() => handleWordUpdate({ ...word, isMonthlyRecurring: !word.isMonthlyRecurring })} className={word.isMonthlyRecurring ? 'active' : ''}>Repeat Monthly</button><button onClick={() => handleWordUpdate({ ...word, isYearlyRecurring: !word.isYearlyRecurring })} className={word.isYearlyRecurring ? 'active' : ''}>Repeat Yearly</button></Dropdown><button className="icon-button" title="View Full Page" onClick={(e) => { e.stopPropagation(); setFullTaskViewId(word.id); }}><i className="fas fa-expand-arrows-alt"></i></button><button onClick={() => handleCompleteWord(word)} className="icon-button complete-btn" title="Complete Task"><i className="fas fa-check"></i></button>{currentSortConfig === null && (<><button className="icon-button" onClick={() => { const targetWord = filteredWords[index - 1]; if (targetWord) moveWord(word.id, targetWord.id); }} disabled={index === 0} title="Move Up"><i className="fas fa-arrow-up"></i></button><button className="icon-button" onClick={() => { const targetWord = filteredWords[index + 1]; if (targetWord) moveWord(word.id, targetWord.id); }} disabled={index === filteredWords.length - 1} title="Move Down"><i className="fas fa-arrow-down"></i></button></>)}<button onClick={() => removeWord(word.id)} className="icon-button remove-btn" title="Delete Task"><i className="fas fa-trash"></i></button></div>
                   </TaskAccordion>
                 )}
@@ -297,10 +310,14 @@ export function ListView() {
               {filteredCompletedWords.map((word) => {
                 const title = (<><div className="accordion-main-title">{word.text}</div><div className="accordion-subtitle">{word.company && <span>{word.company}</span>}<span>{formatTimestamp(word.openDate)}</span><span>Completed in: {formatTime(word.completedDuration ?? 0)}</span></div></>);
                 return (
-                  <div key={word.id} className="priority-list-item completed-item" data-word-id={word.id}>
-                    <TaskAccordionHeader word={word} settings={settings} allWords={[...words, ...completedWords]} onCategoryClick={() => { }} />
-                    <TaskAccordion word={word} title={title} isOpen={settings.openAccordionIds.includes(word.id)} onToggle={() => handleAccordionToggle(word.id)} settings={settings} completedWords={completedWords}>
-                      <TabbedView word={word} onUpdate={handleWordUpdate} />
+                  <div key={word.id} className="priority-list-item completed-item" data-word-id={word.id}>                    
+                    <TaskAccordionHeader word={word} settings={settings} allWords={[...words, ...completedWords]} onCategoryClick={() => { }} onUpdate={handleWordUpdate} onNotify={handleTimerNotify} />
+                    <TaskAccordion word={word} title={title} isOpen={settings.openAccordionIds.includes(word.id)} onToggle={() => handleAccordionToggle(word.id)} settings={settings} completedWords={completedWords} onUpdate={handleWordUpdate} onNotify={handleTimerNotify}>                    
+                      <TabbedView 
+                        word={word} 
+                        onUpdate={handleWordUpdate} 
+                        onSettingsChange={setSettings}
+                      />
                       <div className="list-item-controls"><button className="icon-button" onClick={() => handleReopenTask(word)} title="Reopen Task"><i className="fas fa-undo"></i></button><button className="icon-button" onClick={() => handleDuplicateTask(word)} title="Duplicate Task"><i className="fas fa-copy"></i></button></div>
                     </TaskAccordion>
                   </div>

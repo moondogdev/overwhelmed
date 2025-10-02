@@ -1,6 +1,7 @@
 import React from 'react';
 import { LiveClock } from './SidebarComponents';
 import { useAppContext } from '../contexts/AppContext';
+import './styles/AppHeader.css';
 
 export function AppHeader() {
   const {
@@ -15,7 +16,7 @@ export function AppHeader() {
   return (
     <header className="app-header">
       <div className="external-links">
-        {settings.externalLinks.map((link, index) => (
+        {(settings.externalLinks || []).map((link, index) => (
           <button key={index} onClick={() => {
             const payload = {
               url: link.url,

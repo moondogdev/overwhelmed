@@ -11,7 +11,7 @@ export function AddNewTaskForm() {
   const {
     newTask, setNewTask, settings, setSettings, words, setInboxMessages,
     handleChecklistCompletion, activeChecklistRef, showToast, focusChecklistItemId,
-    setFocusChecklistItemId, handleAddNewTimeLogEntryAndStart, handleCreateNewTask,
+    setFocusChecklistItemId, handleGlobalToggleTimer, handleCreateNewTask, handleClearActiveTimer, handlePrimeTask, handlePrimeTaskWithNewLog, activeTimerEntry, activeTimerLiveTime,
     newTaskTitleInputRef, isAddTaskOpen, setIsAddTaskOpen,
   } = useAppContext();
 
@@ -126,7 +126,12 @@ export function AddNewTaskForm() {
         focusItemId={focusChecklistItemId}
         onFocusHandled={() => setFocusChecklistItemId(null)}
         settings={settings}
-        handleAddNewTimeLogEntryAndStart={handleAddNewTimeLogEntryAndStart}
+        handleGlobalToggleTimer={handleGlobalToggleTimer}
+        handlePrimeTask={handlePrimeTask}
+        handlePrimeTaskWithNewLog={handlePrimeTaskWithNewLog}
+        activeTimerEntry={activeTimerEntry}
+        activeTimerLiveTime={activeTimerLiveTime}
+        handleClearActiveTimer={handleClearActiveTimer}
         onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
       />}
       {shouldShow('description') && <DescriptionEditor

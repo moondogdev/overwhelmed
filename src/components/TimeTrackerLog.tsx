@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Word, TimeLogEntry, TimeLogSession } from '../types';
+import { Word, TimeLogEntry, TimeLogSession, ChecklistSection } from '../types';
 import { formatTime, parseTime, formatTimeLogSessionForCopy } from '../utils';
+import './styles/TimeTrackerLog.css';
 
 interface TimeTrackerLogProps {
   word: Word;
@@ -10,8 +11,17 @@ interface TimeTrackerLogProps {
   activeTimerWordId: number | null;
   activeTimerEntry: TimeLogEntry | null;
   activeTimerLiveTime: number;
-  handleGlobalStopTimer: () => void;
-  handleAddNewTimeLogEntryAndStart: (wordId: number, description: string) => void;
+  handleGlobalStopTimer: () => void;  
+  handleClearActiveTimer: () => void;
+  handleGlobalResetTimer: (wordId: number, entryId: number) => void;
+  handleNextEntry: () => void;
+  handlePreviousEntry: () => void;
+  handlePostLog: (wordId: number) => void;
+  handlePostAndResetLog: (wordId: number) => void;
+  handleResetAllLogEntries: (wordId: number) => void;
+  handlePostAndComplete: (wordId: number, entryId: number, onUpdate: (updatedWord: Word) => void) => void;
+  settings: any; // Add settings to props
+  checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
 }
 
 export function TimeTrackerLog({ 
@@ -22,8 +32,17 @@ export function TimeTrackerLog({
   activeTimerWordId,
   activeTimerEntry,
   activeTimerLiveTime,
-  handleGlobalStopTimer,
-  handleAddNewTimeLogEntryAndStart,
+  handleGlobalStopTimer,  
+  handleClearActiveTimer,
+  handleGlobalResetTimer,
+  handleNextEntry,
+  handlePreviousEntry,
+  handlePostLog,
+  handlePostAndResetLog,
+  handleResetAllLogEntries,
+  handlePostAndComplete,
+  settings,
+  checklistRef,
 }: TimeTrackerLogProps) {
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [editingEntryDescription, setEditingEntryDescription] = useState('');
@@ -32,6 +51,7 @@ export function TimeTrackerLog({
   const [bulkAddText, setBulkAddText] = useState('');
   const [liveTime, setLiveTime] = useState(0);
   const [confirmingDeleteAll, setConfirmingDeleteAll] = useState(false);
+  const [confirmingResetAll, setConfirmingResetAll] = useState(false);
 
   // New state for session management
   const [liveTimerTitle, setLiveTimerTitle] = useState(word.timeLogTitle || 'Work Timer');
@@ -233,9 +253,12 @@ export function TimeTrackerLog({
         case 'move_down':
           if (entryId) handleMoveEntry(entryId, 'down');
           break;
+        case 'post_and_complete':
+          if (entryId) handlePostAndComplete(word.id, entryId, onUpdate);
+          break;
       }
     };
-  }, [word.timeLog, handleStartEditing, handleDeleteEntry, handleUpdateLog, handleMoveEntry]);
+  }, [word.id, word.timeLog, handleStartEditing, handleDeleteEntry, handleUpdateLog, handleMoveEntry, handlePostAndComplete, onUpdate]);
 
   useEffect(() => {
     const handleHeaderCommand = (payload: { command: string, totalTime: number, timeLog: TimeLogEntry[] }) => {
@@ -294,7 +317,21 @@ export function TimeTrackerLog({
 
   const handleDeleteAll = () => {
     if (confirmingDeleteAll) {
-      onUpdate({ ...word, timeLog: [], timeLogTitle: undefined });
+      // This is the fix. We need to clear both the timeLog AND the loggedTime on each checklist item.
+      const updatedChecklist = (word.checklist || []).map(sectionOrItem => {
+        if ('items' in sectionOrItem) { // It's a ChecklistSection
+          return {
+            ...sectionOrItem,
+            items: sectionOrItem.items.map(item => {
+              const { loggedTime, ...rest } = item; // Remove the loggedTime property
+              return rest;
+            })
+          };
+        }
+        return sectionOrItem; // Should not happen with normalized data, but safe to keep.
+      }) as ChecklistSection[]; // Cast to the expected type to resolve the TS error.
+      onUpdate({ ...word, timeLog: [], timeLogTitle: undefined, checklist: updatedChecklist as any });
+      checklistRef?.current?.resetHistory(updatedChecklist); // Force the checklist to update its internal history
       setLiveTimerTitle('Work Timer'); // Reset local state as well
       showToast('Timer Wiped!');
       setConfirmingDeleteAll(false);
@@ -317,6 +354,25 @@ export function TimeTrackerLog({
       showToast('Confirm clear?', 2000);
       if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
       confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteAll(false), 3000);
+    }
+  };
+
+  const handleResetAllEntries = () => {
+    if (confirmingResetAll) {
+      handleResetAllLogEntries(word.id);
+      
+      // If the active timer was part of this log, stop it globally.
+      if (activeTimerWordId === word.id) {
+        handleClearActiveTimer(); // Use the non-saving stop function
+      }
+
+      showToast('All timer entries have been reset.');
+      setConfirmingResetAll(false);
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+    } else {
+      setConfirmingResetAll(true);
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+      confirmTimeoutRef.current = setTimeout(() => setConfirmingResetAll(false), 3000);
     }
   };
 
@@ -367,52 +423,6 @@ export function TimeTrackerLog({
   }, [handleSessionCommand]);
 
   // --- NEW SESSION LOGIC ---
-  const handlePostTimeLog = () => {
-    // First, ensure the latest title from the input is saved to the main word object.
-    onUpdate({ ...word, timeLogTitle: liveTimerTitle });
-
-    if (!timeLog || timeLog.length === 0) {
-      showToast('Current time log is empty.', 3000, 'error');
-      return;
-    }
-
-    let finalTimeLog = [...timeLog];
-    const runningEntryIndex = finalTimeLog.findIndex(e => e.isRunning);
-
-    // If a timer is running, stop it and add the final elapsed time.
-    // This is the potential race condition. We will fix it here.
-    if (runningEntryIndex !== -1) {
-      const runningEntry = finalTimeLog[runningEntryIndex];
-      // Calculate elapsed time atomically at the moment of posting.
-      const elapsed = Date.now() - (runningEntry.startTime || Date.now());
-      const finalDuration = runningEntry.duration + elapsed;
-      finalTimeLog[runningEntryIndex] = { ...runningEntry, duration: finalDuration, isRunning: false, startTime: undefined };
-    }
-
-    const newSession: TimeLogSession = {
-      id: Date.now() + Math.random(),
-      title: liveTimerTitle || 'New Log Session',
-      createdAt: Date.now(),
-      entries: finalTimeLog // Use the final, updated log
-    };
-
-    const updatedSessions = [...(word.timeLogSessions || []), newSession];
-
-    onUpdate({
-      ...word,
-      timeLogSessions: updatedSessions,
-      timeLog: [], // Clear the current log
-      timeLogTitle: undefined, // Clear the title
-    });
-
-    // Set state to edit the new session's title
-    setEditingSessionId(newSession.id);
-    handleGlobalStopTimer();
-    setEditingSessionTitle(newSession.title);
-
-    // Reset the live timer's title for the next session.
-    setLiveTimerTitle('Work Timer');
-  };
 
   const handleUpdateSessionTitle = (sessionId: number) => {
     const updatedSessions = (word.timeLogSessions || []).map(session =>
@@ -626,102 +636,119 @@ export function TimeTrackerLog({
             <i className="fas fa-paste"></i>
           </button>
         </div>
+        {/* This block now controls navigation between log entries WITHIN this task */}
+        {(() => {
+          const timeLog = word.timeLog || [];
+          const isTimerActiveForThisTask = activeTimerWordId === word.id && activeTimerEntry;
+          const currentIndex = isTimerActiveForThisTask
+            ? timeLog.findIndex(e => e.id === activeTimerEntry.id)
+            : -1;
+
+          // Enable buttons only if a timer for THIS task is running.
+          const canGoPrevious = currentIndex > 0;
+          const canGoNext = currentIndex !== -1 && currentIndex < timeLog.length - 1;
+          
+          return (
+            <div className="time-tracker-header-right-actions">
+              <button onClick={handlePreviousEntry} className="icon-button" title="Previous Entry" disabled={!canGoPrevious}>
+                <i className="fas fa-step-backward"></i>
+              </button>
+              <button onClick={handleNextEntry} className="icon-button" title="Next Entry" disabled={!canGoNext}>
+                <i className="fas fa-step-forward"></i>
+              </button>
+            </div>
+          );
+        })()}
         <div className="time-tracker-header-right">
           {/* New "Post Log" button */}
-          <button onClick={handlePostTimeLog} className="icon-button" title="Post Current Time Log">
+          <button onClick={() => {
+            handlePostLog(word.id);
+            showToast('Session logged!');
+          }} className="icon-button" title="Post and Clear Log">
             <i className="fas fa-paper-plane"></i>
+          </button>
+          <button onClick={() => {
+            handlePostAndResetLog(word.id);
+            showToast('Session logged and timer reset.');
+          }} className="icon-button" title="Post and Reset Durations">
+            <i className="fas fa-clipboard-check"></i>
           </button>
           <button onClick={handleAddNewEntry} className="icon-button" title="Add New Line">
             <i className="fas fa-plus"></i>
           </button>
+          <button onClick={handleResetAllEntries} className={`icon-button ${confirmingResetAll ? 'confirm-delete' : ''}`} title="Reset All Durations">
+            <i className={`fas ${confirmingResetAll ? 'fa-check' : 'fa-history'}`}></i>
+          </button>
           <button onClick={handleClearEntries} className={`icon-button ${confirmingDeleteAll ? 'confirm-delete' : ''}`} title="Clear All Entries">
             <i className={`fas ${confirmingDeleteAll ? 'fa-check' : 'fa-broom'}`}></i>
           </button>
-          <button onClick={handleDeleteAll} className={`icon-button ${confirmingDeleteAll ? 'confirm-delete' : ''}`} title="Wipe Timer (Delete All & Title)">
+          <button onClick={handleDeleteAll} className={`icon-button ${confirmingDeleteAll ? 'confirm-delete' : ''}`} title="Wipe Timer (Delete All and Title)">
             <i className={`fas ${confirmingDeleteAll ? 'fa-check' : 'fa-trash'}`}></i>
           </button>
         </div>
       </header>
       <div className="time-log-entries">
-        {timeLog.map((entry, index) => (
-          <div
-            key={entry.id}
-            className="time-log-entry"
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              window.electronAPI.showTimeLogItemContextMenu({
-                entry,
-                index,
-                totalEntries: timeLog.length,
-                x: e.clientX,
-                y: e.clientY,
-              });
-            }}
-          >
-            <div className="time-log-entry-main">
-              <button onClick={() => handleGlobalToggleTimer(word.id, entry.id)} className="icon-button-small" title={activeTimerEntry?.id === entry.id ? 'Pause' : 'Start'}>
-                <i 
-                  className={`fas ${activeTimerEntry?.id === entry.id ? 'fa-pause-circle' : 'fa-play-circle'}`} 
-                  style={{ color: activeTimerEntry?.id === entry.id ? '#f44336' : '#4CAF50' }}
-                ></i>
-              </button>
-              <div className="entry-description" onDoubleClick={() => handleStartEditing(entry)}>
-                {editingEntryId === entry.id ? (
-                  <input
-                    ref={entryInputRef}
-                    type="text"
-                    value={editingEntryDescription}
-                    onChange={(e) => setEditingEntryDescription(e.target.value)}
-                    onBlur={handleSaveEdit}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
-                    className="inline-edit-input"
-                  />
+        {timeLog.map((entry, index) => {
+          if (entry.type === 'header') {
+            return (
+              <div key={entry.id} className="time-log-header-entry">
+                {entry.description}
+              </div>
+            );
+          }
+          // Default rendering for a regular entry
+          return (
+            <div
+              key={entry.id}
+              className="time-log-entry"
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.electronAPI.showTimeLogItemContextMenu({
+                  entry,
+                  index,
+                  totalEntries: timeLog.length,
+                  x: e.clientX,
+                  y: e.clientY,
+                });
+              }}
+            >
+              <div className="time-log-entry-main">
+                <button onClick={() => handleGlobalToggleTimer(word.id, entry.id)} className="icon-button-small" title={entry.isRunning ? 'Pause' : 'Start'}>
+                  <i className={`fas ${entry.isRunning ? 'fa-pause-circle' : 'fa-play-circle'}`} style={{ color: entry.isRunning ? (activeTimerEntry?.id === entry.id ? '#f44336' : '#4CAF50') : '#4CAF50' }}></i>
+                </button>
+                <div className="entry-description" onDoubleClick={() => handleStartEditing(entry)}>
+                  {editingEntryId === entry.id ? (
+                    <input ref={entryInputRef} type="text" value={editingEntryDescription} onChange={(e) => setEditingEntryDescription(e.target.value)} onBlur={handleSaveEdit} onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()} className="inline-edit-input" />
+                  ) : ( <span>{entry.description}</span> )}
+                </div>
+                {editingEntryId === entry.id && editingEntryDuration ? (
+                  <input type="text" value={editingEntryDuration} onChange={(e) => setEditingEntryDuration(e.target.value)} onBlur={handleSaveDurationEdit} onKeyDown={(e) => e.key === 'Enter' && handleSaveDurationEdit()} className="inline-edit-input" style={{ textAlign: 'right', minWidth: '80px' }} autoFocus />
                 ) : (
-                  <span>{entry.description}</span>
+                  <span className="entry-duration" onDoubleClick={() => handleStartEditingDuration(entry)}>
+                    {formatTime(activeTimerWordId === word.id && activeTimerEntry?.id === entry.id ? activeTimerLiveTime : entry.duration)}
+                  </span>
                 )}
               </div>
-              {editingEntryId === entry.id && editingEntryDuration ? (
-                <input
-                  type="text"
-                  value={editingEntryDuration}
-                  onChange={(e) => setEditingEntryDuration(e.target.value)}
-                  onBlur={handleSaveDurationEdit}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSaveDurationEdit()}
-                  className="inline-edit-input"
-                  style={{ textAlign: 'right', minWidth: '80px' }}
-                  autoFocus
-                />
-              ) : (
-                <span className="entry-duration" onDoubleClick={() => handleStartEditingDuration(entry)}>
-                  {formatTime(
-                    activeTimerWordId === word.id && activeTimerEntry?.id === entry.id ? activeTimerLiveTime : entry.duration
-                  )}
-                </span>
-              )}
+              <div className="time-log-entry-actions">
+                {entry.checklistItemId && (
+                  <button onClick={() => handlePostAndComplete(word.id, entry.id, onUpdate)} className="icon-button-small" title="Toggle Checklist Item Complete"><i className="fas fa-check-square"></i></button>
+                )}
+                <button onClick={() => handleStartEditing(entry)} className="icon-button-small" title="Edit Description"><i className="fas fa-pencil-alt"></i></button>
+                <button onClick={() => handleGlobalResetTimer(word.id, entry.id)} className="icon-button-small" title="Reset Duration"><i className="fas fa-undo"></i></button>
+                <button onClick={() => {
+                  const newEntry: TimeLogEntry = { ...entry, id: Date.now() + Math.random(), isRunning: false, startTime: undefined };
+                  const newTimeLog = [...(word.timeLog || [])];
+                  newTimeLog.splice(index + 1, 0, newEntry);
+                  handleUpdateLog(newTimeLog);
+                }} className="icon-button-small" title="Duplicate Entry"><i className="fas fa-copy"></i></button>
+                <button onClick={() => handleMoveEntry(entry.id, 'up')} className="icon-button-small" title="Move Up" disabled={index === 0}><i className="fas fa-arrow-up"></i></button>
+                <button onClick={() => handleMoveEntry(entry.id, 'down')} className="icon-button-small" title="Move Down" disabled={index === timeLog.length - 1}><i className="fas fa-arrow-down"></i></button>
+                <button onClick={() => handleDeleteEntry(entry.id)} className={`icon-button-small ${confirmingDeleteEntry === entry.id ? 'confirm-delete' : ''}`} title="Delete Entry"><i className={`fas ${confirmingDeleteEntry === entry.id ? 'fa-check' : 'fa-trash'}`}></i></button>
+              </div>
             </div>
-            <div className="time-log-entry-actions">
-              <button onClick={() => handleStartEditing(entry)} className="icon-button-small" title="Edit Description">
-                <i className="fas fa-pencil-alt"></i>
-              </button>
-              <button onClick={() => {
-                const newEntry: TimeLogEntry = { ...entry, id: Date.now() + Math.random(), isRunning: false, startTime: undefined };
-                const newTimeLog = [...(word.timeLog || [])];
-                newTimeLog.splice(index + 1, 0, newEntry);
-                handleUpdateLog(newTimeLog);
-              }} className="icon-button-small" title="Duplicate Entry"><i className="fas fa-copy"></i></button>
-              <button onClick={() => handleMoveEntry(entry.id, 'up')} className="icon-button-small" title="Move Up" disabled={index === 0}>
-                <i className="fas fa-arrow-up"></i>
-              </button>
-              <button onClick={() => handleMoveEntry(entry.id, 'down')} className="icon-button-small" title="Move Down" disabled={index === timeLog.length - 1}>
-                <i className="fas fa-arrow-down"></i>
-              </button>
-              <button onClick={() => handleDeleteEntry(entry.id)} className={`icon-button-small ${confirmingDeleteEntry === entry.id ? 'confirm-delete' : ''}`} title="Delete Entry">
-                <i className={`fas ${confirmingDeleteEntry === entry.id ? 'fa-check' : 'fa-trash'}`}></i>
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div className="bulk-add-container">
         <textarea

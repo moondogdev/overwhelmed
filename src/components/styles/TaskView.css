@@ -1,0 +1,316 @@
+
+/* --- Task Forms & Details --- */
+
+.accordion-content {
+  padding: 0;
+}
+
+.new-task-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.new-task-form select {
+  padding: 8px;
+  margin-bottom: 10px;
+}
+
+.new-task-form label {
+  margin-bottom: 0; /* Reduce the bottom margin for a tighter layout */
+}
+
+.tab-container {
+  width: 100%;
+}
+
+.tab-headers {
+  display: flex;
+  border-bottom: 1px solid #555;
+  margin: 15px 0;
+}
+
+.tab-headers button {
+  padding: 8px 16px;
+  cursor: pointer;
+  border: none;
+  background-color: transparent;
+  color: #aaa;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px; /* Overlap the container's border */
+}
+
+.tab-headers button.active {
+  color: white;
+  border-bottom-color: #4caf50;
+}
+
+.tab-content {
+  padding-top: 15px;
+}
+
+.ticket-display-view p {
+  margin: 0 0 8px 0;
+}
+
+.ticket-display-view a {
+  color: #61dafb;
+}
+
+.manual-stopwatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #3a3f4b;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.manual-stopwatch button {
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+}
+.manual-stopwatch .time-display {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: bold;
+}
+
+.link-with-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.copy-btn {
+  background: none !important;
+  border: none !important;
+  color: #aaa !important;
+  padding: 0 !important;
+  margin: 0 0 0 5px !important;
+  cursor: pointer;
+}
+
+.description-display {
+  background-color: #3a3f4b !important;
+  padding: 8px;
+  border: 1px solid #555;
+  border-radius: 3px;
+  margin-top: 4px;
+}
+
+/* This targets any element inside the description display, forcing it to be white */
+.description-display * {
+  color: #fff !important;
+  background-color: #3a3f4b !important;
+}
+
+.description-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.description-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.description-display a {
+  color: #61dafb !important;
+}
+
+.image-links-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.image-link-item {
+  position: relative;
+}
+
+.image-link-item img {
+  max-width: 100px;
+  max-height: 100px;
+  border-radius: 3px;
+}
+
+.image-link-edit {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 5px;
+}
+
+.add-link-btn, .remove-link-btn {
+    width: auto !important;
+    align-self: flex-start;
+    margin: 0 !important;
+    padding: 8px 12px !important;
+}
+.sub {
+    margin-left: 10px;
+}
+.category-manager-group:has(.category-manager-item.sub) {
+    margin-bottom: 15px;
+    
+}
+
+.image-link-actions {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-around;
+  background-color: rgba(0, 0, 0, 0.6);
+  padding: 4px 0;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+.image-link-item:hover .image-link-actions { opacity: 1; }
+.image-link-actions button {
+  background: none;
+  cursor: pointer;
+}
+
+/* --- Task Item Controls --- */
+
+.list-item-controls {
+  display: flex; /* This is now a flex item within accordion-header-container */
+  justify-content: flex-end; /* Align buttons to the right */
+  padding: 0 10px;
+}
+.list-item-controls .icon-button {
+  background: #555 !important;
+  border: 1px solid #666 !important;
+  color: white !important;
+  cursor: pointer;
+  width: 30px; /* Uniform width */
+  height: 30px; /* Uniform height */
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 0 5px;
+}
+
+.list-item-controls button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.list-item-controls .remove-btn {
+  background-color: #c94a4a;
+}
+
+.list-item-controls .complete-btn {
+  background-color: #4caf50;
+}
+
+.recurring-toggle {
+  background-color: #555 !important;
+  opacity: 0.5;
+}
+
+.recurring-toggle.active {
+  opacity: 1;
+  background-color: #61dafb !important; /* Use a distinct color for active state */
+}
+
+.stopwatch-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.word-item-display {
+  display: flex;
+  flex-direction: column;
+}
+
+.word-item-details-form {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 0;
+  border-bottom: 1px solid #555;
+  margin-bottom: 10px;
+}
+
+.word-item-details-form label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.9em;
+}
+
+.description-editor-container {
+  display: flex;
+  flex-direction: column;
+}
+.description-editor-container .rich-text-editor label:has(input[type="checkbox"]) {
+    display: block;
+}
+.description-editor-container .html-editor {
+  min-height: 400px;
+}
+
+.description-editor-tabs {
+  display: flex;
+  gap: 5px;
+  margin-bottom: -1px; /* Overlap the border of the editor */
+}
+
+.description-editor-tabs button {
+  padding: 4px 12px;
+  border: 1px solid #555;
+  border-bottom: none;
+  background-color: #282c34;
+  color: #aaa;
+  border-radius: 3px 3px 0 0;
+}
+
+.description-editor-tabs button.active {
+  background-color: #3a3f4b;
+  color: white;
+}
+.rich-text-editor, .html-editor {
+  background-color: #1e1f22;
+  border: 1px solid #555;
+  border-radius: 3px;
+  padding: 8px;
+  min-height: 60px; /* Equivalent to rows=3 on a textarea */
+  color: white;
+  outline: none; /* Remove default focus outline */  
+  font-size: 0.9em;
+  width: 100%;
+  box-sizing: border-box;
+}
+.html-editor a,
+.rich-text-editor a {
+    color: #61dafb;
+}
+.shortcut-key {
+  font-size: 0.75em;
+  color: #aaa;
+  margin-top: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.completed-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.completed-actions button {
+  width: auto; /* Let icon buttons size to content */
+  margin-bottom: 0;
+  font-size: 1.1em;
+}
+.completed-item {
+  background-color: #333 !important; /* Use important to override the default item color */
+}

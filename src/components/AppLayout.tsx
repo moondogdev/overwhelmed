@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { FullTaskView } from './TaskView';
+import { ActiveFullTaskView } from './TaskView';
 import { Footer } from './Footer';
 import { NotificationCenter } from './NotificationCenter';
 import { MiniPlayer } from './MiniPlayer';
@@ -20,14 +20,16 @@ import { BulkAdd } from './BulkAdd';
 import { ProjectActions } from './ProjectActions';
 import { BackupManager } from './BackupManager';
 import { MemeViewSettings } from './MemeViewSettings';
+import { WorkSessionManager } from './WorkSessionManager';
+import './styles/Sidebar.css';
 
 export function AppLayout() {
-    const { settings, fullTaskViewId, setFullTaskViewId, words, completedWords, handleWordUpdate } = useAppContext();
+    const { settings, setSettings, fullTaskViewId, setFullTaskViewId, words, completedWords, handleWordUpdate } = useAppContext();
 
     if (fullTaskViewId) {
         const taskToShow = words.find(w => w.id === fullTaskViewId) || completedWords.find(w => w.id === fullTaskViewId);
         if (taskToShow) {
-            return <FullTaskView task={taskToShow} onClose={() => setFullTaskViewId(null)} onUpdate={handleWordUpdate} />;
+            return <ActiveFullTaskView fullTaskViewId={fullTaskViewId} words={words} completedWords={completedWords} onClose={() => setFullTaskViewId(null)} onUpdate={handleWordUpdate} onSettingsChange={setSettings} />
         }
     }
 
@@ -47,6 +49,7 @@ export function AppLayout() {
             <NotificationCenter />
             <MiniPlayer />
             <SaveStatus />
+            <WorkSessionManager />
         </div>
     );
 }

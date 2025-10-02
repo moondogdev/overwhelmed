@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
 import { Word, Category } from '../types';
 import { formatTime, formatTimestamp } from '../utils';
+import './styles/ReportsView.css';
 import { useAppContext } from '../contexts/AppContext';
 
 // --- Chart Helper ---

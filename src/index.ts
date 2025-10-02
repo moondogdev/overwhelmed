@@ -247,36 +247,58 @@ const createWindow = (): void => {
     // Prevent the window from closing immediately
     e.preventDefault();
 
-    // If the renderer is not dirty, just quit.
-    if (!isDirty) {
-      forceQuit(mainWindow);
-      return;
-    }
+    // ALWAYS request the latest data from the renderer on quit. This is the most
+    // critical step to ensure we have the final timer state before making any decisions.
+    mainWindow.webContents.send('get-data-for-quit');
 
-    const { response } = await dialog.showMessageBox(mainWindow, {
-      type: 'question',
-      buttons: ['Save and Quit', "Don't Save", 'Cancel'],
-      title: 'Quit',
-      message: 'You have unsaved changes. Do you want to save them before quitting?',
-      defaultId: 0, // 'Save and Quit' is the default
-      cancelId: 2, // 'Cancel' is the cancel option
-    });
+    // This one-time listener will handle the response from the renderer.
+    ipcMain.once('data-for-quit', async (_event, data) => {
+      // This helper function calculates the final timer state. It will be used in all quit paths.
+      const saveTimerState = () => {
+        let entryToSave = data.activeTimerEntryRef.current;
+        if (entryToSave && entryToSave.isRunning && entryToSave.startTime) {
+          const finalDuration = entryToSave.duration + (Date.now() - entryToSave.startTime);
+          entryToSave = { ...entryToSave, duration: finalDuration, isRunning: true, startTime: Date.now() };
+        }
+        store.set('active-timer-word-id', data.activeTimerWordIdRef.current);
+        store.set('active-timer-entry', entryToSave);
+      };
 
-    if (response === 0) { // Save and Quit
-      // NEW APPROACH: Request data from renderer, save it here, then quit.
-      mainWindow.webContents.send('get-data-for-quit');
-      ipcMain.once('data-for-quit', (_event, data) => {
+      if (!isDirty) {
+        // If the app is not "dirty", we still need to save the timer state.
+        // This is the key fix for the timer not persisting.
+        saveTimerState();
+        forceQuit(mainWindow);
+        return;
+      }
+
+      // If the app IS dirty, show the user the confirmation dialog.
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: 'question',
+        buttons: ['Save and Quit', "Don't Save", 'Cancel'],
+        title: 'Quit',
+        message: 'You have unsaved changes. Do you want to save them before quitting?',
+        defaultId: 0,
+        cancelId: 2,
+      });
+
+      if (response === 0) { // Save and Quit
+        // Save EVERYTHING, which implicitly includes the timer state via the data object.
         store.set('overwhelmed-words', data.words);
         store.set('overwhelmed-completed-words', data.completedWords);
         store.set('overwhelmed-settings', data.settings);
-        store.set('overwhelmed-inbox-messages', data.inboxMessages);
-        // Now that the main process has saved the data, it's safe to quit.
+        store.set('overwhelmed-inbox-messages', data.inboxMessagesRef.current);
+        store.set('overwhelmed-archived-messages', data.archivedMessagesRef.current);
+        store.set('overwhelmed-trashed-messages', data.trashedMessagesRef.current);
+        saveTimerState();
         forceQuit(mainWindow);
-      });
-    } else if (response === 1) { // Don't Save
-      // Quit immediately without saving.
-      forceQuit(mainWindow);
-    } // If response is 2 (Cancel), do nothing.
+      } else if (response === 1) { // Don't Save
+        // Discard document changes, but STILL save the timer state.
+        saveTimerState();
+        forceQuit(mainWindow);
+      }
+      // If response is 2 (Cancel), do nothing. The app stays open.
+    });
   });
 };
 
@@ -322,6 +344,8 @@ app.whenReady().then(() => {
     store.set('overwhelmed-completed-words', data.completedWords);
     store.set('overwhelmed-settings', data.settings);
     store.set('overwhelmed-inbox-messages', data.inboxMessages);
+    store.set('active-timer-word-id', data.activeTimerWordId);
+    store.set('active-timer-entry', data.activeTimerEntry);
     console.log('Auto-save complete.');
   });
   ipcMain.on('open-backups-folder', () => {
@@ -355,6 +379,11 @@ app.whenReady().then(() => {
     template.push(
       { type: 'separator' },
       {
+        label: 'Add to Work Session',
+        click: () => webContents.send('context-menu-command', { command: 'add_to_session', wordId }),
+      },
+      { type: 'separator' },
+      {
         label: 'Complete Task',
         click: () => webContents.send('context-menu-command', { command: 'complete', wordId }),
       },
@@ -382,27 +411,43 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
   ipcMain.on('show-link-context-menu', (event, payload) => {
-    const { url, x, y } = payload;
+    const { url, x, y, browsers, activeBrowserIndex } = payload;
     const webContents = event.sender;
-    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
-      {
-        label: 'Copy Link',
+    const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];
+
+    // 1. Create the primary "Active Browser" menu item
+    const activeBrowser = browsers && browsers[activeBrowserIndex];
+    if (activeBrowser) {
+      template.push({
+        label: `Open Link (Active: ${activeBrowser.name})`,
         click: () => {
-          // The main process can write to the clipboard too
-          require('electron').clipboard.writeText(url);
-        },
-      },
-      { type: 'separator' },
-      {
-        label: 'Inspect Link',
-        click: () => event.sender.inspectElement(x, y),
-      },
-      { type: 'separator' },
-      {
-        label: 'Inspect Element',
-        click: () => webContents.inspectElement(x, y),
-      },
-    ];
+          if (activeBrowser.path) {
+            exec(`"${activeBrowser.path}" "${url}"`);
+          } else {
+            shell.openExternal(url);
+          }
+          webContents.send('show-toast', `Opening link in ${activeBrowser.name}...`);
+        }
+      });
+      template.push({ type: 'separator' });
+    }
+
+    // 2. Create menu items for all available browsers
+    const browserMenuItems = (browsers || []).map((browser: { name: string, path: string }, index: number) => ({
+      label: `Open Link in ${browser.name}`,
+      click: () => {
+        browser.path ? exec(`"${browser.path}" "${url}"`) : shell.openExternal(url);
+        webContents.send('show-toast', `Opening link in ${browser.name}...`);
+      }
+    }));
+    template.push(...browserMenuItems);
+
+    // 3. Add the remaining utility actions
+    template.push({ type: 'separator' });
+    template.push({ label: 'Copy Link', click: () => { clipboard.writeText(url); webContents.send('show-toast', 'Link Copied!'); } });
+    template.push({ type: 'separator' });
+    template.push({ label: 'Inspect Element', click: () => webContents.inspectElement(x, y) });
+
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
   ipcMain.on('show-toast-context-menu', (event, payload) => {
@@ -599,7 +644,7 @@ app.whenReady().then(() => {
         click: () => webContents.send('checklist-item-command', { command: 'send_to_timer', sectionId, itemId }),
       },
       {
-        label: 'Add to Timer & Start',
+        label: 'Add to Timer and Start',
         click: () => webContents.send('checklist-item-command', { command: 'send_to_timer_and_start', sectionId, itemId }),
       },
       { type: 'separator' },
@@ -617,7 +662,7 @@ app.whenReady().then(() => {
         click: () => webContents.send('checklist-item-command', { command: 'send_to_timer', sectionId, itemId }),
       },
       {
-        label: 'Add to Timer & Start',
+        label: 'Add to Timer and Start',
         click: () => webContents.send('checklist-item-command', { command: 'send_to_timer_and_start', sectionId, itemId }),
       },
       { type: 'separator' },
@@ -665,7 +710,7 @@ app.whenReady().then(() => {
       { type: 'separator' },
       {
         label: 'Expand All Sections',
-        click: () => webContents.send('checklist-section-command', { command: 'expand_all' }),
+        click: () => webContents.send('checklist-section-command', { command: 'expand_all_section' }),
       },
       {
         label: 'Collapse All Sections',
@@ -729,16 +774,12 @@ app.whenReady().then(() => {
         label: 'Copy Section Raw',
         click: () => webContents.send('checklist-section-command', { command: 'copy_section_raw', sectionId }),
       },
-      { type: 'separator' },
+      { type: 'separator' },      
       {
-        label: 'Copy All Sections',
-        click: () => webContents.send('checklist-section-command', { command: 'copy_all_sections', sectionId }),
-      },      
-      {
-        label: 'Copy All Sections Raw',
-        click: () => webContents.send('checklist-section-command', { command: 'copy_all_sections_raw' }),
+        label: 'Save Section as Template...',
+        click: () => webContents.send('checklist-section-command', { command: 'save_section_as_template', sectionId }),
       },
-      { type: 'separator' },
+      { type: 'separator' },      
       {
         label: 'Duplicate Section',
         click: () => webContents.send('checklist-section-command', { command: 'duplicate_section', sectionId }),
@@ -748,19 +789,17 @@ app.whenReady().then(() => {
         click: () => webContents.send('checklist-section-command', { command: 'send_section_to_timer', sectionId }),
       },
       {
-        label: 'Send All to Timer & Start',
+        label: 'Send All to Timer and Start',
         click: () => webContents.send('checklist-section-command', { command: 'send_section_to_timer_and_start', sectionId }),
       },
       { type: 'separator' },
       {
         label: 'Delete All Sections',
-        click: () => webContents.send('checklist-section-command', { command: 'delete_all_sections' }),
-        visible: isInEditMode,
+        click: () => webContents.send('checklist-section-command', { command: 'delete_all_sections' }),        
       },
       {
         label: 'Delete Section',
-        click: () => webContents.send('checklist-section-command', { command: 'delete_section', sectionId }),
-        visible: isInEditMode,
+        click: () => webContents.send('checklist-section-command', { command: 'delete_section', sectionId }),        
       },
       { type: 'separator' },
     );
@@ -880,9 +919,15 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });
   });
   ipcMain.on('show-time-log-item-context-menu', (event, payload) => {
-    const { entry, index, totalEntries, x, y } = payload;
+    const { entry, index, totalEntries, isCompleted, x, y } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+      {
+        label: isCompleted ? 'Re-Open' : 'Post and Complete',
+        enabled: !!entry.checklistItemId, // Only enable if it's linked to a checklist item
+        click: () => webContents.send('time-log-item-command', { command: 'post_and_complete', entryId: entry.id }),
+      },
+      { type: 'separator' },
       {
         label: 'Edit Description',
         click: () => webContents.send('time-log-item-command', { command: 'edit_description', entry, index }),
@@ -923,7 +968,7 @@ app.whenReady().then(() => {
       { label: 'Copy Log as Text', click: () => webContents.send('time-log-header-command', { command: 'copy_log_as_text', totalTime, timeLog }) },
       { type: 'separator' },
       { label: 'Clear Entries', click: () => webContents.send('time-log-header-command', { command: 'clear_entries', totalTime, timeLog }) },
-      { label: 'Wipe Timer (Delete All & Title)', click: () => webContents.send('time-log-header-command', { command: 'delete_all', totalTime, timeLog }) },
+      { label: 'Wipe Timer (Delete All and Title)', click: () => webContents.send('time-log-header-command', { command: 'delete_all', totalTime, timeLog }) },
       { type: 'separator' },
       { label: 'Add New Line', click: () => webContents.send('time-log-header-command', { command: 'add_new_line', totalTime, timeLog }) },
       { type: 'separator' },
@@ -975,11 +1020,10 @@ app.whenReady().then(() => {
     const { wordId, sectionId, areAllComplete, isSectionOpen, isNotesHidden, isResponsesHidden, x, y, isInEditMode, isConfirmingDelete } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];
-    template.push(
-      // Inclde Actions that are for "All" Sections
+    template.push(      
       {
-        label: 'Expand All Sections',
-        click: () => webContents.send('checklist-main-header-command', { command: 'expand_all' }),
+        label: 'Expand All',
+        click: () => webContents.send('checklist-main-header-command', { command: 'expand_all_header' }),
       },
       {
         label: 'Collapse All Sections',
@@ -1019,11 +1063,16 @@ app.whenReady().then(() => {
       },
       { type: 'separator' },
       {
+        label: 'Save Checklist as Template...',
+        click: () => webContents.send('checklist-main-header-command', { command: 'save_checklist_as_template' }),
+      },
+      { type: 'separator' },
+      {
         label: 'Send All Items to Timer',
         click: () => webContents.send('checklist-main-header-command', { command: 'send_all_to_timer' }),
       },
       {
-        label: 'Send All Items & Start',
+        label: 'Send All Items to Timer and Start',
         click: () => webContents.send('checklist-main-header-command', { command: 'send_all_to_timer_and_start' }),
       },      
       { type: 'separator' },   
@@ -1075,6 +1124,10 @@ app.whenReady().then(() => {
       {
         label: 'Search Google for selection',
         click: () => webContents.send('search-google-selection', selectionText),
+      },
+      {
+        label: 'Search Stock Photos for selection',
+        click: () => webContents.send('search-stock-photos-selection', selectionText),
       },
       { type: 'separator' },
       {

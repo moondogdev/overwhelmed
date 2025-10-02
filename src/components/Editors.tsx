@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Settings } from '../types';
+import './styles/Modal.css';
 
 // --- Editor Constants ---
 const headerShortcutKeys = ['1', '2', '3', '4', '5', '6'];
@@ -184,19 +185,41 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
     // Simple URL regex to check if the pasted content is a link
     const urlRegex = /^(https?:\/\/[^\s$.?#].[^\s]*)$/i;
 
-    const selection = window.getSelection();
+    const selection = window.getSelection();    
+    if (!selection) return;
+
     // Check if it's a URL and if there's currently text selected
     if (urlRegex.test(pastedText) && selection && !selection.isCollapsed && selectionRange) {
-      // It's a URL and text is highlighted.
-      // Restore the selection that was active *before* the paste event.
+      // MODERN LINK CREATION LOGIC:
+      // 1. Get the text that was highlighted.
+      const selectedText = selectionRange.toString();
+      // 2. Delete the highlighted text from the document.
+      selectionRange.deleteContents();
+      // 3. Create a new <a> element.
+      const link = document.createElement('a');
+      link.href = pastedText;
+      link.textContent = selectedText;
+      // 4. Insert the new link node at the cursor's position.
+      selectionRange.insertNode(link);
+      // 5. Move the cursor to the end of the newly created link.
+      selectionRange.setStartAfter(link);
+      selectionRange.collapse(true);
       selection.removeAllRanges();
       selection.addRange(selectionRange);
-
-      // Now create the link.
-      document.execCommand('createLink', false, pastedText);
     } else {
-      // It's not a URL or no text is selected, so just paste the text
-      document.execCommand('insertText', false, pastedText);
+      // MODERN PASTE LOGIC:
+      // 1. Get the current selection range.
+      const range = selection.getRangeAt(0);
+      // 2. Delete anything that was highlighted.
+      range.deleteContents();
+      // 3. Create a new text node with the pasted content.
+      const textNode = document.createTextNode(pastedText);
+      range.insertNode(textNode);
+      // 4. Move the cursor to the end of the newly inserted text.
+      range.setStartAfter(textNode);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
     }
 
     // After the command, the DOM is updated. We need to sync React's state.
@@ -204,8 +227,7 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
     setTimeout(() => {
       if (editorRef.current) {
         const newHtml = editorRef.current.innerHTML;
-        setHtmlContent(newHtml);
-        onDescriptionChange(newHtml);
+        onDescriptionChange(newHtml); // Only notify the parent, don't trigger a local re-render.
       }
     }, 0);
   };

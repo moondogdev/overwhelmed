@@ -544,6 +544,7 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 67.0: Live UI Updates with `setInterval`
   - Rule 68.0: Cross-Component State Updates (Application of Rule 69.0)
   - Rule 69.0: The Orchestrator Component and Custom Hooks
+  - Rule 70.0: Refactoring Monolithic Components
 
 ---
 
@@ -3299,3 +3300,89 @@ function App() {
 ```
 
 ---
+### Developer Guide - Rule 70.0: Refactoring Monolithic Components
+
+This guide outlines the standard process for refactoring a large, "monolithic" component into a more maintainable, modular structure using custom hooks and presentational components. This is an extension of `Rule 69.0: The Orchestrator Component and Custom Hooks`.
+
+#### The Problem: The Monolithic Component
+
+A monolithic component is one that has grown too large and handles too many responsibilities. Symptoms include:
+-   **State Overload**: Dozens of `useState` and `useRef` hooks managing disparate pieces of state.
+-   **Handler Proliferation**: A vast number of `handle...` functions for every possible user interaction.
+-   **Complex, Nested JSX**: A long and deeply nested `return` statement that is difficult to read and modify.
+-   **Mixed Concerns**: UI rendering logic, state management, and side effects (like IPC listeners) are all intertwined in one massive file.
+
+This makes the component difficult to debug, maintain, and extend without introducing new bugs. Our `Checklist.tsx` component is a prime example of this problem.
+
+#### The Solution: The Three-Phase Refactor
+
+The solution is to systematically separate the component's concerns (UI vs. Logic) into smaller, single-responsibility modules.
+
+##### Phase 1: Extract UI into "Dumb" Presentational Components
+
+The first step is to break the large JSX structure into smaller, "dumb" components whose only job is to render UI based on the props they receive.
+
+1.  **Identify Repeated UI**: Look for `.map()` loops in your JSX. The content inside these loops is an excellent candidate for a new component (e.g., `ChecklistSection` becomes `ChecklistSectionItem`).
+2.  **Create New Components**: Create new component files (e.g., `src/components/ChecklistSectionItem.tsx`).
+3.  **Define Props**: Define the props interface for the new component. It should accept the data it needs to render (e.g., `section: ChecklistSection`) and all the handler functions it needs to call (e.g., `onDeleteSection`, `onUpdateTitle`).
+4.  **Move JSX**: Cut the JSX from the original component's loop and paste it into the new component's return statement, replacing direct state access with props.
+
+##### Phase 2: Extract Logic into a Custom Hook
+
+Once the UI is separated, extract all the state management and handler functions into a dedicated custom hook.
+
+1.  **Create the Hook File**: Create a new file (e.g., `src/hooks/useChecklist.ts`).
+2.  **Move State and Logic**: Move all related `useState`, `useRef`, `useEffect`, and `handle...` functions from the original component into the new custom hook.
+3.  **Define Inputs and Outputs**: The hook will take any necessary parent props as arguments (e.g., `initialSections`, `onUpdate`). It should return a single object containing all the state and handlers that the new UI components will need.
+
+##### Phase 3: Re-assemble as an Orchestrator
+
+Finally, rewrite the original component file to be a clean "orchestrator."
+
+1.  **Call the Hook**: The component's only job is to call the new custom hook to get all the state and logic.
+2.  **Render Presentational Components**: It then renders the new, "dumb" UI components, passing them the state and handlers they need from the object returned by the hook.
+
+The final result is a highly organized, maintainable, and scalable feature.
+
+```tsx
+// Example: The final, refactored Checklist.tsx as an "Orchestrator"
+
+import { useChecklist } from '../hooks/useChecklist';
+import { ChecklistHeader } from './ChecklistHeader';
+import { ChecklistSectionItem } from './ChecklistSectionItem';
+
+export function Checklist(props: ChecklistOrchestratorProps) {
+  // 1. All logic and state is now contained in the custom hook.
+  const {
+    sections,
+    editingSectionId,
+    editingSectionTitle,
+    handleUpdateSectionTitle,
+    handleDeleteSection,
+    // ... and all other state and handlers
+  } = useChecklist({
+    initialSections: props.sections,
+    onUpdate: props.onUpdate,
+  });
+
+  // 2. The component now only orchestrates the rendering of dumb UI components.
+  return (
+    <div className="checklist-container">
+      <ChecklistHeader 
+        // ... pass necessary global actions
+      />
+      {sections.map(section => (
+        <ChecklistSectionItem
+          key={section.id}
+          section={section}
+          isEditing={editingSectionId === section.id}
+          editingTitle={editingSectionTitle}
+          onUpdateTitle={handleUpdateSectionTitle}
+          onDelete={handleDeleteSection}
+          // ... pass all other necessary props and handlers
+        />
+      ))}
+    </div>
+  );
+}
+```

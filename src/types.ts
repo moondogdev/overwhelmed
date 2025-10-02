@@ -13,6 +13,7 @@ export interface ChecklistItem {
   note?: string;
   dueDate?: number; // Timestamp for individual due date
   highlightColor?: string;
+  loggedTime?: number; // Time logged against this specific item
 }
 
 export interface TimeLogEntry {
@@ -22,6 +23,15 @@ export interface TimeLogEntry {
   startTime?: number; // timestamp for when it started running
   isRunning?: boolean;
   createdAt?: number; // Timestamp for when the entry was created
+  type?: 'entry' | 'header';
+  checklistItemId?: number; // Link back to the original checklist item
+  isCompleted?: boolean; // New flag to mark as completed
+}
+
+export interface ChecklistTemplate {
+  id: number;
+  name: string;
+  sections: ChecklistSection[];
 }
 
 export interface TimeLogSession {
@@ -145,6 +155,7 @@ export interface Settings {
   isSidebarVisible: boolean;
   openAccordionIds: number[]; // Persist open accordions
   activeTaskTabs: { [key: number]: 'ticket' | 'edit' }; // Persist active tab per task
+  workSessionQueue: number[];
   timerNotificationLevel: 'silent' | 'low' | 'medium' | 'high';
   prioritySortConfig?: PrioritySortConfig;
   autoBackupLimit?: number;
@@ -157,7 +168,9 @@ export interface Settings {
   openChecklistSectionIds?: number[]; // New setting to store open/collapsed checklist sections
   showChecklistResponses?: boolean; // New setting to toggle response visibility
   showChecklistNotes?: boolean; // New setting to toggle note visibility
+  autoplayNextInSession?: boolean; // New setting for MiniPlayer V2
   allCategoryColor?: string;
+  checklistTemplates?: ChecklistTemplate[];
 }
 
 export interface AccordionProps {

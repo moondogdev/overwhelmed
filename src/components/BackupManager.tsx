@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAppContext } from '../contexts/AppContext';
 import { SimpleAccordion } from './SidebarComponents';
 import { PromptModal } from './Editors';
+import './styles/Modal.css';
 import { defaultSettings } from '../config';
 
 const formatBytes = (bytes: number, decimals = 2) => {
@@ -24,6 +25,7 @@ export function BackupManager() {
     const [activeBackupTab, setActiveBackupTab] = useState<'automatic' | 'manual'>('automatic');
     const [selectedBackup, setSelectedBackup] = useState<{ name: string, path: string } | null>(null);
     const [backupPreview, setBackupPreview] = useState<any>(null);
+    const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
 
     const fetchBackups = async () => {
         const backupFiles = await window.electronAPI.getBackups();
@@ -34,6 +36,7 @@ export function BackupManager() {
         fetchBackups();
         setActiveBackupTab('automatic'); // Default to automatic tab on open
         setSelectedBackup(null); // Clear any previous selection    
+        setIsRestoreModalOpen(true); // Open the modal
         setBackupSearchQuery(''); // Clear search on open
     };
 
@@ -133,8 +136,8 @@ export function BackupManager() {
                 onConfirm={handleManualBackupConfirm}
             />
             <div className="button-group" style={{ margin: '10px 0' }}>
-                <button style={{ fontSize: '10px' }} onClick={() => setIsPromptOpen(true)}>Create Manual Backup</button>
-                <button style={{ fontSize: '10px' }} onClick={handleRestoreClick} disabled>Restore from Backup</button>
+                <button style={{ fontSize: '10px' }} onClick={() => setIsPromptOpen(true)}>Create Manual Backup</button>                
+                <button style={{ fontSize: '10px' }} onClick={handleRestoreClick}>Restore from Backup</button>
             </div>
             <label className="backup-setting-label">
                 Automatic Backups to Keep:
@@ -144,8 +147,8 @@ export function BackupManager() {
                 <p style={{ fontSize: '12px', margin: '0' }}>Automatic backups are taken every session start.</p>
             </label>
 
-            {false && (
-                <div className="modal-overlay" onClick={() => setIsPromptOpen(false)}>
+            {isRestoreModalOpen && (
+                <div className="modal-overlay" onClick={() => setIsRestoreModalOpen(false)}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                         <h4>Select a backup to restore</h4>
                         <div className="tab-headers">
@@ -185,7 +188,7 @@ export function BackupManager() {
                                 <li className="no-backups-message">No {activeBackupTab} backups found.</li>
                             )}
                         </ul>
-                        <button onClick={() => setIsPromptOpen(false)}>Cancel</button>
+                        <button onClick={() => setIsRestoreModalOpen(false)}>Cancel</button>
                     </div>
                     {selectedBackup && backupPreview && (
                         <div className="modal-overlay" onClick={() => setSelectedBackup(null)}>

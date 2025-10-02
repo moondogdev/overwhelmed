@@ -1,0 +1,96 @@
+.inbox-view {
+  width: 100%;
+  max-width: 800px;
+  padding: 0 20px;
+  overflow-y: auto;
+}
+.inbox-group {
+  padding-top: 10px
+}
+
+.inbox-group-header {
+  border-bottom: 1px solid #555;
+  padding-bottom: 5px;
+  margin: 0 0 10px 0;
+}
+.inbox-sort-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 15px;
+}
+
+.inbox-sort-control select {
+  background-color: #282c34;
+  color: white;
+  border: 1px solid #555;
+  padding: 5px;
+  border-radius: 3px;
+}
+.inbox-message-actions {
+  display: flex;
+  align-items: center;
+  margin-left: auto; /* Pushes the actions to the far right */
+  padding-left: 10px;
+  gap: 5px;
+}
+
+.inbox-message-action-btn {
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  padding: 6px;
+  font-size: 1em;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  outline: 2px solid transparent;
+  transition: all 0.2s ease-in-out;
+}
+.inbox-message-action-btn:hover { color: #fff; outline: 2px solid currentColor; }
+.inbox-message-action-btn.important-btn .fa-star { color: #ccc; }
+.inbox-message-action-btn.important-btn:hover { outline-color: #f4d03f;  }
+.inbox-message-action-btn.archive-btn:hover { outline-color: #61dafb; }
+.inbox-message-action-btn.restore-btn:hover { outline-color: #4caf50; }
+.inbox-message-action-btn.important-btn .fa-star.important { color: #f4d03f; }
+.inbox-message-action-btn.remove-btn:hover { color: red; outline-color: red; }
+.inbox-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-bottom: 1px solid #444;
+}
+.inbox-item:last-child {
+  border-bottom: none;
+}
+
+.inbox-item-icon {
+  font-size: 1.2em;
+  margin-right: 5px; /* Add some space between icon and text */
+}
+
+.inbox-item-text {
+  flex-grow: 1;
+}
+.inbox-item-timestamp {
+  font-size: 0.8em;
+  color: #888;
+}
+.inbox-item.clickable:hover {
+  background-color: #3a3f4b;
+  outline: 1px solid #4a4f5b
+}
+
+.inbox-list {
+  background-color: #21252b;
+  border-radius: 5px;
+}
+
+.inbox-item-icon .fa-magic { color: #61dafb; } /* created */
+.inbox-item-icon .fa-check-circle { color: #4caf50; } /* completed */
+.inbox-item-icon .fa-pencil-alt { color: #f4d03f; } /* updated */
+.inbox-item-icon .fa-trash-alt { color: #c94a4a; } /* deleted */
+.inbox-item-icon .fa-bell { color: #ffc107; } /* timer-alert */
+.inbox-item-icon .fa-exclamation-triangle { color: #c94a4a; } /* overdue */

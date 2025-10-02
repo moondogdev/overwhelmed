@@ -1,0 +1,205 @@
+.sidebar {
+    width: 300px;
+    padding: 20px;
+    background-color: #21252b;
+    border-left: 1px solid #444;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    position: fixed;
+    right: 0;
+    transition: right 0.3s ease-in-out;
+}
+
+.sidebar.hidden {
+  right: -341px; /* width (300) + padding (20*2) + border (1) */
+}
+
+.sidebar h2, .sidebar h3 {
+  margin-top: 0;
+}
+
+.sidebar input {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 0;
+  box-sizing: border-box; /* Ensures padding doesn't affect width */
+}
+
+.sidebar textarea {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 5px;
+  box-sizing: border-box;
+  background-color: #3a3f4b;
+  color: white;
+  border: 1px solid #555;
+  border-radius: 3px;
+}
+
+.sidebar label {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+}
+
+.date-input-group {
+  display: flex;
+  gap: 5px;
+}
+
+.date-input-group input {
+  flex-grow: 1;
+  margin-bottom: 0;
+  margin-top: 0;
+}
+.date-input-group {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+input[type="datetime-local"] + .button-group {
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+input[type="datetime-local"] + .button-group button {
+    width: auto;
+    font-size: 10px;
+}
+
+.sidebar label input {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.sidebar button {
+  display: block; /* Keep some buttons block-level */
+  width: 100%;
+  margin-bottom: 15px;
+  padding: 8px;
+  cursor: pointer;
+}
+
+.sidebar h4 {
+    margin: 0 0 10px;
+}
+
+.accordion-external-link-manager .external-link-manager-item {
+  flex-wrap: wrap;  
+}
+.accordion-external-link-manager .link-manager-item {
+  width: 100%;
+}
+.link-manager-section .external-link-manager-item {
+    border: 1px solid;
+    padding: 5px;
+}
+.sidebar .link-manager-section label, .sidebar .link-manager-section label input {
+    margin: 0;
+    width: auto;    
+}
+.sidebar .link-manager-section label:has(input[type="checkbox"]) {
+    flex-direction: row;
+    margin: 0;
+    font-size: 14px;
+    justify-content: flex-start;
+    gap: 5px;
+}
+
+.task-type-fields {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* Two columns */
+  gap: 5px;
+  padding: 10px;
+  background-color: #282c34;
+  border-radius: 3px;
+  margin-top: 5px;
+}
+
+.task-type-fields .checkbox-label-text {
+  font-size: 0.8em;
+  color: #ccc;
+}
+
+.browser-setting-item {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 5px;
+  align-items: center;
+}
+
+.external-link-manager-item {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 5px;
+  align-items: center;
+}
+
+.category-manager-item button,
+.external-link-manager-item input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.category-manager-item {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 5px;
+  align-items: center;
+}
+.category-color-picker {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 25px;
+  height: 25px;
+  border: none;
+  cursor: pointer;
+}
+
+.button-group {
+  display: flex;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.backup-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #444;
+  border-radius: 3px;
+}
+.backup-list li {
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #444;
+}
+.backup-list li .backup-info {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.backup-list li .backup-date {
+  font-weight: bold;
+}
+
+.backup-list li .backup-size {
+  font-size: 0.9em;
+  color: #aaa;
+}
+.backup-list li:hover {
+  background-color: #3a3f4b;
+}
+
+.backup-list li.manual-backup .backup-date {
+  color: #61dafb; /* Highlight manual backups */
+}

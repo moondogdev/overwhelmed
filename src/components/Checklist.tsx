@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Word, ChecklistItem, ChecklistSection, InboxMessage, Settings, TimeLogEntry } from '../types';
-import { extractUrlFromText, formatChecklistForCopy, formatChecklistSectionRawForCopy, formatDate } from '../utils';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Word, ChecklistItem, ChecklistSection, InboxMessage, Settings, TimeLogEntry, ChecklistTemplate } from '../types';
+import { extractUrlFromText, formatChecklistForCopy, formatDate, formatTime } from '../utils';
+import { PromptModal } from './Editors';
+import './styles/Checklist.css';
 
 // This component is only used by Checklist, so it's co-located here.
 const ClickableText = ({ text, settings }: { text: string, settings: Settings }) => {
@@ -24,6 +26,88 @@ const ClickableText = ({ text, settings }: { text: string, settings: Settings })
   );
 };
 
+function ManageTemplatesModal({ isOpen, onClose, templates, onSettingsChange, showToast }: {
+  isOpen: boolean;
+  onClose: () => void;
+  templates: any[];
+  onSettingsChange: (update: Partial<Settings> | ((prevSettings: Settings) => Partial<Settings>)) => void;
+  showToast: (message: string) => void;
+}) {
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
+  const [editingTemplateName, setEditingTemplateName] = useState('');
+
+  // This effect synchronizes the local editing name with the props.
+  // If the template being edited changes from the outside, update the input field.
+  useEffect(() => {
+    if (editingTemplateId !== null) {
+      const currentTemplate = templates.find(t => t.id === editingTemplateId);
+      if (currentTemplate) setEditingTemplateName(currentTemplate.name);
+    }
+  }, [templates, editingTemplateId]);
+
+  if (!isOpen) return null;
+
+  const handleRename = (templateId: number, newName: string) => {
+    onSettingsChange(prevSettings => ({
+      ...prevSettings,
+      checklistTemplates: (prevSettings.checklistTemplates || []).map(t =>
+        t.id === templateId ? { ...t, name: newName } : t
+      ),
+    }));
+    setEditingTemplateId(null);
+    showToast('Template renamed!');
+  };
+
+  const handleDelete = (templateId: number) => {
+    if (window.confirm('Are you sure you want to delete this template?')) {
+      onSettingsChange(prevSettings => ({
+        ...prevSettings,
+        checklistTemplates: (prevSettings.checklistTemplates || []).filter(t => t.id !== templateId),
+      }));
+      showToast('Template deleted!');
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <h4>Manage Checklist Templates</h4>
+        <div className="template-management-list">
+          {templates.map(template => (
+            <div key={template.id} className="template-management-item">
+              {editingTemplateId === template.id ? (
+                <input
+                  type="text"
+                  value={editingTemplateName}
+                  onChange={e => setEditingTemplateName(e.target.value)}
+                  onBlur={() => handleRename(template.id, editingTemplateName)}
+                  onKeyDown={e => e.key === 'Enter' && handleRename(template.id, editingTemplateName)}
+                  autoFocus
+                />
+              ) : (
+                <span className="template-name">{template.name}</span>
+              )}
+              <div className="template-actions">
+                <button className="icon-button" onClick={() => {
+                  setEditingTemplateId(template.id);
+                  setEditingTemplateName(template.name);
+                }} title="Rename Template">
+                  <i className="fas fa-pencil-alt"></i>
+                </button>
+                <button className="icon-button delete-icon" onClick={() => handleDelete(template.id)} title="Delete Template">
+                  <i className="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="modal-actions">
+          <button onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 interface ChecklistProps {
   sections: ChecklistSection[] | ChecklistItem[];
   onUpdate: (newSections: ChecklistSection[]) => void;
@@ -33,14 +117,19 @@ interface ChecklistProps {
   setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>;
   word: Word;
   wordId: number;
-  onWordUpdate: (updatedWord: Word) => void;
-  checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; }>;
+  onWordUpdate: (updatedWord: Word) => void;  
+  checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
   showToast: (message: string, duration?: number) => void;
   focusItemId: number | null;
   onFocusHandled: () => void;
   settings: Settings;
-  onSettingsChange: (newSettings: Partial<Settings>) => void;
-  handleAddNewTimeLogEntryAndStart: (wordId: number, description: string) => void;
+  onSettingsChange: (update: Partial<Settings> | ((prevSettings: Settings) => Partial<Settings>)) => void;
+  handleGlobalToggleTimer: (wordId: number, entryId: number, entry?: TimeLogEntry, newTimeLog?: TimeLogEntry[]) => void;
+  handleClearActiveTimer: () => void;
+  handlePrimeTask: (wordId: number) => void;
+  activeTimerEntry: TimeLogEntry | null; // Add for live time display
+  activeTimerLiveTime: number; // Add for live time display
+  handlePrimeTaskWithNewLog: (wordId: number, newTimeLog: TimeLogEntry[], timeLogTitle?: string) => void;
 }
 
 export function Checklist({ 
@@ -58,8 +147,13 @@ export function Checklist({
   focusItemId, 
   onFocusHandled, 
   settings, 
-  onSettingsChange, 
-  handleAddNewTimeLogEntryAndStart 
+  onSettingsChange,
+  handleGlobalToggleTimer,  
+  handleClearActiveTimer,
+  handlePrimeTask,
+  handlePrimeTaskWithNewLog,
+  activeTimerEntry,
+  activeTimerLiveTime
 }: ChecklistProps) {
   const [newItemTexts, setNewItemTexts] = useState<{ [key: number]: string }>({});
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
@@ -81,13 +175,34 @@ export function Checklist({
   const [confirmingDeleteChecked, setConfirmingDeleteChecked] = useState<number | 'all' | null>(null);
   const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const addItemInputRef = useRef<{ [key: number]: HTMLTextAreaElement }>({});
+  const [bulkAddChecklistText, setBulkAddChecklistText] = useState('');
+  const [isSaveTemplatePromptOpen, setIsSaveTemplatePromptOpen] = useState(false);
+  const [templateSectionsToSave, setTemplateSectionsToSave] = useState<ChecklistSection[] | null>(null);
+  const [isManageTemplatesOpen, setIsManageTemplatesOpen] = useState(false);
 
   // State for local undo/redo history of checklist changes
   const [history, setHistory] = useState<ChecklistSection[][]>([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const isUndoingRedoing = useRef(false); // Ref to prevent feedback loops
+  const historyRef = useRef(history); // Create a ref to hold the live history
+  historyRef.current = history; // Keep the ref updated on every render
   const editingItemInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Create a derived map of checklist item times from the single source of truth: word.timeLog
+  const timeLogDurations = useMemo(() => {
+    const durations = new Map<number, number>();
+    if (!word.timeLog) return durations;
+
+    for (const entry of word.timeLog) {
+      if (entry.checklistItemId) {
+        const currentDuration = durations.get(entry.checklistItemId) || 0;
+        const isRunning = activeTimerEntry?.id === entry.id;
+        const displayDuration = isRunning ? activeTimerLiveTime : entry.duration;
+        durations.set(entry.checklistItemId, currentDuration + displayDuration);
+      }
+    }
+    return durations;
+  }, [word.timeLog, activeTimerEntry, activeTimerLiveTime]);
 
   // Data Migration: Handle old format (ChecklistItem[]) and convert to new format (ChecklistSection[])
   const normalizedSections: ChecklistSection[] = React.useMemo(() => {
@@ -108,64 +223,152 @@ export function Checklist({
   }, [wordId]); // Re-initialize history only when the task itself changes
 
   const handleSendAllItemsToTimer = (startImmediately: boolean) => {
-    const allItemsToSend = history[historyIndex].flatMap(section => section.items.filter(item => !item.isCompleted));
-    if (allItemsToSend.length === 0) {
-      showToast('No active items in any section to send to timer.');
+    const allSections = history[historyIndex];
+    if (!allSections || allSections.length === 0) {
+      showToast('Checklist is empty.');
       return;
     }
-    allItemsToSend.forEach((item, index) => {
-      handleSendToTimer(item.text, startImmediately && index === 0); // Only start the first one
+
+    const newTimeLogEntries: TimeLogEntry[] = [];
+
+    // Create a set of item IDs that will be added to the timer
+    const itemIdsToAdd = new Set<number>();
+    allSections.forEach(section => {
+      section.items.forEach(item => {
+        if (!item.isCompleted) {
+          itemIdsToAdd.add(item.id);
+        }
+      });
     });
-    showToast(`${allItemsToSend.length} item(s) sent to timer!`);
+
+
+    allSections.forEach(section => {
+      // Add a header entry for the section, but only if it has items to add
+      const itemsToAdd = section.items.filter(item => !item.isCompleted);
+      if (itemsToAdd.length > 0) {
+        newTimeLogEntries.push({
+          id: section.id + Math.random(),
+          description: section.title,
+          duration: 0,
+          type: 'header',
+        });
+
+        // Add all non-completed items from that section as regular entries
+        itemsToAdd.forEach(item => {
+          newTimeLogEntries.push({
+            id: item.id + Math.random(),
+            description: item.text,
+            duration: item.loggedTime || 0, // Use existing logged time
+            type: 'entry',
+            checklistItemId: item.id, // Add the link back to the checklist item
+            isRunning: false,
+            createdAt: Date.now(),
+          });
+        });
+      }
+    });
+
+    if (newTimeLogEntries.filter(e => e.type === 'entry').length === 0) {
+      showToast('No active checklist items to send to timer.');
+      return;
+    }
+    
+    // Update the checklist items to ensure they have a loggedTime property
+    const updatedSections = allSections.map(section => ({
+      ...section,
+      items: section.items.map(item => 
+        itemIdsToAdd.has(item.id) && item.loggedTime === undefined
+          ? { ...item, loggedTime: 0 }
+          : item
+      )
+    }));
+
+    if (startImmediately) {
+      const firstEntry = newTimeLogEntries.find(e => e.type === 'entry');
+      if (firstEntry) {
+        // Pass the new log AND the entry to start in a single, atomic operation.
+        setTimeout(() => handleGlobalToggleTimer(word.id, firstEntry.id, firstEntry, newTimeLogEntries), 100);
+        // The checklist state is updated via the global timer handler, so we only need to update history here.
+        updateHistory(updatedSections);
+      }
+    } else {
+      // Use the correct handler to prime the task without starting the timer.
+      handlePrimeTaskWithNewLog(word.id, newTimeLogEntries, word.text);
+      updateHistory(updatedSections);
+    }
+    showToast('Checklist sent to Work Timer!');
   };
 
   const handleSendSectionToTimer = (section: ChecklistSection, startImmediately: boolean) => {
-    const now = Date.now();
-    let newTimeLog = [...(word.timeLog || [])];
-    const newTitle = section.title;
-
     const itemsToSend = section.items.filter(item => !item.isCompleted);
     if (itemsToSend.length === 0) {
       showToast('No active items in this section to send to timer.');
       return;
     }
 
-    // If starting immediately, stop any other running timer first.
+    const newTimeLogEntries: TimeLogEntry[] = [
+      // Add the section header first
+      {
+        id: section.id + Math.random(),
+        description: section.title,
+        duration: 0,
+        type: 'header',
+      },
+      // Then add all the items from that section
+      ...itemsToSend.map(item => ({ id: item.id + Math.random(), description: item.text, duration: item.loggedTime || 0, type: 'entry' as 'entry', isRunning: false, createdAt: Date.now(), checklistItemId: item.id }))
+    ];
+
     if (startImmediately) {
-      newTimeLog = newTimeLog.map(entry => {
-        if (entry.isRunning) {
-          const elapsed = now - (entry.startTime || now);
-          return { ...entry, duration: entry.duration + elapsed, isRunning: false, startTime: undefined };
-        }
-        return entry;
-      });
+      const firstEntry = newTimeLogEntries.find(e => e.type === 'entry');
+      if (firstEntry) {
+        // Pass the new log AND the entry to start in a single, atomic operation.
+        setTimeout(() => handleGlobalToggleTimer(word.id, firstEntry.id, firstEntry, newTimeLogEntries), 100);
+        // The global timer handler will update the checklist, so we just update local history and notify the parent.
+        const updatedSections = history[historyIndex].map(s => s.id === section.id ? { ...s, items: s.items.map(i => itemsToSend.find(it => it.id === i.id) && i.loggedTime === undefined ? { ...i, loggedTime: 0 } : i) } : s);
+        updateHistory(updatedSections);
+        onUpdate(updatedSections);
+      }
+    } else {
+      // Use the correct handler to prime the task without starting the timer.
+      const updatedSections = history[historyIndex].map(s => s.id === section.id ? { ...s, items: s.items.map(i => itemsToSend.find(it => it.id === i.id) && i.loggedTime === undefined ? { ...i, loggedTime: 0 } : i) } : s);
+      handlePrimeTaskWithNewLog(word.id, newTimeLogEntries, section.title);
+      updateHistory(updatedSections);
     }
-
-    const newEntries: TimeLogEntry[] = itemsToSend.map((item, index) => ({
-      id: now + Math.random() + index,
-      description: item.text,
-      duration: 0,
-      isRunning: startImmediately && index === 0, // Only start the first item
-      startTime: startImmediately && index === 0 ? now : undefined,
-    }));
-
-    onWordUpdate({ ...word, timeLog: [...newTimeLog, ...newEntries], timeLogTitle: newTitle });
     showToast(`${itemsToSend.length} item(s) sent to timer!`);
   };
 
-  const handleSendToTimer = (itemText: string, startImmediately: boolean) => {
+  const handleSendToTimer = (item: ChecklistItem, startImmediately: boolean) => {
+    const newEntry: TimeLogEntry = {
+      id: Date.now() + Math.random(),
+      description: item.text,
+      duration: item.loggedTime || 0, // Use existing logged time
+      checklistItemId: item.id,
+      type: 'entry',
+      createdAt: Date.now(),
+    };
+
+    // Ensure the checklist item itself has its loggedTime initialized
+    const updatedSections = history[historyIndex].map(section => ({
+      ...section,
+      items: section.items.map(i => 
+        i.id === item.id && i.loggedTime === undefined 
+          ? { ...i, loggedTime: 0 } 
+          : i
+      )
+    }));
+
     if (startImmediately) {
-      handleAddNewTimeLogEntryAndStart(wordId, itemText);
+      // For starting immediately, we create the new log by appending the entry
+      // and pass it all to the atomic handler.
+      const newTimeLog = [...(word.timeLog || []), newEntry];
+      setTimeout(() => handleGlobalToggleTimer(wordId, newEntry.id, newEntry, newTimeLog), 100);
     } else {
-      // Just add the entry without starting it.
-      const newEntry: TimeLogEntry = {
-        id: Date.now() + Math.random(),
-        description: itemText,
-        duration: 0,
-      };
+      // For just adding without starting, a simple update is sufficient and correct.
       onWordUpdate({ ...word, timeLog: [...(word.timeLog || []), newEntry] });
     }
-    showToast(`'${itemText}' sent to timer!`);
+    updateHistory(updatedSections);
+    onUpdate(updatedSections);
+    showToast(`'${item.text}' sent to timer!`);
   };
 
   useEffect(() => {
@@ -304,31 +507,20 @@ export function Checklist({
     updateHistory(newSections);
     onUpdate(newSections);
     showToast('Section Duplicated!');
+    // Set the new section to be in edit mode immediately
+    setEditingSectionId(newDuplicatedSection.id);
+    setEditingSectionTitle(newDuplicatedSection.title);
   };
 
-  const handleDeleteSection = (sectionId: number) => {
-    if (confirmingDeleteSectionId === sectionId) {
-      // This is the second click, perform deletion
-      const newSections = history[historyIndex].filter(sec => sec.id !== sectionId);
-      updateHistory(newSections);
-      onUpdate(newSections);
-      setConfirmingDeleteSectionId(null); // Reset confirmation state
-      showToast('Section Deleted!');      
-      if (confirmTimeoutRef.current) {
-        clearTimeout(confirmTimeoutRef.current);
-      }
-    } else {
-      // This is the first click, enter confirmation state
-      setConfirmingDeleteSectionId(sectionId);
-      // Also reset other confirmations to avoid confusion
-      setConfirmingDeleteNotes(false);
-      setConfirmingDeleteResponses(false);
-      setConfirmingDeleteSectionNotes(null);
-      setConfirmingDeleteSectionResponses(null);
-
-      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
-      confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteSectionId(null), 3000);
-    }
+  const handleDeleteSection = (sectionId: number) => {        
+    const newSections = history[historyIndex].filter(sec => sec.id !== sectionId);
+    updateHistory(newSections);
+    onUpdate(newSections);
+    setConfirmingDeleteSectionId(null); // Reset confirmation state
+    showToast('Section Deleted!');      
+    if (confirmTimeoutRef.current) {
+      clearTimeout(confirmTimeoutRef.current);
+    }    
   };
   const handleDeleteAllSections = () => {
     if (confirmingDeleteAllSections) {
@@ -349,7 +541,91 @@ export function Checklist({
       confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteAllSections(false), 3000);
     }
   };
+
+  const handleBulkAddChecklist = () => {
+    if (!bulkAddChecklistText.trim()) return;
+
+    const sectionsToAdd: ChecklistSection[] = [];
+    let currentSection: ChecklistSection | null = null;
+
+    const lines = bulkAddChecklistText.split('\n');
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith('###')) {
+        // If there's an existing section, push it before starting a new one.
+        if (currentSection) {
+          sectionsToAdd.push(currentSection);
+        }
+        currentSection = {
+          id: Date.now() + Math.random(),
+          title: trimmedLine.substring(3).trim(),
+          items: [],
+        };
+      } else if (trimmedLine === '---' && currentSection) {
+        sectionsToAdd.push(currentSection);
+        currentSection = null;
+      } else if (trimmedLine && currentSection) {
+        currentSection.items.push({
+          id: Date.now() + Math.random(),
+          text: trimmedLine,
+          isCompleted: false,
+        });
+      }
+    }
+    if (currentSection) sectionsToAdd.push(currentSection);
+    const newSections = [...history[historyIndex], ...sectionsToAdd];
+    updateHistory(newSections);
+    onUpdate(newSections);
+    setBulkAddChecklistText(''); // Clear the input
+    showToast(`${sectionsToAdd.length} section(s) added!`);
+  };
   
+  const handleLoadChecklistTemplate = (templateId: number) => {
+    if (!templateId) return;
+
+    const template = settings.checklistTemplates?.find(t => t.id === templateId);
+    if (!template) {
+      showToast('Template not found.');
+      return;
+    }
+
+    // Deep copy the template sections and assign new unique IDs
+    const newSectionsFromTemplate: ChecklistSection[] = template.sections.map(section => ({
+      ...section,
+      id: Date.now() + Math.random(), // New unique ID for the section
+      items: section.items.map(item => ({
+        ...item,
+        id: Date.now() + Math.random(), // New unique ID for the item
+        isCompleted: false, // Always add items as not completed
+      }))
+    }));
+
+    const newSections = [...history[historyIndex], ...newSectionsFromTemplate];
+    updateHistory(newSections);
+    onUpdate(newSections);
+    showToast(`Template "${template.name}" loaded!`);
+  };
+
+  const handleSaveChecklistTemplate = (templateName: string) => {
+    if (!templateName.trim() || !templateSectionsToSave) return;
+
+    const newTemplate: ChecklistTemplate = {
+      id: Date.now(),
+      name: templateName.trim(),
+      sections: templateSectionsToSave,
+    };
+
+    onSettingsChange(prevSettings => ({
+      ...prevSettings,
+      checklistTemplates: [...(prevSettings.checklistTemplates || []), newTemplate],
+    }));
+
+    showToast(`Template "${templateName.trim()}" saved!`);
+    setIsSaveTemplatePromptOpen(false);
+    setTemplateSectionsToSave(null);
+  };
+
   const handleAddItem = (sectionId: number) => {
     const text = newItemTexts[sectionId] || '';
     const lines = text.split('\n').map(line => line.trim()).filter(line => line !== '');
@@ -381,10 +657,12 @@ export function Checklist({
     let toggledItem: ChecklistItem | null = null;
     const newSections = history[historyIndex].map(sec => {
       if (sec.id !== sectionId) return sec;
-
+  
       const newItems = sec.items.map(item => {
         if (item.id !== itemId) return item;
-
+  
+        // If we are un-checking an item, we should NOT clear its logged time.
+        // The time should only be cleared manually if desired.
         const isNowCompleted = !item.isCompleted;
 
         // If the item is being marked as complete, send a notification.
@@ -540,8 +818,14 @@ export function Checklist({
   // Expose undo/redo functions via the passed-in ref
   if (checklistRef) {
     checklistRef.current = {
-      handleUndo,
-      handleRedo,
+      handleUndo,      
+      handleRedo,      
+      resetHistory: (sections: ChecklistSection[]) => {        
+        isUndoingRedoing.current = true;        
+        setHistory([sections]);        
+        setHistoryIndex(0);        
+        setTimeout(() => isUndoingRedoing.current = false, 0);      
+      },
     };
   }
 
@@ -560,9 +844,9 @@ export function Checklist({
   }, [onSettingsChange]);
 
   const handleExpandAllSections = React.useCallback(() => {
-    const allSectionIds = history[historyIndex].map(s => s.id);
-    onSettingsChange({ openChecklistSectionIds: allSectionIds });
-  }, [history, historyIndex, onSettingsChange]);
+    const allSectionIds = historyRef.current[historyIndex].map(s => s.id);
+    onSettingsChange({ openChecklistSectionIds: allSectionIds });   
+  }, [historyIndex, onSettingsChange]);
 
   const handleAddNotes = React.useCallback((sectionId?: number) => {
     const newSections = history[historyIndex].map(sec => {
@@ -646,7 +930,64 @@ export function Checklist({
     onUpdate(newSections);
     showToast('Section Notes deleted!');
   };
+
+  const handleDuplicateChecklistItem = (sectionId: number, itemId: number) => {
+    const currentSections = history[historyIndex];
+    const section = currentSections.find(s => s.id === sectionId);
+    if (!section) return;
+    const itemIndex = section.items.findIndex(i => i.id === itemId);
+    if (itemIndex === -1) return;
+    const itemToDuplicate = section.items[itemIndex];
+    const duplicatedItem = { ...itemToDuplicate, id: Date.now() + Math.random(), text: `${itemToDuplicate.text} (Copy)` };
+    const newItems = [...section.items];
+    newItems.splice(itemIndex + 1, 0, duplicatedItem);
+    const newSections = currentSections.map(s => s.id === sectionId ? { ...s, items: newItems } : s);
+    updateHistory(newSections);
+    onUpdate(newSections);
+    showToast('Item duplicated!');
+    // Set the newly created item to be in edit mode immediately.
+    setEditingItemId(duplicatedItem.id);
+    setEditingItemText(duplicatedItem.text);
+  };
   // Effect to handle commands from the context menu that require local state changes
+  const handleGlobalChecklistCommand = useCallback((payload: { command: string }) => {
+    // This handler is for commands that DON'T need a sectionId.
+    switch (payload.command) {               
+      case 'expand_all_header ': handleExpandAllSections(); break;
+      case 'expand_all_section': handleExpandAllSections(); break;
+      case 'collapse_all': handleCollapseAllSections(); break;
+      case 'add_note_to_all': handleAddNotes(); break;
+      case 'add_response_to_all': handleAddResponses(); break;
+      case 'delete_all_notes': handleDeleteAllNotes(); break;
+      case 'delete_all_responses': handleDeleteAllResponses(); break;
+      case 'delete_all_sections': handleDeleteAllSections(); break;
+      case 'send_all_to_timer': handleSendAllItemsToTimer(false); break;
+      case 'send_all_to_timer_and_start': handleSendAllItemsToTimer(true); break;
+      case 'copy_all_sections': {
+        const textToCopy = formatChecklistForCopy(history[historyIndex]);
+        navigator.clipboard.writeText(textToCopy);
+        showToast('All sections copied to clipboard!');
+        break;
+      }
+      case 'copy_all_sections_raw': {
+        const allRawText = history[historyIndex].map(section => {
+          const header = `### ${section.title}`;
+          const itemsText = section.items.map(item => item.text).join('\n');
+          return `${header}\n${itemsText}`;
+        }).join('\n---\n');
+        navigator.clipboard.writeText(allRawText);
+        showToast('All sections raw content copied!');
+        break;
+      }
+      case 'save_checklist_as_template': {
+        setTemplateSectionsToSave(history[historyIndex]);
+        setIsSaveTemplatePromptOpen(true);
+        break;
+      }
+      // No 'clear_all_highlights' here, as it's handled in the section-specific command
+    }
+  }, [history, historyIndex, handleExpandAllSections, handleCollapseAllSections, handleAddNotes, handleAddResponses, handleDeleteAllNotes, handleDeleteAllResponses, handleDeleteAllSections, handleSendAllItemsToTimer, showToast, setTemplateSectionsToSave, setIsSaveTemplatePromptOpen]);
+
   useEffect(() => {
     const handleChecklistCommand = (payload: { command: string, sectionId: number, itemId: number, color?: string }) => {
       const { command, sectionId, itemId, color } = payload;
@@ -680,9 +1021,7 @@ export function Checklist({
           showToast('Checklist item copied!');
           return; // No state update needed
         case 'duplicate': {
-          const itemToDuplicate = { ...newItems[itemIndex] };
-          const duplicatedItem = { ...itemToDuplicate, id: Date.now() + Math.random(), text: `${itemToDuplicate.text} (Copy)` };
-          newItems.splice(itemIndex + 1, 0, duplicatedItem);
+          handleDuplicateChecklistItem(sectionId, itemId);
           break;
         }
         case 'add_before':
@@ -799,32 +1138,27 @@ export function Checklist({
         }
       } else if (command === 'send_to_timer') {
         const item = section.items.find(i => i.id === itemId);
-        if (item) handleSendToTimer(item.text, false);
+        if (item) handleSendToTimer(item, false);
       } else if (command === 'send_to_timer_and_start') {
         const item = section.items.find(i => i.id === itemId);
-        if (item) handleSendToTimer(item.text, true);
-      } else if (command === 'send_to_timer_and_start') {
-        const item = section.items.find(i => i.id === itemId);
-        if (item) handleSendToTimer(item.text, true);
+        if (item) handleSendToTimer(item, true);
       } else if (command === 'view' && wordId) {
         onSettingsChange({ activeTaskTabs: { ...settings.activeTaskTabs, [wordId]: 'ticket' } });
         if (!settings.openAccordionIds.includes(wordId)) onSettingsChange({ openAccordionIds: [...new Set([...settings.openAccordionIds, wordId])] });
       }
     };
     const handleSectionCommand = (payload: { command: string, sectionId?: number }) => {
-      switch (payload.command) {
-        case 'move_section_up': {
-          const newSections = moveSection(history[historyIndex], payload.sectionId, 'up');
-          updateHistory(newSections);
-          onUpdate(newSections);
+      const { command, sectionId } = payload;
+      // This handler is now ONLY for commands that require a sectionId.
+      if (!sectionId) return;
+
+      switch (command) {
+        case 'move_section_up':
+          onUpdate(moveSection(history[historyIndex], sectionId, 'up'));
           break;
-        }
-        case 'move_section_down': {
-          const newSections = moveSection(history[historyIndex], payload.sectionId, 'down');
-          updateHistory(newSections);
-          onUpdate(newSections);
+        case 'move_section_down':
+          onUpdate(moveSection(history[historyIndex], sectionId, 'down'));
           break;
-        }
         case 'undo_checklist':
           handleUndo();
           break;
@@ -832,7 +1166,7 @@ export function Checklist({
           handleRedo();
           break;
         case 'edit_title': {
-          const section = history[historyIndex].find(s => s.id === payload.sectionId);
+          const section = history[historyIndex].find(s => s.id === sectionId);
           if (section) {
             setEditingSectionId(section.id);
             setEditingSectionTitle(section.title);
@@ -840,29 +1174,19 @@ export function Checklist({
           break;
         }
         case 'toggle_all_in_section':
-          if (payload.sectionId) handleCompleteAllInSection(payload.sectionId);
+          handleCompleteAllInSection(sectionId);
           break;
-        case 'toggle_collapse': handleToggleSectionCollapse(payload.sectionId); break;
-        case 'expand_all': handleExpandAllSections(); break;
-        case 'collapse_all': handleCollapseAllSections(); break;
-        case 'add_note_to_section': handleAddNotes(payload.sectionId); break;
-        case 'add_note_to_all': handleAddNotes(); break;
-        case 'add_response_to_section': handleAddResponses(payload.sectionId); break;
-        case 'add_response_to_all': handleAddResponses(); break;
-        case 'delete_all_notes':
-          handleDeleteAllNotes();
-          break;
-        case 'delete_all_responses':
-          handleDeleteAllResponses();
-          break;
+        case 'toggle_collapse': handleToggleSectionCollapse(sectionId); break;
+        case 'add_note_to_section': handleAddNotes(sectionId); break;
+        case 'add_response_to_section': handleAddResponses(sectionId); break;
         case 'toggle_section_notes':
-          if (payload.sectionId) handleToggleSectionNotes(payload.sectionId);
+          handleToggleSectionNotes(sectionId);
           break;
         case 'toggle_section_responses':
-          if (payload.sectionId) handleToggleSectionResponses(payload.sectionId);
+          handleToggleSectionResponses(sectionId);
           break;
         case 'copy_section': {
-          const sectionToCopy = history[historyIndex].find(s => s.id === payload.sectionId);
+          const sectionToCopy = history[historyIndex].find(s => s.id === sectionId);
           if (sectionToCopy) {
             const textToCopy = formatChecklistForCopy([sectionToCopy]);
             navigator.clipboard.writeText(textToCopy);
@@ -870,33 +1194,21 @@ export function Checklist({
           }
           break; 
         }
-        case 'copy_all_sections': {
-          const textToCopy = formatChecklistForCopy(history[historyIndex]);
-          navigator.clipboard.writeText(textToCopy);
-          showToast('All sections copied to clipboard!');
-          break; 
-        }
         case 'copy_section_raw': {
-          const sectionToCopy = history[historyIndex].find(s => s.id === payload.sectionId);
+          const sectionToCopy = history[historyIndex].find(s => s.id === sectionId);
           if (sectionToCopy) {
-            const textToCopy = formatChecklistSectionRawForCopy(sectionToCopy);
+            const header = `### ${sectionToCopy.title}`;
+            const itemsText = sectionToCopy.items.map(item => item.text).join('\n');
+            const textToCopy = `${header}\n${itemsText}`;
             navigator.clipboard.writeText(textToCopy);
             showToast('Section raw content copied!');            
           }
           break;
         }
-        case 'copy_all_sections_raw': {
-          const allRawText = history[historyIndex]
-            .map(section => formatChecklistSectionRawForCopy(section))
-            .join('\n\n'); // Separate sections with a double newline
-          navigator.clipboard.writeText(allRawText);
-          showToast('All sections raw content copied!');          
-          break;
-        }
         case 'clear_all_highlights': {
-          if (payload.sectionId) {
+          if (sectionId) {
             const newSections = history[historyIndex].map(sec => 
-              sec.id === payload.sectionId 
+              sec.id === sectionId 
                 ? { ...sec, items: sec.items.map(item => ({ ...item, highlightColor: undefined } as ChecklistItem)) }
                 : sec
             );
@@ -906,26 +1218,28 @@ export function Checklist({
           }
           break;
         }
-        case 'duplicate_section': {
-          if (payload.sectionId) handleDuplicateSection(payload.sectionId);
+        case 'duplicate_section': {          
+          handleDuplicateSection(sectionId);
           break;
         }
         case 'delete_section': {
-          if (payload.sectionId) handleDeleteSection(payload.sectionId);
+          handleDeleteSection(sectionId);
           break;
         }
-        case 'delete_all_sections': {
-          handleDeleteAllSections();
-          break;
-        }
-        case 'send_section_to_timer': {
-          const section = history[historyIndex].find(s => s.id === payload.sectionId);
+        case 'send_section_to_timer': {          
+          const section = history[historyIndex].find(s => s.id === sectionId);
           if (section) handleSendSectionToTimer(section, false);
           break;
         }
-        case 'send_section_to_timer_and_start': {
-          const section = history[historyIndex].find(s => s.id === payload.sectionId);
+        case 'send_section_to_timer_and_start': {          
+          const section = history[historyIndex].find(s => s.id === sectionId);
           if (section) handleSendSectionToTimer(section, true);
+          break;
+        }
+        case 'save_section_as_template': {
+          const sectionToSave = history[historyIndex].find(s => s.id === sectionId);
+          if (sectionToSave) setTemplateSectionsToSave([sectionToSave]);
+          setIsSaveTemplatePromptOpen(true);
           break;
         }
         case 'send_all_to_timer': {
@@ -938,6 +1252,25 @@ export function Checklist({
         }
       }
     };
+
+    const handleGlobalChecklistCommand = (payload: { command: string }) => {
+      // This handler is for commands that DON'T need a sectionId.
+      switch (payload.command) {               
+        case 'expand_all_header ': handleExpandAllSections(); break;
+        case 'clear_all_highlights': {
+          const newSections = history[historyIndex].map(sec => ({
+            ...sec,
+            items: sec.items.map(item => ({ ...item, highlightColor: undefined } as ChecklistItem))
+          }));
+          updateHistory(newSections);
+          onUpdate(newSections);
+          showToast('All highlights cleared.');
+          break;
+        }
+        default: break; // Do nothing for unhandled commands
+      }
+    };
+
 
     const handleMainHeaderCommand = (payload: { command: string, wordId?: number }) => {
       // This is a new, combined handler.
@@ -955,13 +1288,13 @@ export function Checklist({
       } else {
         // If it's not 'view' or 'edit', it must be a section command.
         // We can pass it to the existing handler.
-        handleSectionCommand(payload);
+        handleGlobalChecklistCommand(payload);        
       }
     };
 
     // We listen for the generic command, but only act on 'edit'
     const cleanup = window.electronAPI.on('checklist-item-command', handleChecklistCommand);
-    const cleanupSection = window.electronAPI.on('checklist-section-command', handleSectionCommand);
+    const cleanupSection = window.electronAPI.on('checklist-section-command', (payload) => { payload.sectionId ? handleSectionCommand(payload) : handleGlobalChecklistCommand(payload) });
     const cleanupMainHeader = window.electronAPI.on('checklist-main-header-command', handleMainHeaderCommand);
     
     return () => { 
@@ -969,10 +1302,17 @@ export function Checklist({
       cleanupSection?.();
       cleanupMainHeader?.();
     };
-  }, [history, historyIndex, handleAddNotes, onUpdate, handleAddResponses, handleCollapseAllSections, handleExpandAllSections, handleToggleSectionCollapse, handleDeleteSection, handleDuplicateSection, handleUndo, handleRedo, onSettingsChange, settings.activeTaskTabs, settings.openAccordionIds, words]);
+  }, [history, historyIndex, handleAddNotes, onUpdate, handleAddResponses, handleCollapseAllSections, handleExpandAllSections, handleToggleSectionCollapse, handleDeleteSection, handleDuplicateSection, handleUndo, handleRedo, onSettingsChange, settings, words, handleGlobalChecklistCommand]);
 
   return (
     <div className="checklist-container">
+      <PromptModal
+        isOpen={isSaveTemplatePromptOpen}
+        onClose={() => setIsSaveTemplatePromptOpen(false)}
+        onConfirm={handleSaveChecklistTemplate}
+        title="Save as Template"
+        placeholder="Enter template name..."
+      />
       <div className="checklist-main-header" onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1023,7 +1363,7 @@ export function Checklist({
                 <button
                   className="checklist-action-btn"
                   onClick={() => handleSendAllItemsToTimer(true)}
-                  title="Send All Items to Timer & Start">
+                  title="Send All Items to Timer and Start">
                   <i className="fas fa-play-circle"></i>
                 </button>
                 <button className="checklist-action-btn" onClick={handleExpandAllSections} title="Expand All Sections">
@@ -1094,11 +1434,18 @@ export function Checklist({
                   <i className="fas fa-copy"></i>
                 </button>
                 <button className="checklist-action-btn" onClick={() => {
-                  const allRawText = history[historyIndex].map(section => formatChecklistSectionRawForCopy(section)).join('\n\n');
+                  const allRawText = history[historyIndex].map(section => {
+                    const header = `### ${section.title}`;
+                    const itemsText = section.items.map(item => item.text).join('\n');
+                    return `${header}\n${itemsText}`;
+                  }).join('\n---\n');
                   navigator.clipboard.writeText(allRawText);
                   showToast('All sections raw content copied!');
                 }} title="Copy All Sections Raw">
                   <i className="fas fa-paste"></i>
+                </button>
+                <button className="checklist-action-btn" onClick={() => handleGlobalChecklistCommand({ command: 'save_checklist_as_template' })} title="Save Checklist as Template">
+                  <i className="fas fa-save"></i>
                 </button>
               </div>
               <div className="checklist-action-group checklist-action-group-history">
@@ -1127,7 +1474,7 @@ export function Checklist({
         const isSectionOpen = (settings.openChecklistSectionIds || []).includes(section.id);
         const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
         return (
-          <div key={section.id} className="checklist-section" data-section-id={section.id} onContextMenu={(e) => { 
+          <div key={section.id} className="checklist-section" data-section-id={section.id} onContextMenu={(e) => {
               e.preventDefault(); 
               e.stopPropagation(); // Stop the event from bubbling up to the parent TaskAccordion
               const isInEditMode = settings.activeTaskTabs?.[wordId] === 'edit';
@@ -1210,17 +1557,17 @@ export function Checklist({
                     <button className="checklist-action-btn" onClick={() => handleCompleteAllInSection(section.id)} title={areAllComplete ? "Reopen All Items" : "Complete All Items"}>
                       <i className={`fas ${areAllComplete ? 'fa-undo' : 'fa-check-square'}`}></i>
                     </button>
-                  )}                                                
+                  )}    
+                  <button 
+                    className="checklist-action-btn" 
+                    onClick={() => handleSendSectionToTimer(section, false)} 
+                    title="Send All to Timer">
+                    <i className="fas fa-tasks"></i>
+                  </button>                                            
                   <div className="checklist-action-group checklist-action-group-responses">
                     <button className="checklist-action-btn" onClick={() => handleAddResponses(section.id)} title="Add Response to All Items in Section">
                       <i className="fas fa-reply"></i>
-                    </button>
-                <button 
-                  className="checklist-action-btn" 
-                  onClick={() => handleSendSectionToTimer(section, false)} 
-                  title="Send All to Timer">
-                  <i className="fas fa-tasks"></i>
-                </button>
+                    </button>             
                     <button
                       className="checklist-action-btn"
                       onClick={() => handleToggleSectionResponses(section.id)}
@@ -1271,11 +1618,16 @@ export function Checklist({
                     <button className="checklist-action-btn" onClick={() => {
                       const sectionToCopy = history[historyIndex].find(s => s.id === section.id);
                       if (sectionToCopy) {
-                        const textToCopy = formatChecklistSectionRawForCopy(sectionToCopy);
+                        const header = `### ${sectionToCopy.title}`;
+                        const itemsText = sectionToCopy.items.map(item => item.text).join('\n');
+                        const textToCopy = `${header}\n${itemsText}`;
                         navigator.clipboard.writeText(textToCopy);
                         showToast('Section raw content copied!');
                       }
                     }} title="Copy Section Raw"><i className="fas fa-paste"></i>
+                    </button>
+                    <button className="checklist-action-btn" onClick={() => handleDuplicateSection(section.id)} title="Duplicate Section">
+                      <i className="fas fa-clone"></i>                    
                     </button>                
                   </div>
                   <div className="checklist-action-group checklist-action-group-history">
@@ -1389,23 +1741,24 @@ export function Checklist({
                           </span>
                         )}
                         {!isEditable && (
-                          <div className="checklist-item-quick-actions">
+                          <div className="checklist-item-quick-actions">                            
                             <button className="icon-button" onClick={() => {
                               setEditingItemId(item.id);
                               setEditingItemText(item.text); // Set the text for the input field
                             }} title="Edit Item"><i className="fas fa-pencil-alt"></i></button>
+                            <button className="icon-button" onClick={() => handleDuplicateChecklistItem(section.id, item.id)} title="Duplicate Item"><i className="fas fa-clone"></i></button>
                             {item.response === undefined ? (
                               <button className="icon-button" onClick={() => { handleUpdateItemResponse(section.id, item.id, ''); setEditingResponseForItemId(item.id); }} title="Add Response"><i className="fas fa-reply"></i></button>
                             ) : (
                               <button className="icon-button" onClick={() => handleDeleteItemResponse(section.id, item.id)} title="Delete Response"><i className="fas fa-reply active-icon"></i></button>
                             )}
-                            {item.note === undefined ? (
+                            {item.note === undefined ? ( 
                               <button className="icon-button" onClick={() => { handleUpdateItemNote(section.id, item.id, ''); setEditingNoteForItemId(item.id); }} title="Add Note"><i className="fas fa-sticky-note"></i></button>
                             ) : (
                               <button className="icon-button" onClick={() => handleDeleteItemNote(section.id, item.id)} title="Delete Note"><i className="fas fa-sticky-note active-icon"></i></button>
                             )}
-                            <button className="icon-button" onClick={() => handleSendToTimer(item.text, false)} title="Add to Timer"><i className="fas fa-plus-circle"></i></button>
-                            <button className="icon-button" onClick={() => handleSendToTimer(item.text, true)} title="Add to Timer & Start"><i className="fas fa-play"></i></button>
+                            <button className="icon-button" onClick={() => handleSendToTimer(item, false)} title="Add to Timer"><i className="fas fa-plus-circle"></i></button>
+                            <button className="icon-button" onClick={() => handleSendToTimer(item, true)} title="Add to Timer and Start"><i className="fas fa-play"></i></button>
                             <button className="icon-button" onClick={() => handleDeleteItem(section.id, item.id)} title="Delete Item"><i className="fas fa-trash-alt delete-icon"></i></button>
                           </div>
                         )}
@@ -1414,6 +1767,15 @@ export function Checklist({
                         // In EDIT mode, only show the inputs if they have content or if the user just added them.
                         // The `handleUpdate...` function with an empty string creates the property, making it non-undefined.
                         <>
+                          {timeLogDurations.has(item.id) ? (
+                            <span className="checklist-item-logged-time">
+                              (Logged: {
+                                // Always display the derived time from the timeLog for consistency.
+                                // This ensures it matches the TimeTrackerLog's total.
+                                formatTime(timeLogDurations.get(item.id) || 0)
+                              })
+                            </span>
+                          ) : null}
                           {settings.showChecklistResponses && !hiddenResponsesSections.has(section.id) && (item.response !== undefined) && (
                             <div className="checklist-item-response" onContextMenu={(e) => {
                               e.preventDefault();
@@ -1453,6 +1815,15 @@ export function Checklist({
                         </>
                       ) : (
                         <>
+                          {timeLogDurations.has(item.id) ? (
+                            <span className="checklist-item-logged-time">
+                              (Logged: {
+                                // Always display the derived time from the timeLog for consistency.
+                                // This ensures it matches the TimeTrackerLog's total.
+                                formatTime(timeLogDurations.get(item.id) || 0)
+                              })
+                            </span>
+                          ) : null}
                           {settings.showChecklistResponses && !hiddenResponsesSections.has(section.id) && item.response !== undefined ? (
                             <div className="checklist-item-response" onContextMenu={(e) => {
                               e.preventDefault();
@@ -1525,7 +1896,8 @@ export function Checklist({
                 <button onClick={() => handleAddItem(section.id)}>+</button>
               </div>
             )}
-            </>}
+          </>
+          }
           </div>
         );
       })}
@@ -1541,6 +1913,49 @@ export function Checklist({
               </button>
             )}
           </div>
+        </div>
+      )}
+      {isEditable && (
+        <div className="bulk-add-checklist-container">
+          <textarea
+            placeholder="Bulk add sections and items... (e.g., ### Section Title)"
+            value={bulkAddChecklistText}
+            onChange={(e) => setBulkAddChecklistText(e.target.value)}
+            rows={4}
+          />
+          <button onClick={handleBulkAddChecklist}>
+            <i className="fas fa-plus-square"></i> Bulk Add to Checklist
+          </button>
+          <ManageTemplatesModal
+            isOpen={isManageTemplatesOpen}
+            onClose={() => setIsManageTemplatesOpen(false)}
+            templates={settings.checklistTemplates || []}
+            onSettingsChange={onSettingsChange}
+            showToast={showToast} 
+          />
+          {(settings.checklistTemplates && settings.checklistTemplates.length > 0) && (
+            <div className="template-loader">
+              <select 
+                onChange={(e) => {
+                  handleLoadChecklistTemplate(Number(e.target.value));
+                  // Reset the select so the same template can be loaded again
+                  e.target.value = "";
+                }}
+                value=""
+              >
+                <option value="" disabled>Add from Template</option>
+                {settings.checklistTemplates.map(template => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+              <i className="fas fa-caret-down"></i>
+            </div>
+          )}
+          {(settings.checklistTemplates && settings.checklistTemplates.length > 0) && (
+            <button onClick={() => setIsManageTemplatesOpen(true)}>Manage Templates</button>
+          )}
         </div>
       )}
     </div>

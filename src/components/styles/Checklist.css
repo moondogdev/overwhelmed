@@ -1,0 +1,477 @@
+.checklist-container .checklist-item-label {
+  width: 100%;
+  flex-direction: row;
+}
+
+.checklist-container .checklist-item-label:hover {
+    background: #555;
+}
+
+.checklist-section {
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.checklist-section.highlight-section {
+  transition: background-color 0.5s ease-out;
+  background-color: #3a3f4b;
+  border-color: #61dafb;
+  box-shadow: 0 0 8px #61dafb;
+}
+
+.checklist-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.checklist-header-wrap {
+    position: relative;
+}
+.checklist-header .editable-title {
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+    font-size: 1em;
+}
+.checklist-header .editable-title:hover {
+  text-decoration: underline dashed;
+}
+.checklist-header-wrap:hover span.checklist-progress {
+    opacity: 1;
+}
+.checklist-header .checklist-progress {
+    display: block;
+    font-size: .58em;
+}
+.checklist-section-title-input {
+  background-color: #3a3f4b;
+  border: 1px solid #61dafb;
+  color: white;
+}
+
+.checklist-header strong {
+  font-size: 1.1em;
+}
+
+.checklist-progress {
+  font-size: 0.8em;
+  color: #aaa;
+}
+
+.checklist-progress-bar-container {
+  width: 100%;
+  height: 6px;
+  background-color: #3a3f4b;
+  border-radius: 3px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.checklist-progress-bar-fill {
+  height: 100%;
+  background-color: #61dafb;
+  border-radius: 3px;
+  transition: width 0.3s ease-in-out;
+}
+
+.checklist-progress-bar-fill.complete {
+  background-color: #4caf50; /* Green for 100% complete */
+}
+
+.checklist-item-text-input {
+  width: 100%; /* Make the input take the full width */
+  padding: 8px; /* Give it more vertical and horizontal space */
+  font-size: 1em; /* Make the font size match the display text */
+  box-sizing: border-box; /* Ensure padding is included in the width */
+  background-color: #3a3f4b;
+  border: 1px solid #61dafb; /* Highlight with accent color when editing */
+  color: white;
+}
+.checklist-item-sub-input {
+  width: 100%;
+  box-sizing: border-box;
+  background-color: transparent;
+  border: none;
+  border-bottom: 1px dashed #555;
+  color: #ccc;
+  padding: 4px 0;
+  margin-left: 5px;
+  font-size: 0.9em;
+}
+
+.checklist-item-sub-input:focus {
+  outline: none;
+  border-bottom: 1px solid #61dafb;
+}
+
+
+.checklist-item {
+  display: flex;
+  flex-direction: row;  
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.checklist-item.highlighted {
+  border-left-width: 4px;
+  border-left-style: solid;
+  padding-left: 8px; /* Adjust padding to compensate for border */
+}
+
+.checklist-item-label {
+  display: flex;
+  align-items: center;
+}
+
+.checklist-item-main-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%; /* This is the stable row */
+  gap: 10px; /* Add some gap between text and actions */
+  position: relative;
+}
+
+.checklist-actions {
+  margin-top: 10px;
+}
+.add-section-btn {
+  width: auto !important;
+}
+
+.checklist-main-actions .add-section-btn {
+  width: auto !important;
+}
+
+.checklist-section-actions {
+  margin-left: auto; /* Pushes the whole group to the right */
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.checklist-section-actions button.checklist-action-btn { 
+  padding: 8px;
+}
+.checklist-main-actions .delete-btn {
+  background-color: #c94a4a !important;
+}
+
+.checklist-section-actions .delete-btn {
+  color: #c94a4a !important;
+}
+
+.checklist-main-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #444;
+}
+
+.checklist-main-header h4 {
+  margin: 10px 0;
+}
+
+.checklist-add-item {
+  display: flex;
+  margin-top: 15px;
+  gap: 5px;
+}
+
+.checklist-add-item textarea {
+  flex-grow: 1;
+  resize: vertical;
+  min-height: 60px; /* Start small */
+  line-height: 1.4;
+}
+.checklist-add-item button {
+  width: auto !important;
+  padding: 0 15px !important;
+}
+
+.checklist-add-item input {
+  flex-grow: 1;
+}
+
+.checklist-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checklist-item.completed .checklist-item-text {
+  text-decoration: line-through;
+  color: #888;
+}
+
+.checklist-item-text {
+  flex-grow: 1;
+  margin: 0 5px;
+}
+
+.checklist-item:hover .checklist-item-text {
+  cursor: pointer;
+}
+.checklist-item-interactive-area:hover {
+    background: #212212;
+}
+.checklist-item-interactive-area {
+    cursor: pointer;
+}
+
+.checklist-item-text-input {
+  flex-grow: 1;
+  margin: 0 5px;
+  background-color: #3a3f4b;
+  border: 1px solid #61dafb;
+  color: white;
+}
+
+.checklist-delete-btn {
+  background: none !important;
+  border: none !important;
+  color: #888 !important;
+  cursor: pointer;
+  padding: 0 5px !important;
+}
+.checklist-action-btn:hover {
+  color: #aaa !important;
+}
+.checklist-action-btn:hover .fa-check-square {
+  color: #4caf50 !important;
+}
+.checklist-action-btn:hover .fa-undo {
+  color: #61dafb !important;
+}
+.checklist-action-btn:hover .fa-broom {
+  color: #f4d03f !important;
+}
+.checklist-action-btn:hover .fa-sticky-note {
+  color: #f4d03f !important;
+}
+.checklist-action-btn:hover .fa-tasks {
+  color: #82ca9d !important; /* Green, like the play button */
+}
+.checklist-action-btn:hover .fa-stopwatch {
+  color: #82ca9d !important; /* Green, like the play button */
+}
+.checklist-action-btn:hover .fa-play-circle {
+  color: #82ca9d !important; /* Green, like the play button */
+}
+
+.checklist-action-btn .disabled-icon {
+  opacity: 0.4;
+  color: #888 !important;
+}
+.checklist-action-btn .fa-stack .delete-icon {
+  color: #c94a4a;
+  opacity: 0.7;
+}
+.checklist-action-btn.confirm-delete {
+  background-color: #c94a4a !important;
+  color: white !important;
+  font-weight: bold;
+}
+
+.checklist-delete-btn:hover {
+  color: #c94a4a !important;
+}
+header.checklist-section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+header.checklist-section-header .checklist-header {
+  width: 100%;
+    margin: 0;
+}
+.checklist-action-btn,
+.checklist-collapse-btn {
+  background-color: transparent;
+  color: #eee;
+  box-shadow: none; 
+  border: 0px solid transparent;
+  border-radius: 0;
+  display: block;
+  line-height: 1;
+  font-size: 1rem;
+  padding: 8px 12px;
+}
+.checklist-action-btn:hover,
+.checklist-collapse-btn:hover {
+  outline: 1px solid #fff;  
+}
+
+.checklist-item-response, .checklist-item-note {
+    font-size: 0.9em;
+    margin: 5px 5px;
+    padding: 5px 8px;
+    border-radius: 3px;
+    width: 100%;
+}
+
+.checklist-item-response {
+  background-color: #424242; /* A slightly different background */
+}
+
+.checklist-item-note {
+  background-color: #c50f55; /* A subtle purple/blue for internal notes */
+}
+.checklist-item-response i,
+.checklist-item-note i {
+  margin-right: 8px;
+}
+
+.checklist-item-due-date {
+  font-size: 0.8em;
+  color: #aaa;
+  background-color: #3a3f4b;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 10px;
+  white-space: nowrap;
+}
+
+.checklist-item-due-date i {
+  margin-right: 5px;
+  color: #61dafb;
+}
+
+.checklist-item-due-date.overdue {
+  background-color: #c94a4a; /* Red background */
+  color: white;
+  border: 1px solid #a93232;
+}
+
+.checklist-item-due-date.overdue i {
+  color: white; /* Make the icon white on the red background */
+}
+
+.checklist-item-due-date.due-today {
+  background-color: #f4d03f; /* Yellow background */
+  color: #333; /* Darker text for contrast */
+  border: 1px solid #c8a930;
+}
+
+.checklist-item-due-date.due-today i {
+  color: #333; /* Make the icon dark on the yellow background */
+}
+
+.checklist-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.checklist-action-group {
+  display: inline-flex;
+  border: 1px solid #555;
+  border-radius: 5px;
+  overflow: hidden; /* Ensures the border-radius clips the children */
+  margin: 0 2px;
+}
+
+.checklist-item-datepicker {
+  background-color: #3a3f4b;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 3px;
+  padding: 2px;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.checklist-item-actions .icon-button {
+  color: #888;
+}
+.checklist-item-actions .icon-button:hover .fa-reply { color: #61dafb; }
+.checklist-item-actions .icon-button:hover .fa-sticky-note { color: #f4d03f; }
+.checklist-item-actions .icon-button:hover .fa-times { color: #c94a4a; }
+.checklist-item-actions .icon-button .active-icon.fa-reply,
+.checklist-item-quick-actions .icon-button .active-icon.fa-reply { color: #61dafb; }
+.checklist-item-actions .icon-button .active-icon.fa-sticky-note,
+.checklist-item-quick-actions .icon-button .active-icon.fa-sticky-note { color: #f4d03f; }
+
+.checklist-item-actions .icon-button:hover .delete-icon { color: #c94a4a; }
+.checklist-item-quick-actions {
+    min-width: 100px;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+    margin-left: auto;
+    padding-left: 0;
+    position: absolute;
+    top: -26px;
+    right: 0;
+    background: #000;
+    display: flex;
+    gap: 2px;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+}
+
+.checklist-item-interactive-area:hover .checklist-item-quick-actions {
+  opacity: 1;
+}
+
+.checklist-item-quick-actions .icon-button {
+  color: #888;
+}
+.checklist-item-quick-actions .icon-button:hover .fa-reply { color: #61dafb; }
+.checklist-item-quick-actions .icon-button:hover .fa-sticky-note { color: #f4d03f; }
+.checklist-item-quick-actions .icon-button:hover .fa-pencil-alt { color: #f4d03f; }
+.checklist-item-quick-actions .icon-button:hover .fa-plus-circle { color: #61dafb; } /* Add to Timer */
+.checklist-item-quick-actions .icon-button:hover .fa-play { color: #82ca9d; } /* Add to Timer & Start */
+.checklist-item-quick-actions .icon-button:hover .delete-icon { color: #c94a4a; }
+
+.bulk-add-checklist-container {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 15px 0;
+  padding: 10px;
+  background-color: #2c313a;
+  border-radius: 4px;
+}
+.bulk-add-checklist-container textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background-color: #1e1f22;
+  color: white;
+  border: 1px solid #555;
+}
+
+.template-management-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 15px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.template-management-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  background-color: #3a3f4b;
+  border-radius: 4px;
+}
+
+.template-management-item .template-name {
+  flex-grow: 1;
+}
+
+.template-management-item input {
+  flex-grow: 1;
+  margin-right: 10px;
+}
+
+.template-management-item .template-actions {
+  display: flex;
+  gap: 5px;
+}

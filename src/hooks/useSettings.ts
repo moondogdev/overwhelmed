@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Settings } from '../types';
 import { defaultSettings } from '../config';
 
@@ -8,6 +8,12 @@ interface UseSettingsProps {
 
 export function useSettings({ showToast }: UseSettingsProps) {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const settingsRef = useRef(settings);
+
+  // Keep the ref updated with the latest state
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   const setActiveCategoryId = useCallback((id: number | 'all') => {
     // When changing a parent category, always reset the sub-category to 'all'
@@ -68,6 +74,7 @@ export function useSettings({ showToast }: UseSettingsProps) {
 
   return {
     settings, setSettings,
+    settingsRef, // Expose the ref
     setActiveCategoryId, setActiveSubCategoryId,
     applyDefaultShadow, resetShadow,
     handleResetSettings, handleFontScaleChange, handleAccordionToggle, setOpenAccordionIds,

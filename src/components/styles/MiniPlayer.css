@@ -1,0 +1,200 @@
+/* --- Mini Player --- */
+.mini-player {
+  position: fixed;
+  bottom: 25px; /* Position it above the main footer */
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #1a1d23;
+  border: 1px solid #4a4f5b;
+  border-radius: 8px;
+  padding: 8px 15px;
+  display: flex;
+  align-items: center;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  width: 640px;
+}
+
+.mini-player-info-wrapper {
+  display: flex;  
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  flex-grow: 1;
+  margin-right: 15px;
+  overflow: hidden; /* Prevent text from overflowing */
+}
+
+.mini-player-info-main {
+    display: flex;
+    align-items: baseline;
+    gap: 0;
+    width: 100%;
+    flex-direction: column;
+}
+
+.mini-player-info-secondary {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.mini-player-info-wrapper.idle .mini-player-description {
+  color: #666;
+}
+
+.mini-player-task-title {
+  font-weight: bold;
+  font-size: 0.9em;
+  color: #ccc;
+}
+.mini-player-subtitle.section-title {
+  color: #61dafb; /* A different color to make it stand out */
+  font-weight: bold;
+  font-style: italic;
+}
+.mini-player-description {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 0.9em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  align-items: baseline;
+  flex-grow: 1;
+  color: #ccc;
+}
+.mini-player-subtitle {
+  font-size: 0.8em;
+  color: #aaa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-player-label {
+  font-weight: normal;
+  color: #888;
+  font-size: 0.9em;
+}
+.mini-player-timer-line {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.mini-player-time {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 1.1em;
+  font-weight: bold;
+  color: #61dafb;
+}
+
+.mini-player-controls {
+  display: flex;
+  gap: 10px;
+}
+
+.mini-player-controls .icon-button {
+  font-size: 1.2em;
+  color: #a9b7c6;
+  padding: 5px;
+}
+
+.mini-player-controls .icon-button:disabled {
+  opacity: 0.4;
+}
+
+.mini-player-nav-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.nav-indicator {
+  position: absolute;
+  bottom: 100%; /* Position it above the button */
+  margin-bottom: 5px; /* Space between indicator and button */
+  background-color: #21252b;
+  color: #ccc;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 0.75em;
+  white-space: nowrap;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none; /* So it doesn't interfere with button clicks */
+  opacity: 0.8;
+}
+
+.nav-indicator.prev {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.mini-player-dropdown-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.mini-player-entry-list {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 5px;
+  background-color: #21252b;
+  border: 1px solid #4a4f5b;
+  border-radius: 5px;
+  list-style: none;
+  padding: 5px;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1001;
+  width: max-content;
+  min-width: 150px;
+}
+
+.mini-player-entry-list li {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.mini-player-entry-list li:hover {
+  background-color: #3a3f4b;
+}
+
+.mini-player-entry-list li.active {
+  background-color: #61dafb;
+  color: #21252b;
+  font-weight: bold;
+}
+
+.mini-player-entry-list .entry-list-header {
+  font-weight: bold;
+  color: #61dafb;
+  padding: 8px 12px 4px 12px; /* Less padding at the bottom */
+  font-size: 0.8em;
+  text-transform: uppercase;
+  cursor: default;
+  background-color: transparent !important; /* Ensure it's not hoverable */
+}
+
+.mini-player-entry-list .entry-list-divider {
+  height: 1px;
+  background-color: #4a4f5b;
+  margin: 4px 0;
+  padding: 0;
+}
+.nav-indicator.next {
+  left: 50%;
+  transform: translateX(-50%);
+}

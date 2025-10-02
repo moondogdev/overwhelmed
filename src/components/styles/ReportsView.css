@@ -1,0 +1,124 @@
+.reports-view {
+  width: 100%;
+  max-width: 800px;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.reports-view h2 {
+  border-bottom: 2px solid #61dafb;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+.report-table td:last-child,
+.report-table th:last-child {
+  text-align: center;
+}
+
+.report-filters {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+  background-color: #21252b;
+  padding: 15px;
+  border-radius: 5px;
+}
+
+.report-filters label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.report-filters .clear-filter-btn {
+  width: auto;
+  margin-left: auto; /* Pushes the button to the far right */
+}
+
+.report-filters .export-csv-btn {
+  width: auto;
+  background-color: #4caf50;
+  margin-left: 10px;
+}
+
+.report-section {
+  background-color: #21252b;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+}
+
+.report-section h3 {
+  margin-top: 0;
+  border-bottom: 1px solid #444;
+  padding-bottom: 8px;
+  margin-bottom: 15px;
+}
+.report-section-header,
+.report-section h3 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.report-section-actions button {
+  width: auto;
+  margin: 0;
+  padding: 4px 12px;
+}
+
+.grand-total-summary {
+  background-color: #3a3f4b !important;
+  border: 1px solid #61dafb;
+}
+
+.grand-total-summary p {
+  font-size: 1.1em;
+  margin: 0;
+  text-align: center;
+}
+
+.reports-view ul {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+.chart-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chart-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chart-label {
+  width: 120px; /* Adjust as needed */
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.9em;
+}
+
+.chart-bar-wrapper {
+  flex-grow: 1;
+  background-color: #3a3f4b;
+  border-radius: 3px;
+  height: 20px;
+}
+
+.chart-bar {
+  height: 100%;
+  background-color: #61dafb;
+  border-radius: 3px;
+  transition: width 0.5s ease-in-out;
+}
+
+.chart-value {
+  font-weight: bold;
+  min-width: 20px; /* Give it some space */
+}

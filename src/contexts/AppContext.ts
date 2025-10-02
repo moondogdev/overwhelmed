@@ -31,6 +31,7 @@ export interface AppContextType {
   activeTimerWordId: number | null;
   activeTimerEntry: TimeLogEntry | null;
   activeTimerLiveTime: number;
+  primedTaskId: number | null;
   fullTaskViewId: number | null;
   setFullTaskViewId: (id: number | null) => void;
   newTask: Partial<Word>;
@@ -45,6 +46,8 @@ export interface AppContextType {
   setIsPromptOpen: (isOpen: boolean) => void;
   isAddTaskOpen: boolean;
   setIsAddTaskOpen: (isOpen: boolean) => void;
+  isWorkSessionManagerOpen: boolean;
+  setIsWorkSessionManagerOpen: (isOpen: boolean) => void;
 
   // Refs
   historyIndex: number;
@@ -54,7 +57,7 @@ export interface AppContextType {
   searchInputRef: React.RefObject<HTMLInputElement>;
   sortSelectRef: React.RefObject<HTMLSelectElement>;
   snoozeTimeSelectRef: React.RefObject<HTMLSelectElement>;
-  activeChecklistRef: React.RefObject<{ handleUndo: () => void; handleRedo: () => void; }>;
+  activeChecklistRef: React.RefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
 
   // Handlers
   showToast: (message: string, duration?: number) => void;
@@ -75,9 +78,24 @@ export interface AppContextType {
   setActiveSubCategoryId: (id: number | 'all') => void;
   focusAddTaskInput: () => void;
   handleChecklistCompletion: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
-  handleGlobalToggleTimer: (wordId: number, entryId: number) => void;
+  handleGlobalToggleTimer: (wordId: number, entryId: number, entry?: TimeLogEntry, newTimeLog?: TimeLogEntry[]) => void;
   handleGlobalStopTimer: () => void;
-  handleAddNewTimeLogEntryAndStart: (wordId: number, description: string) => void;
+  handleGlobalResetTimer: (wordId: number, entryId: number) => void;
+  handlePrimeTaskWithNewLog: (wordId: number, newTimeLog: TimeLogEntry[], timeLogTitle?: string) => void;
+  handlePrimeTask: (wordId: number) => void;
+  handleClearActiveTimer: () => void;  
+  handleNextTask: () => void;
+  handlePreviousTask: () => void;
+  handleNextEntry: () => void;
+  handleNextChapter: () => void;
+  handlePreviousChapter: () => void;
+  handleStartSession: () => void;
+  handlePostLog: (wordId: number) => void;
+  handlePostAndResetLog: (wordId: number) => void;
+  handleResetAllLogEntries: (wordId: number) => void;
+  handlePostAndComplete: (wordId: number, entryId: number, onUpdate: (updatedWord: Word) => void) => void;
+  handleStartTaskFromSession: (taskId: number) => void;
+  handlePreviousEntry: () => void;
   handleTimerNotify: (word: Word) => void;
   handleSnooze: (word: Word, duration?: 'low' | 'medium' | 'high') => void;
   handleSnoozeAll: (duration?: 'low' | 'medium' | 'high') => void;

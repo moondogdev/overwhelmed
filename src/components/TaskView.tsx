@@ -3,6 +3,7 @@ import { Word, Settings, InboxMessage, ChecklistItem, ChecklistSection, TimeLogE
 import { formatTimestampForInput, parseInputTimestamp, formatTimestamp } from '../utils';
 import { TimeTrackerLog } from './TimeTrackerLog';
 import { DescriptionEditor } from './Editors';
+import './styles/TaskView.css';
 import { Checklist } from './Checklist';
 import { useAppContext } from '../contexts/AppContext';
 import { TimeLeft, TimeOpen } from './TaskComponents';
@@ -35,9 +36,8 @@ export function ActiveFullTaskView({
   fullTaskViewId,
   words,
   completedWords,
-  onClose,
-  onUpdate
-}: Omit<FullTaskViewProps, 'task'> & { fullTaskViewId: number | null; words: Word[]; completedWords: Word[], onClose: () => void, onUpdate: (updatedWord: Word) => void }) {
+  onClose, onUpdate, onSettingsChange
+}: Omit<FullTaskViewProps, 'task'> & { fullTaskViewId: number | null; words: Word[]; completedWords: Word[], onClose: () => void, onUpdate: (updatedWord: Word) => void, onSettingsChange: (update: Partial<Settings> | ((prevSettings: Settings) => Partial<Settings>)) => void }) {
   const taskToShow = useMemo(() => {
     if (!fullTaskViewId) return null;
     return words.find(w => w.id === fullTaskViewId) || completedWords.find(w => w.id === fullTaskViewId);
@@ -52,12 +52,13 @@ export function ActiveFullTaskView({
       task={taskToShow}
       onClose={onClose}
       onUpdate={onUpdate}
+      onSettingsChange={onSettingsChange} // Pass it down
     />
   );
 }
 
-export function FullTaskView({ task, onClose, onUpdate }: FullTaskViewProps) {
-    const context = useAppContext();
+export function FullTaskView({ task, onClose, onUpdate, onSettingsChange }: FullTaskViewProps & { onSettingsChange?: (update: Partial<Settings> | ((prevSettings: Settings) => Partial<Settings>)) => void }) {
+    const { setSettings } = useAppContext();
 
     return (
         <div className="full-task-view-container">
@@ -68,23 +69,21 @@ export function FullTaskView({ task, onClose, onUpdate }: FullTaskViewProps) {
                 </button>
             </div>
             <div className="full-task-view-content">
-                <TabbedView
-                    word={task}                    
-                    onUpdate={onUpdate}
-                />
+                <TabbedView word={task} onUpdate={onUpdate} onSettingsChange={onSettingsChange || setSettings} />
             </div>
         </div>
     );
 }
 
 export function TabbedView({
-    word, onUpdate
-}: { word: Word, onUpdate: (updatedWord: Word) => void }) {
+    word, onUpdate, onSettingsChange
+}: { word: Word, onUpdate: (updatedWord: Word) => void, onSettingsChange?: (update: Partial<Settings> | ((prevSettings: Settings) => Partial<Settings>)) => void }) {
     const {
         settings, setSettings, words, completedWords, setInboxMessages, showToast,
         handleChecklistCompletion, activeChecklistRef, focusChecklistItemId, setFocusChecklistItemId,
-        handleGlobalToggleTimer, activeTimerWordId, activeTimerEntry, activeTimerLiveTime,
-        handleGlobalStopTimer, handleAddNewTimeLogEntryAndStart, handleTimerNotify
+        handleGlobalToggleTimer, activeTimerWordId, activeTimerEntry, activeTimerLiveTime, handleGlobalResetTimer, handleClearActiveTimer, handleGlobalStopTimer, handlePrimeTask, handlePrimeTaskWithNewLog, handlePostAndComplete,
+        handlePostLog, handlePostAndResetLog, handleResetAllLogEntries,
+        handleTimerNotify, handleNextEntry, handlePreviousEntry
     } = useAppContext();
 
     const initialTab = settings.activeTaskTabs[word.id] || (word.completedDuration ? 'ticket' : 'ticket');
@@ -106,7 +105,7 @@ export function TabbedView({
     };
 
     const handleTaskContextMenu = (e: React.MouseEvent) => {
-        e.preventDefault();
+        e.stopPropagation(); // CRITICAL: Stop the event from bubbling up to the global listener.
         const isInEditMode = activeTab === 'edit';
         const hasCompletedTasks = completedWords.length > 0;
         window.electronAPI.showTaskContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY, isInEditMode, hasCompletedTasks });
@@ -216,9 +215,18 @@ export function TabbedView({
                                 handleGlobalToggleTimer={handleGlobalToggleTimer}
                                 activeTimerWordId={activeTimerWordId}
                                 activeTimerEntry={activeTimerEntry}
-                                activeTimerLiveTime={activeTimerLiveTime}
-                                handleAddNewTimeLogEntryAndStart={handleAddNewTimeLogEntryAndStart}
-                                handleGlobalStopTimer={handleGlobalStopTimer}
+                                activeTimerLiveTime={activeTimerLiveTime}                                
+                                handleClearActiveTimer={handleClearActiveTimer}
+                                handleGlobalResetTimer={handleGlobalResetTimer}
+                                handleGlobalStopTimer={handleGlobalStopTimer} // This was missing
+                                handleNextEntry={handleNextEntry}
+                                handlePreviousEntry={handlePreviousEntry}
+                                handlePostLog={handlePostLog}
+                                handlePostAndResetLog={handlePostAndResetLog}
+                                handleResetAllLogEntries={handleResetAllLogEntries}
+                                handlePostAndComplete={handlePostAndComplete}
+                                settings={settings}
+                                checklistRef={activeChecklistRef}
                             />
                         </div>
                         <div><strong>Task Cost:</strong>
@@ -252,20 +260,28 @@ export function TabbedView({
                         </div>
                         {tabHeaders}
                         <div className="description-container" onContextMenu={(e) => {
+                            const selection = window.getSelection();
+                            const selectedText = selection?.toString().trim();
                             const target = e.target as HTMLElement;
-                            // If the user right-clicks a link, show the link menu. Otherwise, show the ticket menu.
+
+                            // Priority 1: A link is right-clicked. Show the link menu.
                             if (target.tagName === 'A') {
-                                e.preventDefault();
+                                e.preventDefault();                                
                                 e.stopPropagation();
                                 const url = target.getAttribute('href');
-                                if (url) window.electronAPI.send('show-link-context-menu', url);
+                                if (url) window.electronAPI.send('show-link-context-menu', { url, x: e.clientX, y: e.clientY, browsers: settings.browsers, activeBrowserIndex: settings.activeBrowserIndex });
+                            // Priority 2: Text is selected. Do nothing and let the global listener handle it.
+                            } else if (selectedText) {
+                                // Don't stop propagation, allow the global selection menu to appear.
                             } else {
+                            // Priority 3: No link and no selection. Show the task menu.
                                 handleTaskContextMenu(e);
                             }
                         }} onClick={(e) => { // Also handle left-clicks for links
                             const target = e.target as HTMLElement;
                             if (target.tagName === 'A') {
                                 e.preventDefault();
+                                e.stopPropagation(); // Also stop propagation on left-click to be consistent
                                 const url = target.getAttribute('href');
                                 if (url) window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
                             }
@@ -273,14 +289,15 @@ export function TabbedView({
                             <div className="description-header" onContextMenu={handleTaskContextMenu}>
                                 <strong>Description:</strong>
                                 <button className="icon-button copy-btn" title="Copy Description Text" onClick={handleCopyDescription}><i className="fas fa-copy"></i></button>
-                                <button className="icon-button copy-btn" title="Copy Description HTML" onClick={() => {
+                                <button className="icon-button copy-btn" title="Copy Description HTML" onClick={(e) => {
+                                    e.stopPropagation();
                                     navigator.clipboard.writeText(word.description || ''); showToast('Description HTML copied!');
                                 }}><i className="fas fa-code"></i></button>
                                 <button className="icon-button copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}><i className="fas fa-copy"></i> All</button>
                             </div>
                             <Checklist
                                 sections={word.checklist || []}
-                                onUpdate={(newSections) => onUpdate({ ...word, checklist: newSections })}
+                                onUpdate={(newSections) => handleFieldChange('checklist', newSections)}
                                 onComplete={handleChecklistCompletion}
                                 words={words}
                                 setInboxMessages={setInboxMessages}
@@ -293,7 +310,12 @@ export function TabbedView({
                                 focusItemId={focusChecklistItemId}
                                 onFocusHandled={() => setFocusChecklistItemId(null)}
                                 settings={settings}
-                                handleAddNewTimeLogEntryAndStart={handleAddNewTimeLogEntryAndStart}
+                                handleGlobalToggleTimer={handleGlobalToggleTimer}
+                                handlePrimeTask={handlePrimeTask}
+                                handlePrimeTaskWithNewLog={handlePrimeTaskWithNewLog}
+                                activeTimerEntry={activeTimerEntry}
+                                activeTimerLiveTime={activeTimerLiveTime}
+                                handleClearActiveTimer={handleClearActiveTimer}                                                                                   
                                 onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
                             />
                             <DescriptionEditor
@@ -306,8 +328,9 @@ export function TabbedView({
                         <div className="description-container" ref={notesRef}>
                             <div className="description-header">
                                 <strong>Notes:</strong>
-                                <button className="icon-button copy-btn" title="Copy Notes Text" onClick={handleCopyNotes}><i className="fas fa-copy"></i></button>
-                                <button className="icon-button copy-btn" title="Copy Notes HTML" onClick={() => {
+                                <button className="icon-button copy-btn" title="Copy Notes Text" onClick={handleCopyNotes}><i className="fas fa-copy"></i></button>                                
+                                <button className="icon-button copy-btn" title="Copy Notes HTML" onClick={(e) => {
+                                    e.stopPropagation();
                                     navigator.clipboard.writeText(word.notes || ''); showToast('Notes HTML copied!');
                                 }}><i className="fas fa-code"></i></button>
                             </div>
@@ -440,15 +463,20 @@ export function TabbedView({
                             onWordUpdate={onUpdate}
                             word={word}
                             words={words}
-                            setInboxMessages={setInboxMessages}
+                            setInboxMessages={setInboxMessages} // This was missing
                             checklistRef={activeChecklistRef}
                             wordId={word.id}
                             showToast={showToast}
                             focusItemId={focusChecklistItemId}
                             onFocusHandled={() => setFocusChecklistItemId(null)}
                             settings={settings}
-                            onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
-                            handleAddNewTimeLogEntryAndStart={handleAddNewTimeLogEntryAndStart}
+                            onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}                            
+                            handleGlobalToggleTimer={handleGlobalToggleTimer}                            
+                            handlePrimeTaskWithNewLog={handlePrimeTaskWithNewLog}
+                            handlePrimeTask={handlePrimeTask}
+                            activeTimerEntry={activeTimerEntry}
+                            activeTimerLiveTime={activeTimerLiveTime}
+                            handleClearActiveTimer={handleClearActiveTimer}
                         />
                         <DescriptionEditor
                             description={word.description || ''}

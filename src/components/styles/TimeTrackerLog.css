@@ -1,0 +1,160 @@
+/* --- Time Tracker Log Styles --- */
+
+.time-tracker-log {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 5px;
+  border: 1px solid #4a4f5b;
+  border-radius: 4px;
+  background-color: #20232a;
+  width: 100%;
+}
+
+.time-tracker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 10px;
+  background-color: #282c34;
+  border-radius: 3px;
+}
+
+.time-tracker-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: bold;
+}
+
+.time-tracker-header-left .total-time {
+  font-family: 'Courier New', Courier, monospace;
+  background-color: #21252b;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #a9b7c6;
+}
+
+.time-tracker-header-right {
+  display: flex;
+  gap: 5px;
+}
+
+.time-log-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.time-log-entry {
+  display: flex; /* Changed to flex */
+  justify-content: space-between; /* Space out main content and actions */
+  align-items: center; /* Vertically align items */
+  padding: 8px;
+  background-color: #282c34;
+  border-radius: 3px;
+  transition: background-color 0.2s;
+}
+
+.time-log-entry-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-grow: 1;
+}
+
+.entry-description {
+  flex-grow: 1;
+}
+
+.inline-edit-input {
+  width: 100%;
+  background-color: #3a3f4b;
+  border: 1px solid #61dafb;
+  color: white;
+  padding: 4px;
+  border-radius: 3px;
+  box-sizing: border-box;
+}
+
+.time-log-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 15px; /* Space between main content and actions */
+}
+
+.entry-duration {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: bold;
+  color: #a9b7c6;
+  min-width: 70px; /* Give it a fixed width */
+  text-align: right;
+}
+
+.icon-button-small {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 2px;
+  font-size: 0.9em;
+}
+.icon-button-small:hover {
+  color: #fff;
+}
+.icon-button-small.confirm-delete {
+  color: #c94a4a;
+}
+
+.bulk-add-container {
+  display: flex;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.bulk-add-container textarea {
+  flex-grow: 1;
+}
+.bulk-add-container button {
+  width: auto;
+  margin: 0;
+}
+
+/* Time Log Sessions */
+.time-log-sessions-container {
+  margin-top: 20px;
+  border-top: 1px solid #444;
+  padding-top: 10px;
+}
+
+.time-log-sessions-container header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: bold;
+  color: #ccc;
+  margin-bottom: 10px;
+  font-size: 1.1em;
+}
+
+.time-log-session-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background-color: #2a2d35;
+  margin-bottom: 5px;
+}
+
+.session-title {
+  flex-grow: 1;
+  color: #ddd;
+}
+
+.session-duration {
+  font-family: 'Courier New', Courier, monospace;
+  color: #a0a0a0;
+  font-size: 0.9em;
+}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Word, Settings, TaskType, AccordionProps } from '../types';
 import { useAppContext } from '../contexts/AppContext';
 import { PromptModal } from './Editors';
+import './styles/Accordion.css';
 
 export function SimpleAccordion({ title, children, startOpen = false, onToggle, className }: AccordionProps & { startOpen?: boolean, onToggle?: (isOpen: boolean) => void, className?: string }) {
     const [isOpen, setIsOpen] = useState(startOpen);
@@ -13,7 +14,11 @@ export function SimpleAccordion({ title, children, startOpen = false, onToggle, 
 
     return (
         <div className={`accordion ${className || ''}`}>
-            <div className="accordion-header" onClick={() => { setIsOpen(!isOpen); if (onToggle) onToggle(!isOpen); }}>
+            <div className="accordion-header" onClick={(e) => {
+                e.stopPropagation(); // Stop the click from bubbling up to parent accordions.
+                setIsOpen(!isOpen); 
+                if (onToggle) onToggle(!isOpen); 
+            }}>
                 <h4>{title}</h4>
                 <span className="accordion-icon">
                     <i className={`fas ${isOpen ? 'fa-minus' : 'fa-plus'}`}></i>

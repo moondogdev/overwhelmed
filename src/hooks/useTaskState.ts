@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Word, InboxMessage, ChecklistItem, Settings } from '../types';
 import { formatTime, formatTimestamp } from '../utils';
 
@@ -31,6 +31,11 @@ export function useTaskState({
   const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [updateTimers, setUpdateTimers] = useState<{ [key: number]: NodeJS.Timeout }>({});
   const wordsRefForDebounce = useRef(words);
+
+  // New refs to hold the latest state for background processes like auto-save
+  const wordsRef = useRef(words);
+  const completedWordsRef = useRef(completedWords);
+
   wordsRefForDebounce.current = words;
 
   const handleCompleteWord = useCallback((wordToComplete: Word) => {
@@ -348,6 +353,14 @@ export function useTaskState({
     });
   }, [setWords]);
 
+  // Keep refs updated with the latest state
+  useEffect(() => {
+    wordsRef.current = words;
+  }, [words]);
+  useEffect(() => {
+    completedWordsRef.current = completedWords;
+  }, [completedWords]);
+
   return {
     words, setWords,
     completedWords, setCompletedWords,
@@ -365,5 +378,7 @@ export function useTaskState({
     handleCopyList,
     handleTogglePause,
     moveWord,
+    wordsRef, // Expose the ref
+    completedWordsRef, // Expose the ref
   };
 }
