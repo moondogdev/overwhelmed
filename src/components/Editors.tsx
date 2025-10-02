@@ -103,7 +103,13 @@ export function PromptModal({ isOpen, title, onClose, onConfirm, placeholder, in
 
 // --- Main Editor Component ---
 
-export function DescriptionEditor({ description, onDescriptionChange, settings, onSettingsChange, editorKey }: { description: string, onDescriptionChange: (html: string) => void, settings: Settings, onSettingsChange: (newSettings: Partial<Settings>) => void, editorKey: string }) {
+export function DescriptionEditor({ description, onDescriptionChange, settings, onSettingsChange, editorKey }: { 
+  description: string, 
+  onDescriptionChange: (html: string) => void, 
+  settings: Settings, 
+  onSettingsChange: (update: Partial<Settings> | ((prevSettings: Settings) => Partial<Settings>)) => void, 
+  editorKey: string 
+}) {
   const [activeView, setActiveView] = useState<'view' | 'html'>('view');
   const [htmlContent, setHtmlContent] = useState(description);
   const editorRef = useRef<HTMLDivElement>(null);

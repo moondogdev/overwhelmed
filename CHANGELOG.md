@@ -4,131 +4,69 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
-### MiniPlayer V2: Work Session Manager
+### To do: Refactor Monolithic `Checklist.tsx` Component
 
-This plan outlines the steps to evolve the `MiniPlayer` from a simple timer display into an interactive "Work Session Manager," allowing users to queue up tasks and navigate between them seamlessly.
+The `Checklist.tsx` component has become a monolithic component, handling too many responsibilities. This makes it difficult to read, maintain, and extend. This plan outlines the steps to refactor it into a modular, maintainable structure.
 
----
-
-#### **Phase 1: UI Overhaul & "Work Session" Modal**
-
-The goal of this phase is to redesign the MiniPlayer and create the main UI for managing the work session queue.
-
-1.  **Redesign MiniPlayer UI**:
-    -   Update the `MiniPlayer` component to have a more structured layout. It should clearly display:
-        -   The parent **Task Title**.
-        -   The current **Log Entry Description**.
-        -   The live-updating timer.
-    -   Add a new "playlist" icon button (`<i class="fas fa-list-ol"></i>`) that will open the Work Session Manager.
-
-2.  **Create `WorkSessionManager` Modal**:
-    -   Create a new modal component, `WorkSessionManager`, that opens when the playlist icon is clicked.
-    -   This modal will be the central hub for managing the session.
-
-3.  **Global State for Work Session**:
-    -   In `useGlobalTimer.ts`, add a new state variable: `workSessionQueue: number[]`. This array will store the IDs of the tasks in the current work session.
-
-4.  **Display the Queue**:
-    -   The `WorkSessionManager` modal will display the list of tasks from the `workSessionQueue`.
-    -   For each task in the queue, it should show the task title and have a "Remove" button.
-    -   Implement drag-and-drop or up/down arrows to allow reordering of tasks within the queue.
+#### **Analysis: What's Causing the Bloat?**
+-   **State Overload**: The component manages over 20 `useState` and `useRef` hooks for UI state, confirmation states, and local undo/redo history.
+-   **Handler Proliferation**: There are more than 30 `handle...` functions for every conceivable action (add, delete, update, duplicate, move, toggle) across items, sections, notes, and responses.
+-   **Massive `useEffect` for IPC**: The `useEffect` hook for handling context menu commands is enormous, mixing UI logic with data manipulation in a large `switch` statement.
+-   **Complex, Nested JSX**: The `return` statement is long and contains multiple levels of `.map()` loops with complex conditional rendering, making the structure hard to follow.
 
 ---
 
-#### **Phase 2: Adding Tasks to the Work Session**
+#### **The Refactoring Plan: From Monolith to Modular**
 
-This phase focuses on providing multiple ways for the user to populate their work session queue.
-
-1.  **"Add to Session" from Task List**:
-    -   In `ListView.tsx`, add a new button or context menu option to each task accordion: "Add to Work Session".
-    -   When clicked, this action will append the task's ID to the `workSessionQueue` state in `useGlobalTimer`.
-
-2.  **Task Search within the Modal**:
-    -   Inside the `WorkSessionManager` modal, add a search input field.
-    -   As the user types, it should search and display a filtered list of all open tasks from the main `words` state.
-    -   Each search result should have a "+" button to add it to the current `workSessionQueue`.
-
-3.  **Checklist Integration**:
-    -   In `Checklist.tsx`, add a new context menu option to the main checklist header: "Add Parent Task to Work Session".
+The goal is to apply the **Orchestrator Component** pattern (see Rule 69.0) by separating the UI (what it looks like) from the logic (how it works).
 
 ---
 
-#### **Phase 3: Implementing Player Navigation**
+##### **Phase 1: Extract UI into "Dumb" Presentational Components**
 
-This phase makes the MiniPlayer fully interactive, allowing navigation through the work session queue.
+Break the large JSX structure into smaller, focused components that only render UI based on props.
 
-1.  **Add Navigation Buttons**:
-    -   Add "Next" (`<i class="fas fa-step-forward"></i>`) and "Previous" (`<i class="fas fa-step-backward"></i>`) buttons to the `MiniPlayer` UI.
+1.  **Create `ChecklistItem.tsx`**:
+    -   **Action**: Create a new component responsible for rendering a single checklist item.
+    -   **Details**: Move the JSX from the `section.items.map(...)` loop into this new component. It will receive props like `item`, `isEditable`, `editingItemId`, and all necessary handlers (`onToggleItem`, `onUpdateItemText`, etc.).
 
-2.  **Implement `handleNextTask`**:
-    -   In `useGlobalTimer.ts`, create a new handler, `handleNextTask()`.
-    -   This function will:
-        1.  Call `handleGlobalStopTimer()` to correctly save the duration of the current entry.
-        2.  Find the index of the current `activeTimerWordId` in the `workSessionQueue`.
-        3.  Get the ID of the next task in the queue.
-        4.  Call `handleAddNewTimeLogEntryAndStart()` for the next task, automatically creating a new log entry like "Starting work on [Next Task Name]".
+2.  **Create `ChecklistSection.tsx`**:
+    -   **Action**: Create a component for rendering a single checklist section.
+    -   **Details**: Move the JSX from the `history[historyIndex].map(...)` loop into this component. It will render its own header and then map over its items, using the new `ChecklistItem` component.
 
-3.  **Implement `handlePreviousTask`**:
-    -   Create a `handlePreviousTask()` handler with similar logic for navigating backward in the queue.
-
-4.  **Auto-Play Feature (Optional)**:
-    -   Add a new setting in `useSettings`: `autoplayNextInSession: boolean`.
-    -   If this setting is true, when a user manually stops a timer or completes a task that is part of the session, `handleNextTask()` should be called automatically.
+3.  **Create `ChecklistHeader.tsx`**:
+    -   **Action**: Create a component for the main "Checklist" header.
+    -   **Details**: This will contain the global action buttons (Expand/Collapse All, Add Note to All, etc.).
 
 ---
 
-### To do
+##### **Phase 2: Extract Logic into a Custom Hook**
 
-Excellent question. You've correctly identified that the Checklist.tsx component has become a "monolithic component," handling far too many responsibilities. It's managing complex state, a large number of event handlers, and rendering a deeply nested UI all in one place. This makes it difficult to read, maintain, and add new features to without breaking something.
+Consolidate all state management and handler functions into a dedicated custom hook.
 
-Let's break down why it's so large and formulate a clear, step-by-step plan to refactor it.
+**Create `useChecklist.ts`**:
+-   **Action**: Create a new custom hook file at `src/hooks/useChecklist.ts`.
+-   **Details**: Move all `useState`, `useRef`, `useEffect` hooks, and all 30+ `handle...` functions from `Checklist.tsx` into this new hook. The hook will accept essential props (`initialSections`, `onUpdate`, `wordId`) and return an object containing all the state and handlers that the new UI components need.
 
-Analysis: What's Causing the Bloat?
-State Overload: The component manages over 20 useState and useRef hooks for everything from editing state (editingItemId) and confirmation states (confirmingDeleteSectionId) to its own local undo/redo history (history).
-Handler Proliferation: There are more than 30 handle... functions for every conceivable action (adding, deleting, updating, duplicating, moving, toggling, etc.) for items, sections, notes, and responses.
-Massive useEffect for IPC: The useEffect hook that listens for and handles context menu commands is enormous. It contains a huge switch statement and many if/else blocks, mixing UI logic with data manipulation.
-Complex, Nested JSX: The return statement is very long and contains multiple levels of .map() loops (for sections, then for items). Each level has its own header, action buttons, and complex conditional rendering logic, making the overall structure hard to follow.
-The Refactoring Plan: From Monolith to Modular
-Our goal is to apply the same Orchestrator Component pattern we used for the main App (see Rule 69.0). We will separate the UI (what it looks like) from the logic (how it works).
+---
 
-Here is the step-by-step plan:
+##### **Phase 3: Re-assemble as an Orchestrator**
 
-Phase 1: Extract UI into Dumb Components
-The first step is to break the large JSX structure into smaller, more focused "presentational" components. These components will be "dumb" – their only job is to render UI based on the props they receive. They won't contain any complex logic themselves.
+Rewrite the `Checklist.tsx` component to be a clean "orchestrator."
 
-Create ChecklistItem.tsx:
+**The New `Checklist.tsx`**:
+-   **Action**: Refactor the component to be a simple orchestrator.
+-   **Details**: Its only job will be to call the new `useChecklist()` hook to get all the state and logic. It will then render the new UI components (`ChecklistHeader`, `ChecklistSection`, etc.), passing them the state and handlers they need from the hook.
 
-We'll create a new component that is responsible for rendering just a single checklist item.
-We will move the JSX from the section.items.map(...) loop into this new component.
-It will receive props like item, isEditable, editingItemId, and all the necessary handlers (handleToggleItem, handleUpdateItemText, etc.).
-Create ChecklistSection.tsx:
+---
 
-We'll create a component responsible for rendering a single checklist section.
-We will move the JSX from the history[historyIndex].map(...) loop into this component.
-This component will render its own header and then map over its items, using the new ChecklistItem component we created in the previous step.
-Create ChecklistHeader.tsx:
+#### **Outcome**
 
-We'll create a component for the main "Checklist" header at the very top.
-This will contain the global action buttons (Expand/Collapse All, Add Note to All, etc.).
-Phase 2: Extract Logic into a Custom Hook
-Once the UI is separated, we will extract all the state management and handler functions into a dedicated custom hook. This will be the "brain" of the checklist.
+By the end of this process, `Checklist.tsx` will be a small, easy-to-read file that clearly shows how the logic from the hook is connected to the presentational UI components. This modular structure will make the entire feature vastly easier to debug and extend in the future.
 
-Create useChecklist.ts:
-We'll create a new custom hook file at src/hooks/useChecklist.ts.
-We will move all the useState, useRef, and useEffect hooks from Checklist.tsx into this new hook.
-All 30+ handle... functions will also be moved into this hook.
-The hook will take the essential props (sections, onUpdate, wordId, etc.) and return an object containing all the state and handlers that the new UI components need.
-Phase 3: Re-assemble as an Orchestrator
-Finally, we will rewrite the Checklist.tsx component to be a clean "orchestrator."
+This is a significant but very important refactoring task that should be approached phase by phase to ensure stability.
+---
 
-The New Checklist.tsx:
-Its only job will be to call our new useChecklist() hook to get all the state and logic.
-It will then render the new UI components (ChecklistHeader, ChecklistSection, etc.), passing them the state and handlers they need from the hook.
-By the end of this process, Checklist.tsx will be a small, easy-to-read file that clearly shows how the logic from the hook is connected to the presentational UI components. This modular structure will make the entire feature vastly easier to debug and extend in the future.
-
-This is a significant but very important refactoring task. We should proceed phase by phase to ensure stability.
-
-Ready to begin with Phase 1?
 
 -   **Major Refactor: Rename `Word` to `Task`**: This plan outlines the steps to update the legacy naming convention of `Word` to the more accurate `Task`. This will be a global find-and-replace operation, but it must be done carefully.
 
@@ -267,6 +205,7 @@ Ready to begin with Phase 1?
 
 ## Log of Changes
 
+- **[1.0.20] - 2025-09-28: MiniPlayer V2: Work Session Manager**: feat(player): Implement Work Session Manager and MiniPlayer V2
 - **[1.0.19] - 2025-09-27: Full Refactor to Hook-Based Architecture**: refactor: Complete full refactor to hook-based architecture and MiniPlayer
 - **[1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls**: feat(time): Implement Time Log Sessions and advanced timer controls
 - **[1.0.17] - 2025-09-26: Time Tracker Log & Checklist Integration**: feat(time): Implement detailed time tracker log and checklist integration
@@ -287,6 +226,36 @@ Ready to begin with Phase 1?
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.20] - 2025-09-28: MiniPlayer V2: Work Session Manager
+**feat(player): Implement Work Session Manager and MiniPlayer V2**
+
+This commit evolves the `MiniPlayer` from a simple timer display into an interactive "Work Session Manager," allowing users to queue up tasks and navigate between them seamlessly.
+
+#### Features:
+-   **MiniPlayer UI Overhaul**: Redesigned the MiniPlayer for a more structured layout, clearly displaying the task title, current log entry, and timer.
+-   **Work Session Manager**: Created a new modal, accessible via a playlist icon, to manage the work session queue.
+-   **Work Session State**: Implemented the `workSessionQueue` state to manage the list of task IDs in the current session.
+-   **Add to Session**: Added an "Add to Work Session" option to the task context menu.
+-   **In-Modal Task Search**: The Work Session Manager now includes a search bar to find and add any open task to the queue.
+-   **Player Navigation**: Added "Next" and "Previous" task buttons to the MiniPlayer to navigate through the work session queue.
+-   **Autoplay Next Task**: Implemented a new "Autoplay Next in Session" setting. When enabled, completing a task in the session automatically starts the next one.
+-   **Bulk Add Checklist Sections/Items**: Added functionality to bulk add multiple checklist sections and items by parsing text with `### Title` for sections.
+-   **Save Checklist as Template**: Users can now save the current checklist as a reusable template.
+-   **Load Checklist from Template**: Implemented an "Add from Template" option to quickly load saved checklist templates into a task.
+-   **Manage Checklist Templates**: Added a modal to manage saved templates, allowing users to rename and delete them.
+-   **Rename Template Item**: Functionality to rename individual checklist templates.
+-   **Search Stock Photos**: Added a "Search Stock Photos" option to the context menu for any selected text.
+-   **Delete Template Item**: Functionality to delete individual checklist templates.
+-   **Rich Text Editor Paste Fix**: Fixed a bug where pasting content would incorrectly move the cursor to the beginning of the editor. The cursor now correctly remains at the end of the pasted content.
+-   **Enhanced Link Context Menu**: The context menu for hyperlinks now provides dynamic options to open the link in the currently active browser, the system's default browser, or any other user-configured browser.
+-   **State Merging Fix**: Resolved a critical bug where updating a single setting (e.g., expanding a checklist section) would wipe out the entire settings object due to incorrect state update patterns. All settings updates now correctly merge changes, preserving data integrity.
+-   **Refactored `index.css`**:  Split each components style into its own stylesheet.
+
+#### Summary:
+This update transforms the MiniPlayer into a powerful tool for focused work. Users can now build a playlist of tasks, navigate between them with dedicated controls, and automate their workflow with the new autoplay feature, creating a true "work session" experience.
 
 ---
 

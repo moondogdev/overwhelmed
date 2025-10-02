@@ -776,7 +776,7 @@ app.whenReady().then(() => {
       },
       { type: 'separator' },      
       {
-        label: 'Save Section as Template...',
+        label: 'Save Section as Template',
         click: () => webContents.send('checklist-section-command', { command: 'save_section_as_template', sectionId }),
       },
       { type: 'separator' },      
@@ -1124,6 +1124,10 @@ app.whenReady().then(() => {
       {
         label: 'Search Google for selection',
         click: () => webContents.send('search-google-selection', selectionText),
+      },
+      {
+        label: 'Search Stock Photos for selection',
+        click: () => webContents.send('search-stock-photos-selection', selectionText),
       },
       {
         label: 'Search Stock Photos for selection',

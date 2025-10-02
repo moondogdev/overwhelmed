@@ -316,13 +316,13 @@ export function TabbedView({
                                 activeTimerEntry={activeTimerEntry}
                                 activeTimerLiveTime={activeTimerLiveTime}
                                 handleClearActiveTimer={handleClearActiveTimer}                                                                                   
-                                onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                                onSettingsChange={onSettingsChange || setSettings}
                             />
                             <DescriptionEditor
                                 description={word.description || ''}
                                 onDescriptionChange={(html) => handleFieldChange('description', html)}
-                                settings={settings}
-                                onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                                settings={settings}                                
+                                onSettingsChange={onSettingsChange || setSettings}
                                 editorKey={`task-description-${word.id}`} />
                         </div>
                         <div className="description-container" ref={notesRef}>
@@ -337,8 +337,8 @@ export function TabbedView({
                             <DescriptionEditor
                                 description={word.notes || ''}
                                 onDescriptionChange={(html) => handleFieldChange('notes', html)}
-                                settings={settings}
-                                onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                                settings={settings}                                
+                                onSettingsChange={onSettingsChange || setSettings}
                                 editorKey={`task-notes-${word.id}`} />
                         </div>
                     </div>
@@ -470,7 +470,7 @@ export function TabbedView({
                             focusItemId={focusChecklistItemId}
                             onFocusHandled={() => setFocusChecklistItemId(null)}
                             settings={settings}
-                            onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}                            
+                            onSettingsChange={onSettingsChange || setSettings}
                             handleGlobalToggleTimer={handleGlobalToggleTimer}                            
                             handlePrimeTaskWithNewLog={handlePrimeTaskWithNewLog}
                             handlePrimeTask={handlePrimeTask}
@@ -481,16 +481,16 @@ export function TabbedView({
                         <DescriptionEditor
                             description={word.description || ''}
                             onDescriptionChange={(html) => handleFieldChange('description', html)}
-                            settings={settings}
-                            onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                            settings={settings}                            
+                            onSettingsChange={onSettingsChange || setSettings}
                             editorKey={`edit-description-${word.id}`} />
                         <div className="description-container">
                             <strong>Notes:</strong>
                             <DescriptionEditor
                                 description={word.notes || ''}
                                 onDescriptionChange={(html) => handleFieldChange('notes', html)}
-                                settings={settings}
-                                onSettingsChange={(newSettings) => setSettings(prev => ({ ...prev, ...newSettings }))}
+                                settings={settings}                                
+                                onSettingsChange={onSettingsChange || setSettings}
                                 editorKey={`edit-notes-${word.id}`} />
                         </div>
                         <label className="checkbox-label flexed-column">

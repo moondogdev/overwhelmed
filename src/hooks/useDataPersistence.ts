@@ -102,7 +102,7 @@ export function useDataPersistence({
     // this effect will correctly re-evaluate whenever the settings object changes,
     // even though the `settings` variable in this hook's closure is stale.
     // This ensures that changes to templates, categories, etc., properly mark the
-    // application as "dirty" and trigger a save.
+    // application as "dirty" and trigger a save.    
     if (!isLoading) setIsDirty(true);
   }, [words, completedWords, inboxMessages, archivedMessages, trashedMessages, settings, isLoading, setIsDirty, activeTimerWordId, activeTimerEntry]);
 

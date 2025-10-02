@@ -32,7 +32,7 @@ function App() {
   // --- UI, Settings, and Task State (managed by custom hooks) ---
   // We need `setSettings` for `uiState`, but `showToast` from `uiState` for `settingsState`.
   // We can destructure `setSettings` first, then initialize all states.
-  const { setSettings: tempSetSettings } = useSettings({ showToast: () => {} });
+  const { setSettings: tempSetSettings } = useSettings({ showToast: () => {} }); // This is fine, it's just for initialization
   const uiState = useUIState({ setSettings: tempSetSettings, newTaskTitleInputRef });  
   // Destructure only the variables needed by other hooks or top-level components.
   const { newTask, setNewTask, bulkAddText, setBulkAddText, isLoading, setIsLoading, isDirty, setIsDirty, setLastSaveTime, setAutoSaveCountdown, showToast, focusAddTaskInput } = uiState;
@@ -76,7 +76,7 @@ function App() {
     isDirty, setIsDirty,
     words, setWords,
     completedWords, setCompletedWords,
-    wordsRef,
+    wordsRef, 
     completedWordsRef,
     settings, settingsRef, setSettings,
     inboxMessages, setInboxMessages,

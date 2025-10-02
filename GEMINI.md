@@ -353,6 +353,13 @@ Please keep this consistent to keep the maintainer from having to make frequent 
 
 ### Log of Issues and Lessons
 
+#### [1.0.20] - State Replacement vs. State Merging
+-   **Issue**: Updating a single setting (like expanding a checklist section) would wipe out the entire `settings` object, causing data loss on the next save. This happened because we were calling `onSettingsChange({ openChecklistSectionIds: newOpenIds })`, which replaces the state object instead of merging with it.
+-   **Lesson**: When updating a piece of a complex state object, **always** use the functional update form to ensure the new value is merged with the previous state, not replacing it.
+    -   **Incorrect (Replaces State)**: `setState({ myKey: 'newValue' })`
+    -   **Correct (Merges State)**: `setState(prevState => ({ ...prevState, myKey: 'newValue' }))`
+    -   This was the root cause of the conflict between the checklist template manager and the section collapse feature. See `Rule 71.0` for a full explanation.
+
 #### [1.0.19] - The "Orchestrator" Component Pattern
 -   **Issue**: The main `App` component in `renderer.tsx` had grown to thousands of lines, mixing state management, UI logic, event handling, and data persistence. This made it extremely difficult to maintain, debug, and add new features without introducing side effects.
 -   **Lesson**: The solution was a complete refactoring into a **hook-based architecture**. All related state and logic were extracted into dedicated, single-responsibility custom hooks (e.g., `useTaskState`, `useUIState`, `useSettings`, `useDataPersistence`). The `App` component was reduced to a clean **"orchestrator"** whose only job is to initialize these hooks and provide their state to the rest of the application via the `AppContext`. This pattern dramatically improves code organization, maintainability, and scalability. It also makes individual pieces of logic easier to test and reuse.
@@ -545,6 +552,7 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 68.0: Cross-Component State Updates (Application of Rule 69.0)
   - Rule 69.0: The Orchestrator Component and Custom Hooks
   - Rule 70.0: Refactoring Monolithic Components
+  - Rule 71.0: State Replacement vs. State Merging
 
 ---
 
@@ -3385,4 +3393,42 @@ export function Checklist(props: ChecklistOrchestratorProps) {
     </div>
   );
 }
+```
+
+---
+
+### Developer Guide - Rule 71.0: State Replacement vs. State Merging
+
+This guide explains a critical and common React state management bug: accidentally replacing a complex state object instead of merging changes into it. This was the root cause of the bug where expanding a checklist section would wipe all other application settings.
+
+#### The Problem: Accidental State Wipes
+
+When you have a complex state object (like our `settings` object), it's easy to make a mistake when updating just one piece of it.
+
+**The Buggy Pattern (State Replacement):**
+
+When you call a `useState` setter with a plain object, you are telling React: **"Throw away the entire old state object and replace it with this new one."**
+
+In our case, the `settings` object contains dozens of properties (`categories`, `fontFamily`, `taskTypes`, etc.). The buggy code was throwing all of that away and replacing it with a tiny new object that *only* contained the `openChecklistSectionIds` key. When the project was saved, this corrupted, minimal settings object was written to disk, causing the data loss we observed on reload.
+
+#### The Solution: Functional Updates for Merging
+
+The correct and safe way to update a single property in a state object is to use the **functional update** form. This form gives you the most current version of the previous state, which you can then merge your changes into.
+
+**The Correct Pattern (State Merging):**
+
+This tells React: **"Give me the previous settings object (`prevSettings`). I will create a new object, copy all of its existing properties (`...prevSettings`), and then overwrite just the `openChecklistSectionIds` property with my new value."**
+
+This returns a complete, merged object to React, preserving all other settings and preventing the catastrophic state wipe.
+
+**Golden Rule**: Whenever you are updating only a part of a state object, always use the functional `setState(prevState => ({ ...prevState, ...yourChanges }))` pattern to avoid accidental data loss.
+
+```tsx
+// Incorrect (Replaces State):
+onSettingsChange({ openChecklistSectionIds: newOpenIds });
+
+```
+```tsx
+// Correct (Merges State):
+onSettingsChange(prevSettings => ({ ...prevSettings, openChecklistSectionIds: newOpenIds }));
 ```

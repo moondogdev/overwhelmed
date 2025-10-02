@@ -35,6 +35,8 @@ function ManageTemplatesModal({ isOpen, onClose, templates, onSettingsChange, sh
 }) {
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
   const [editingTemplateName, setEditingTemplateName] = useState('');
+  const [confirmingDeleteTemplateId, setConfirmingDeleteTemplateId] = useState<number | null>(null);
+  const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // This effect synchronizes the local editing name with the props.
   // If the template being edited changes from the outside, update the input field.
@@ -59,12 +61,25 @@ function ManageTemplatesModal({ isOpen, onClose, templates, onSettingsChange, sh
   };
 
   const handleDelete = (templateId: number) => {
-    if (window.confirm('Are you sure you want to delete this template?')) {
+    if (confirmingDeleteTemplateId === templateId) {
+      // This is the second click, perform the delete
       onSettingsChange(prevSettings => ({
         ...prevSettings,
         checklistTemplates: (prevSettings.checklistTemplates || []).filter(t => t.id !== templateId),
       }));
       showToast('Template deleted!');
+      setConfirmingDeleteTemplateId(null); // Reset confirmation state
+      if (confirmTimeoutRef.current) {
+        clearTimeout(confirmTimeoutRef.current); // Clear any pending timeout
+      }
+    } else {
+      // This is the first click, enter confirmation mode
+      setConfirmingDeleteTemplateId(templateId);
+      // Automatically cancel confirmation after 3 seconds
+      if (confirmTimeoutRef.current) {
+        clearTimeout(confirmTimeoutRef.current);
+      }
+      confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteTemplateId(null), 3000);
     }
   };
 
@@ -92,10 +107,13 @@ function ManageTemplatesModal({ isOpen, onClose, templates, onSettingsChange, sh
                   setEditingTemplateId(template.id);
                   setEditingTemplateName(template.name);
                 }} title="Rename Template">
-                  <i className="fas fa-pencil-alt"></i>
+                  <i className="fas fa-pencil-alt"></i> 
                 </button>
-                <button className="icon-button delete-icon" onClick={() => handleDelete(template.id)} title="Delete Template">
-                  <i className="fas fa-trash"></i>
+                <button 
+                  className={`icon-button delete-icon ${confirmingDeleteTemplateId === template.id ? 'confirm-delete' : ''}`} 
+                  onClick={() => handleDelete(template.id)} 
+                  title="Delete Template">
+                  <i className={`fas ${confirmingDeleteTemplateId === template.id ? 'fa-check' : 'fa-trash'}`}></i>
                 </button>
               </div>
             </div>
@@ -835,17 +853,18 @@ export function Checklist({
     const newOpenIds = isOpen
       ? openIds.filter(id => id !== sectionId)
       : [...openIds, sectionId];
-    
-    onSettingsChange({ openChecklistSectionIds: newOpenIds });
+    // CRITICAL FIX: Use the functional update form to merge the change
+    // instead of replacing the entire settings object.
+    onSettingsChange(prevSettings => ({ ...prevSettings, openChecklistSectionIds: newOpenIds }));
   }, [settings.openChecklistSectionIds, onSettingsChange]);
 
   const handleCollapseAllSections = React.useCallback(() => {
-    onSettingsChange({ openChecklistSectionIds: [] });
+    onSettingsChange(prev => ({ ...prev, openChecklistSectionIds: [] }));
   }, [onSettingsChange]);
 
   const handleExpandAllSections = React.useCallback(() => {
     const allSectionIds = historyRef.current[historyIndex].map(s => s.id);
-    onSettingsChange({ openChecklistSectionIds: allSectionIds });   
+    onSettingsChange(prev => ({ ...prev, openChecklistSectionIds: allSectionIds }));
   }, [historyIndex, onSettingsChange]);
 
   const handleAddNotes = React.useCallback((sectionId?: number) => {
@@ -1379,7 +1398,7 @@ export function Checklist({
                 </button>
                 <button 
                   className="checklist-action-btn" 
-                  onClick={() => onSettingsChange({ showChecklistResponses: !settings.showChecklistResponses })} title={settings.showChecklistResponses ? 'Hide All Responses' : 'Show All Responses'}>
+                  onClick={() => onSettingsChange(prev => ({ ...prev, showChecklistResponses: !prev.showChecklistResponses }))} title={settings.showChecklistResponses ? 'Hide All Responses' : 'Show All Responses'}>
                   <i className={`fas fa-eye ${settings.showChecklistResponses ? '' : 'disabled-icon'}`}></i>
                 </button>
                 <button className={`checklist-action-btn ${confirmingDeleteResponses ? 'confirm-delete' : ''}`} onClick={() => {
@@ -1405,7 +1424,7 @@ export function Checklist({
                 </button>                
                 <button 
                   className="checklist-action-btn" 
-                  onClick={() => onSettingsChange({ showChecklistNotes: !settings.showChecklistNotes })} title={settings.showChecklistNotes ? 'Hide All Notes' : 'Show All Notes'}>
+                  onClick={() => onSettingsChange(prev => ({ ...prev, showChecklistNotes: !prev.showChecklistNotes }))} title={settings.showChecklistNotes ? 'Hide All Notes' : 'Show All Notes'}>
                   <i className={`fas fa-eye ${settings.showChecklistNotes ? '' : 'disabled-icon'}`}></i>
                 </button>                   
                 <button className={`checklist-action-btn ${confirmingDeleteNotes ? 'confirm-delete' : ''}`} onClick={() => {
@@ -1633,331 +1652,322 @@ export function Checklist({
                   <div className="checklist-action-group checklist-action-group-history">
                     <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(history[historyIndex], section.id, 'up'))} title="Move Section Up"><i className="fas fa-arrow-up"></i></button>
                     <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(history[historyIndex], section.id, 'down'))} title="Move Section Down"><i className="fas fa-arrow-down"></i></button>
-                  </div>                  
-                  {isEditable && (
-                    <>
-                      <button 
-                        className={`checklist-delete-btn ${confirmingDeleteSectionId === section.id ? 'confirm-delete' : ''}`} 
-                        onClick={() => handleDeleteSection(section.id)} 
-                        title="Delete Section"
-                      >
-                        {confirmingDeleteSectionId === section.id ? <i className="fas fa-trash-alt"></i> : <i className="fas fa-trash-alt"></i>}
-                      </button>
-                    </>
-                  )}
+                  </div>       
+                  <button 
+                    className={`checklist-delete-btn ${confirmingDeleteSectionId === section.id ? 'confirm-delete' : ''}`} 
+                    onClick={() => handleDeleteSection(section.id)} 
+                    title="Delete Section"
+                  >
+                    {confirmingDeleteSectionId === section.id ? <i className="fas fa-trash-alt"></i> : <i className="fas fa-trash-alt"></i>}
+                  </button>                    
                 </div>
               </div>
             </header>
-            {isSectionOpen && <>
-            <div className="checklist-progress-bar-container">
-              <div 
-                className={`checklist-progress-bar-fill ${areAllComplete ? 'complete' : ''}`} 
-                style={{ width: `${progressPercentage}%` }}></div>
-            </div>
-            <div className="checklist-items">
-              {section.items.map(item => { return (
-                <div 
-                  key={item.id} 
-                  className={`checklist-item ${item.isCompleted ? 'completed' : ''} ${item.highlightColor ? 'highlighted' : ''} checklist-item-interactive-area`} 
-                  style={{ borderLeftColor: item.highlightColor || 'transparent' }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const url = extractUrlFromText(item.text);
-                    const isInEditMode = settings.activeTaskTabs?.[wordId] === 'edit';
-                    window.electronAPI.showChecklistItemContextMenu({ 
-                      wordId: wordId,
-                      sectionId: section.id, 
-                      itemId: item.id, 
-                      isCompleted: item.isCompleted, 
-                      hasNote: !!item.note, 
-                      hasResponse: !!item.response, 
-                      hasUrl: !!url, 
-                      isInEditMode,
-                      x: e.clientX, 
-                      y: e.clientY 
-                    });
-                  }}
-                >
-                  {/*
-                    * This is the key change. We check if a specific item is being edited FIRST.
-                    * This allows the "Edit Item" context menu action to work even when `isEditable` is false.
-                  */}                  
-                  {editingItemId === item.id ? (
-                    <input
-                      type="text"
-                      value={editingItemText}
-                      onChange={(e) => setEditingItemText(e.target.value)}
-                      onBlur={() => {
-                        handleUpdateItemText(section.id, item.id, editingItemText);
-                        setEditingItemId(null);
+            {isSectionOpen && 
+              <>
+                <div className="checklist-progress-bar-container">
+                  <div 
+                    className={`checklist-progress-bar-fill ${areAllComplete ? 'complete' : ''}`} 
+                    style={{ width: `${progressPercentage}%` }}></div>
+                </div>
+                <div className="checklist-items">
+                  {section.items.map(item => { return (
+                    <div 
+                      key={item.id} 
+                      className={`checklist-item ${item.isCompleted ? 'completed' : ''} ${item.highlightColor ? 'highlighted' : ''} checklist-item-interactive-area`} 
+                      style={{ borderLeftColor: item.highlightColor || 'transparent' }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const url = extractUrlFromText(item.text);
+                        const isInEditMode = settings.activeTaskTabs?.[wordId] === 'edit';
+                        window.electronAPI.showChecklistItemContextMenu({ 
+                          wordId: wordId,
+                          sectionId: section.id, 
+                          itemId: item.id, 
+                          isCompleted: item.isCompleted, 
+                          hasNote: !!item.note, 
+                          hasResponse: !!item.response, 
+                          hasUrl: !!url, 
+                          isInEditMode,
+                          x: e.clientX, 
+                          y: e.clientY 
+                        });
                       }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleUpdateItemText(section.id, item.id, editingItemText);
-                          setEditingItemId(null);
-                        } else if (e.key === 'Escape') {
-                          setEditingItemId(null);
-                        }
-                      }}
-                      autoFocus
-                      ref={editingItemInputRef}
-                      className="checklist-item-text-input"
-                    />
-                  ) : ( // This is the "view" mode for a single item
-                    <>
-                      <div className="checklist-item-main-content">
-                        <label className="checklist-item-label">
-                          <input
-                            type="checkbox"
-                            checked={item.isCompleted}
-                            onChange={() => handleToggleItem(section.id, item.id)}
-                          />
-                          {isEditable ? (
-                            <input
-                              type="text"
-                              value={item.text}
-                              onChange={(e) => handleUpdateItemText(section.id, item.id, e.target.value)}
-                              className="checklist-item-text-input"
-                            />
-                          ) : (
-                            <ClickableText text={item.text} settings={settings} />
-                          )}
-                        </label>
-                        {item.dueDate && !isEditable && (
-                          <span
-                            className={`checklist-item-due-date ${(() => {
-                              const today = new Date();
-                              today.setHours(0, 0, 0, 0);
-                              const tomorrow = new Date(today);
-                              tomorrow.setDate(tomorrow.getDate() + 1);
-                              if (item.dueDate < today.getTime()) return 'overdue';
-                              if (item.dueDate < tomorrow.getTime()) return 'due-today';
-                              return '';
-                            })()}`}
-                          >
-                            <i className="fas fa-calendar-alt"></i>
-                            {formatDate(item.dueDate)}
-                          </span>
-                        )}
-                        {!isEditable && (
-                          <div className="checklist-item-quick-actions">                            
-                            <button className="icon-button" onClick={() => {
-                              setEditingItemId(item.id);
-                              setEditingItemText(item.text); // Set the text for the input field
-                            }} title="Edit Item"><i className="fas fa-pencil-alt"></i></button>
-                            <button className="icon-button" onClick={() => handleDuplicateChecklistItem(section.id, item.id)} title="Duplicate Item"><i className="fas fa-clone"></i></button>
-                            {item.response === undefined ? (
-                              <button className="icon-button" onClick={() => { handleUpdateItemResponse(section.id, item.id, ''); setEditingResponseForItemId(item.id); }} title="Add Response"><i className="fas fa-reply"></i></button>
-                            ) : (
-                              <button className="icon-button" onClick={() => handleDeleteItemResponse(section.id, item.id)} title="Delete Response"><i className="fas fa-reply active-icon"></i></button>
-                            )}
-                            {item.note === undefined ? ( 
-                              <button className="icon-button" onClick={() => { handleUpdateItemNote(section.id, item.id, ''); setEditingNoteForItemId(item.id); }} title="Add Note"><i className="fas fa-sticky-note"></i></button>
-                            ) : (
-                              <button className="icon-button" onClick={() => handleDeleteItemNote(section.id, item.id)} title="Delete Note"><i className="fas fa-sticky-note active-icon"></i></button>
-                            )}
-                            <button className="icon-button" onClick={() => handleSendToTimer(item, false)} title="Add to Timer"><i className="fas fa-plus-circle"></i></button>
-                            <button className="icon-button" onClick={() => handleSendToTimer(item, true)} title="Add to Timer and Start"><i className="fas fa-play"></i></button>
-                            <button className="icon-button" onClick={() => handleDeleteItem(section.id, item.id)} title="Delete Item"><i className="fas fa-trash-alt delete-icon"></i></button>
-                          </div>
-                        )}
-                      </div>
-                      {isEditable ? (
-                        // In EDIT mode, only show the inputs if they have content or if the user just added them.
-                        // The `handleUpdate...` function with an empty string creates the property, making it non-undefined.
+                    >
+                      {/*
+                        * This is the key change. We check if a specific item is being edited FIRST.
+                        * This allows the "Edit Item" context menu action to work even when `isEditable` is false.
+                      */}                  
+                      {editingItemId === item.id ? (
+                        <input
+                          type="text"
+                          value={editingItemText}
+                          onChange={(e) => setEditingItemText(e.target.value)}
+                          onBlur={() => {
+                            handleUpdateItemText(section.id, item.id, editingItemText);
+                            setEditingItemId(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleUpdateItemText(section.id, item.id, editingItemText);
+                              setEditingItemId(null);
+                            } else if (e.key === 'Escape') {
+                              setEditingItemId(null);
+                            }
+                          }}
+                          autoFocus
+                          ref={editingItemInputRef}
+                          className="checklist-item-text-input"
+                        />
+                      ) : ( // This is the "view" mode for a single item
                         <>
-                          {timeLogDurations.has(item.id) ? (
-                            <span className="checklist-item-logged-time">
-                              (Logged: {
-                                // Always display the derived time from the timeLog for consistency.
-                                // This ensures it matches the TimeTrackerLog's total.
-                                formatTime(timeLogDurations.get(item.id) || 0)
-                              })
-                            </span>
-                          ) : null}
-                          {settings.showChecklistResponses && !hiddenResponsesSections.has(section.id) && (item.response !== undefined) && (
-                            <div className="checklist-item-response" onContextMenu={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              const url = extractUrlFromText(item.response);
-                              window.electronAPI.showChecklistResponseContextMenu({ sectionId: section.id, itemId: item.id, hasUrl: !!url, hasResponse: !!item.response, x: e.clientX, y: e.clientY });
-                            }}>
-                              <strong><i className="fas fa-reply"></i> Response:</strong>
+                          <div className="checklist-item-main-content">
+                            <label className="checklist-item-label">
                               <input
-                                type="text"
-                                value={item.response || ''}
-                                onChange={(e) => handleUpdateItemResponse(section.id, item.id, e.target.value)}
-                                placeholder="Add a response..."
-                                ref={el => subInputRefs.current[`response-${item.id}`] = el}
-                                className="checklist-item-sub-input"
+                                type="checkbox"
+                                checked={item.isCompleted}
+                                onChange={() => handleToggleItem(section.id, item.id)}
                               />
-                            </div>
-                          )}
-                          {settings.showChecklistNotes && !hiddenNotesSections.has(section.id) && (item.note !== undefined) && (
-                            <div className="checklist-item-note" onContextMenu={(e) => { 
-                              e.preventDefault();
-                              e.stopPropagation();
-                              const url = extractUrlFromText(item.note);
-                              window.electronAPI.showChecklistNoteContextMenu({ sectionId: section.id, itemId: item.id, hasUrl: !!url, hasNote: !!item.note, x: e.clientX, y: e.clientY });
-                            }}>
-                              <strong><i className="fas fa-sticky-note"></i> Note:</strong>
-                              <input
-                                type="text"
-                                value={item.note || ''}
-                                onChange={(e) => handleUpdateItemNote(section.id, item.id, e.target.value)}
-                                placeholder="Add a private note..."
-                                ref={el => subInputRefs.current[`note-${item.id}`] = el}
-                                className="checklist-item-sub-input"
-                              />
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          {timeLogDurations.has(item.id) ? (
-                            <span className="checklist-item-logged-time">
-                              (Logged: {
-                                // Always display the derived time from the timeLog for consistency.
-                                // This ensures it matches the TimeTrackerLog's total.
-                                formatTime(timeLogDurations.get(item.id) || 0)
-                              })
-                            </span>
-                          ) : null}
-                          {settings.showChecklistResponses && !hiddenResponsesSections.has(section.id) && item.response !== undefined ? (
-                            <div className="checklist-item-response" onContextMenu={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              const url = extractUrlFromText(item.response);
-                              window.electronAPI.showChecklistResponseContextMenu({ sectionId: section.id, itemId: item.id, hasUrl: !!url, hasResponse: !!item.response, x: e.clientX, y: e.clientY });
-                            }}>
-                              <strong><i className="fas fa-reply"></i> Response:</strong>{editingResponseForItemId === item.id ? (
+                              {isEditable ? (
                                 <input
                                   type="text"
-                                  value={item.response || ''}
-                                  onBlur={() => setEditingResponseForItemId(null)}
-                                  onChange={(e) => handleUpdateItemResponse(section.id, item.id, e.target.value)}
-                                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setEditingResponseForItemId(null); }}
-                                  className="checklist-item-sub-input"
-                                  autoFocus
+                                  value={item.text}
+                                  onChange={(e) => handleUpdateItemText(section.id, item.id, e.target.value)}
+                                  className="checklist-item-text-input"
                                 />
                               ) : (
-                                <ClickableText text={item.response} settings={settings} />
+                                <ClickableText text={item.text} settings={settings} />
                               )}
+                            </label>
+                            {item.dueDate && !isEditable && (
+                              <span
+                                className={`checklist-item-due-date ${(() => {
+                                  const today = new Date();
+                                  today.setHours(0, 0, 0, 0);
+                                  const tomorrow = new Date(today);
+                                  tomorrow.setDate(tomorrow.getDate() + 1);
+                                  if (item.dueDate < today.getTime()) return 'overdue';
+                                  if (item.dueDate < tomorrow.getTime()) return 'due-today';
+                                  return '';
+                                })()}`}
+                              >
+                                <i className="fas fa-calendar-alt"></i>
+                                {formatDate(item.dueDate)}
+                              </span>
+                            )}
+                            {!isEditable && (
+                              <div className="checklist-item-quick-actions">                            
+                                <button className="icon-button" onClick={() => {
+                                  setEditingItemId(item.id);
+                                  setEditingItemText(item.text); // Set the text for the input field
+                                }} title="Edit Item"><i className="fas fa-pencil-alt"></i></button>
+                                <button className="icon-button" onClick={() => handleDuplicateChecklistItem(section.id, item.id)} title="Duplicate Item"><i className="fas fa-clone"></i></button>
+                                {item.response === undefined ? (
+                                  <button className="icon-button" onClick={() => { handleUpdateItemResponse(section.id, item.id, ''); setEditingResponseForItemId(item.id); }} title="Add Response"><i className="fas fa-reply"></i></button>
+                                ) : (
+                                  <button className="icon-button" onClick={() => handleDeleteItemResponse(section.id, item.id)} title="Delete Response"><i className="fas fa-reply active-icon"></i></button>
+                                )}
+                                {item.note === undefined ? ( 
+                                  <button className="icon-button" onClick={() => { handleUpdateItemNote(section.id, item.id, ''); setEditingNoteForItemId(item.id); }} title="Add Note"><i className="fas fa-sticky-note"></i></button>
+                                ) : (
+                                  <button className="icon-button" onClick={() => handleDeleteItemNote(section.id, item.id)} title="Delete Note"><i className="fas fa-sticky-note active-icon"></i></button>
+                                )}
+                                <button className="icon-button" onClick={() => handleSendToTimer(item, false)} title="Add to Timer"><i className="fas fa-plus-circle"></i></button>
+                                <button className="icon-button" onClick={() => handleSendToTimer(item, true)} title="Add to Timer and Start"><i className="fas fa-play"></i></button>
+                                <button className="icon-button" onClick={() => handleDeleteItem(section.id, item.id)} title="Delete Item"><i className="fas fa-trash-alt delete-icon"></i></button>
+                              </div>
+                            )}
+                          </div>
+                          {isEditable ? (
+                            // In EDIT mode, only show the inputs if they have content or if the user just added them.
+                            // The `handleUpdate...` function with an empty string creates the property, making it non-undefined.
+                            <>
+                              {timeLogDurations.has(item.id) ? (
+                                <span className="checklist-item-logged-time">
+                                  (Logged: {
+                                    // Always display the derived time from the timeLog for consistency.
+                                    // This ensures it matches the TimeTrackerLog's total.
+                                    formatTime(timeLogDurations.get(item.id) || 0)
+                                  })
+                                </span>
+                              ) : null}
+                              {settings.showChecklistResponses && !hiddenResponsesSections.has(section.id) && (item.response !== undefined) && (
+                                <div className="checklist-item-response" onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const url = extractUrlFromText(item.response);
+                                  window.electronAPI.showChecklistResponseContextMenu({ sectionId: section.id, itemId: item.id, hasUrl: !!url, hasResponse: !!item.response, x: e.clientX, y: e.clientY });
+                                }}>
+                                  <strong><i className="fas fa-reply"></i> Response:</strong>
+                                  <input
+                                    type="text"
+                                    value={item.response || ''}
+                                    onChange={(e) => handleUpdateItemResponse(section.id, item.id, e.target.value)}
+                                    placeholder="Add a response..."
+                                    ref={el => subInputRefs.current[`response-${item.id}`] = el}
+                                    className="checklist-item-sub-input"
+                                  />
+                                </div>
+                              )}
+                              {settings.showChecklistNotes && !hiddenNotesSections.has(section.id) && (item.note !== undefined) && (
+                                <div className="checklist-item-note" onContextMenu={(e) => { 
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const url = extractUrlFromText(item.note);
+                                  window.electronAPI.showChecklistNoteContextMenu({ sectionId: section.id, itemId: item.id, hasUrl: !!url, hasNote: !!item.note, x: e.clientX, y: e.clientY });
+                                }}>
+                                  <strong><i className="fas fa-sticky-note"></i> Note:</strong>
+                                  <input
+                                    type="text"
+                                    value={item.note || ''}
+                                    onChange={(e) => handleUpdateItemNote(section.id, item.id, e.target.value)}
+                                    placeholder="Add a private note..."
+                                    ref={el => subInputRefs.current[`note-${item.id}`] = el}
+                                    className="checklist-item-sub-input"
+                                  />
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {timeLogDurations.has(item.id) ? (
+                                <span className="checklist-item-logged-time">
+                                  (Logged: {
+                                    // Always display the derived time from the timeLog for consistency.
+                                    // This ensures it matches the TimeTrackerLog's total.
+                                    formatTime(timeLogDurations.get(item.id) || 0)
+                                  })
+                                </span>
+                              ) : null}
+                              {settings.showChecklistResponses && !hiddenResponsesSections.has(section.id) && item.response !== undefined ? (
+                                <div className="checklist-item-response" onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const url = extractUrlFromText(item.response);
+                                  window.electronAPI.showChecklistResponseContextMenu({ sectionId: section.id, itemId: item.id, hasUrl: !!url, hasResponse: !!item.response, x: e.clientX, y: e.clientY });
+                                }}>
+                                  <strong><i className="fas fa-reply"></i> Response:</strong>{editingResponseForItemId === item.id ? (
+                                    <input
+                                      type="text"
+                                      value={item.response || ''}
+                                      onBlur={() => setEditingResponseForItemId(null)}
+                                      onChange={(e) => handleUpdateItemResponse(section.id, item.id, e.target.value)}
+                                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setEditingResponseForItemId(null); }}
+                                      className="checklist-item-sub-input"
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <ClickableText text={item.response} settings={settings} />
+                                  )}
+                                </div>
+                              ) : null}
+                              {settings.showChecklistNotes && !hiddenNotesSections.has(section.id) && item.note !== undefined ? (
+                                <div className="checklist-item-note" onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); const url = extractUrlFromText(item.note); window.electronAPI.showChecklistNoteContextMenu({ sectionId: section.id, itemId: item.id, hasUrl: !!url, hasNote: !!item.note, x: e.clientX, y: e.clientY }); }}>
+                                  <strong><i className="fas fa-sticky-note"></i> Note:</strong>{editingNoteForItemId === item.id ? (
+                                    <input type="text" value={item.note || ''} onBlur={() => setEditingNoteForItemId(null)} onChange={(e) => handleUpdateItemNote(section.id, item.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setEditingNoteForItemId(null); }} className="checklist-item-sub-input" autoFocus />
+                                  ) : ( <ClickableText text={item.note} settings={settings} /> )}
+                                </div>
+                              ) : null}
+                            </>
+                          )}
+                          {isEditable && (
+                            <div className="checklist-item-actions">
+                              <input
+                                type="date"
+                                className="checklist-item-datepicker"
+                                value={item.dueDate ? new Date(item.dueDate).toLocaleDateString('en-CA') : ''}
+                                onChange={(e) => handleUpdateItemDueDateFromPicker(section.id, item.id, e.target.value)}
+                                title="Set Due Date"
+                              />
+                              {settings.showChecklistResponses && (item.response === undefined ? (
+                                <button className="icon-button" onClick={() => { handleUpdateItemResponse(section.id, item.id, ''); setFocusSubInputKey(`response-${item.id}`); }} title="Add Response"><i className="fas fa-reply"></i></button>
+                              ) : ( <button className="icon-button" onClick={() => handleDeleteItemResponse(section.id, item.id)} title="Delete Response"><i className="fas fa-reply active-icon"></i></button> )) }
+                              {settings.showChecklistNotes && (item.note === undefined ? (
+                                <button className="icon-button" onClick={() => { handleUpdateItemNote(section.id, item.id, ''); setFocusSubInputKey(`note-${item.id}`); }} title="Add Note"><i className="fas fa-sticky-note"></i></button>
+                              ) : ( <button className="icon-button" onClick={() => handleDeleteItemNote(section.id, item.id)} title="Delete Note"><i className="fas fa-sticky-note active-icon"></i></button> )) }
+                              <button className="icon-button" onClick={() => handleUpdateItemDueDate(section.id, item.id, undefined)} title="Clear Due Date"><i className="fas fa-times"></i></button>
                             </div>
-                          ) : null}
-                          {settings.showChecklistNotes && !hiddenNotesSections.has(section.id) && item.note !== undefined ? (
-                            <div className="checklist-item-note" onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); const url = extractUrlFromText(item.note); window.electronAPI.showChecklistNoteContextMenu({ sectionId: section.id, itemId: item.id, hasUrl: !!url, hasNote: !!item.note, x: e.clientX, y: e.clientY }); }}>
-                              <strong><i className="fas fa-sticky-note"></i> Note:</strong>{editingNoteForItemId === item.id ? (
-                                <input type="text" value={item.note || ''} onBlur={() => setEditingNoteForItemId(null)} onChange={(e) => handleUpdateItemNote(section.id, item.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setEditingNoteForItemId(null); }} className="checklist-item-sub-input" autoFocus />
-                              ) : ( <ClickableText text={item.note} settings={settings} /> )}
-                            </div>
-                          ) : null}
+                          )}                      
                         </>
                       )}
-                      {isEditable && (
-                        <div className="checklist-item-actions">
-                          <input
-                            type="date"
-                            className="checklist-item-datepicker"
-                            value={item.dueDate ? new Date(item.dueDate).toLocaleDateString('en-CA') : ''}
-                            onChange={(e) => handleUpdateItemDueDateFromPicker(section.id, item.id, e.target.value)}
-                            title="Set Due Date"
-                          />
-                          {settings.showChecklistResponses && (item.response === undefined ? (
-                            <button className="icon-button" onClick={() => { handleUpdateItemResponse(section.id, item.id, ''); setFocusSubInputKey(`response-${item.id}`); }} title="Add Response"><i className="fas fa-reply"></i></button>
-                          ) : ( <button className="icon-button" onClick={() => handleDeleteItemResponse(section.id, item.id)} title="Delete Response"><i className="fas fa-reply active-icon"></i></button> )) }
-                          {settings.showChecklistNotes && (item.note === undefined ? (
-                            <button className="icon-button" onClick={() => { handleUpdateItemNote(section.id, item.id, ''); setFocusSubInputKey(`note-${item.id}`); }} title="Add Note"><i className="fas fa-sticky-note"></i></button>
-                          ) : ( <button className="icon-button" onClick={() => handleDeleteItemNote(section.id, item.id)} title="Delete Note"><i className="fas fa-sticky-note active-icon"></i></button> )) }
-                          <button className="icon-button" onClick={() => handleUpdateItemDueDate(section.id, item.id, undefined)} title="Clear Due Date"><i className="fas fa-times"></i></button>
-                        </div>
-                      )}                      
-                    </>
-                  )}
-                </div>
-              )})}
-            </div>
-            {isEditable && (
-              <div className="checklist-add-item">
-                <textarea
-                  ref={el => (addItemInputRef.current[section.id] = el)}
-                  value={newItemTexts[section.id] || ''}
-                  onChange={(e) => setNewItemTexts(prev => ({ ...prev, [section.id]: e.target.value }))}
-                  onKeyDown={(e) => {
-                    // Submit on Enter, but allow new lines with Shift+Enter
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault(); // Prevent default newline behavior
-                      handleAddItem(section.id);
-                    }
-                  }}
-                  placeholder="Add item(s)... (Shift+Enter for new line)"
-                />
-                <button onClick={() => handleAddItem(section.id)}>+</button>
-              </div>
-            )}
-          </>
-          }
+                    </div>
+                  )})}
+                </div>            
+                <div className="checklist-add-item">
+                  <textarea
+                    ref={el => (addItemInputRef.current[section.id] = el)}
+                    value={newItemTexts[section.id] || ''}
+                    onChange={(e) => setNewItemTexts(prev => ({ ...prev, [section.id]: e.target.value }))}
+                    onKeyDown={(e) => {
+                      // Submit on Enter, but allow new lines with Shift+Enter
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault(); // Prevent default newline behavior
+                        handleAddItem(section.id);
+                      }
+                    }}
+                    placeholder="Add item(s)... (Shift+Enter for new line)"
+                  />
+                  <button onClick={() => handleAddItem(section.id)}>+</button>
+                </div>            
+              </>
+            }
           </div>
         );
-      })}
-      {isEditable && (
-        <div className="checklist-actions">
-          <div className="checklist-main-actions">
-            <button onClick={handleAddSection} className="add-section-btn">
-              <i className='fas fa-plus'></i> Add Section
-            </button>
-            {history[historyIndex].length > 0 && (
-              <button title="Delete All Sections" onClick={handleDeleteAllSections} className={`add-section-btn delete-btn ${confirmingDeleteAllSections ? 'confirm-delete' : ''}`}>
-                {confirmingDeleteAllSections ? <i className="fas fa-trash-alt"></i> : <i className="fas fa-trash-alt"></i>}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-      {isEditable && (
-        <div className="bulk-add-checklist-container">
-          <textarea
-            placeholder="Bulk add sections and items... (e.g., ### Section Title)"
-            value={bulkAddChecklistText}
-            onChange={(e) => setBulkAddChecklistText(e.target.value)}
-            rows={4}
-          />
-          <button onClick={handleBulkAddChecklist}>
-            <i className="fas fa-plus-square"></i> Bulk Add to Checklist
+      })}      
+      <div className="checklist-actions">
+        <div className="checklist-main-actions">
+          <button onClick={handleAddSection} className="add-section-btn">
+            <i className='fas fa-plus'></i> Add Section
           </button>
-          <ManageTemplatesModal
-            isOpen={isManageTemplatesOpen}
-            onClose={() => setIsManageTemplatesOpen(false)}
-            templates={settings.checklistTemplates || []}
-            onSettingsChange={onSettingsChange}
-            showToast={showToast} 
-          />
-          {(settings.checklistTemplates && settings.checklistTemplates.length > 0) && (
-            <div className="template-loader">
-              <select 
-                onChange={(e) => {
-                  handleLoadChecklistTemplate(Number(e.target.value));
-                  // Reset the select so the same template can be loaded again
-                  e.target.value = "";
-                }}
-                value=""
-              >
-                <option value="" disabled>Add from Template</option>
-                {settings.checklistTemplates.map(template => (
-                  <option key={template.id} value={template.id}>
-                    {template.name}
-                  </option>
-                ))}
-              </select>
-              <i className="fas fa-caret-down"></i>
-            </div>
-          )}
-          {(settings.checklistTemplates && settings.checklistTemplates.length > 0) && (
-            <button onClick={() => setIsManageTemplatesOpen(true)}>Manage Templates</button>
+          {history[historyIndex].length > 0 && (
+            <button title="Delete All Sections" onClick={handleDeleteAllSections} className={`add-section-btn delete-btn ${confirmingDeleteAllSections ? 'confirm-delete' : ''}`}>
+              {confirmingDeleteAllSections ? <i className="fas fa-trash-alt"></i> : <i className="fas fa-trash-alt"></i>}
+            </button>
           )}
         </div>
-      )}
+      </div>      
+      <div className="bulk-add-checklist-container">
+        <textarea
+          placeholder="Bulk add sections and items... (e.g., ### Section Title)"
+          value={bulkAddChecklistText}
+          onChange={(e) => setBulkAddChecklistText(e.target.value)}
+          rows={4}
+        />
+        <button onClick={handleBulkAddChecklist}>
+          <i className="fas fa-plus-square"></i> Bulk Add to Checklist
+        </button>
+        <ManageTemplatesModal
+          isOpen={isManageTemplatesOpen}
+          onClose={() => setIsManageTemplatesOpen(false)}
+          templates={settings.checklistTemplates || []}
+          onSettingsChange={onSettingsChange}
+          showToast={showToast} 
+        />
+        {(settings.checklistTemplates && settings.checklistTemplates.length > 0) && (
+          <div className="template-loader">
+            <select 
+              onChange={(e) => {
+                handleLoadChecklistTemplate(Number(e.target.value));
+                // Reset the select so the same template can be loaded again
+                e.target.value = "";
+              }}
+              value=""
+            >
+              <option value="" disabled>Add from Template</option>
+              {settings.checklistTemplates.map(template => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+            <i className="fas fa-caret-down"></i>
+          </div>
+        )}
+        {(settings.checklistTemplates && settings.checklistTemplates.length > 0) && (
+          <button onClick={() => setIsManageTemplatesOpen(true)}>Manage Templates</button>
+        )}
+      </div>      
     </div>
   );
 }
