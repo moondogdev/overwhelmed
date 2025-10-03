@@ -179,14 +179,26 @@ export function TaskAccordionHeader({
   settings, 
   onCategoryClick,
   onUpdate,
-  onNotify,
-  allTasks
+  onNotify,  
+  allTasks,
+  isSelected,
+  onToggleSelection
 }: { 
   task: Task, settings: Settings, onCategoryClick: (e: React.MouseEvent, catId: number, parentId?: number) => void, onUpdate?: (updatedTask: Task) => void, onNotify?: (task: Task) => void, allTasks: Task[]
+  isSelected: boolean,
+  onToggleSelection: (taskId: number) => void,
 }) {
   return (
     <>
       <div className="accordion-title-container">
+        <input
+          type="checkbox"
+          className="task-selection-checkbox"
+          checked={isSelected}
+          onChange={() => onToggleSelection(task.id)}
+          onClick={(e) => e.stopPropagation()} // Prevent accordion from toggling
+          title="Select this task for bulk actions"
+        />
         <span className="accordion-main-title">{task.text}</span>        
         {(() => {
           if (!task.categoryId) return null;

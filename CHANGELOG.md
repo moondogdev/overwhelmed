@@ -5,14 +5,6 @@ All notable changes to this project will be documented in this file. See `## Log
 ---
 
 ## Future Features
-- ### Accordion Task
-    - Select Tasks for Bulk Edits: Add/Update/Delete All Category - maybe like select amount and dropdown to change category for all?
-
-- ### Bulk Add: 
-    - Lets expand the Bulk Add sidebar option:
-        - Bulk Add: Dropdown for Choose category: but update Category field to default to current sub/category view
-        - Bulk Add: Choose due date/time     
-
 - ### Overdue Toast Additions: 
     - Overdue Toast: Long Snooze? 1hr?
     - Overdue Toast: Reveal Snoozes, Dismisses/Silenced?: Would this be a good way to handle undoing a silent 
@@ -57,6 +49,7 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
+- **[1.0.23] - 2025-10-04: Bulk Task Management**: feat(tasks): Implement bulk task actions and enhanced bulk add.
 - **[1.0.22] - 2025-10-03: Workflow Features & UI Overhaul**: feat(core): Enhance task workflows, stabilize editor, and overhaul UI.
 - **[1.0.21] - 2025-10-02: Codebase Cleanup & Bug Fixes**: refactor(core): Standardize naming conventions (Word->Task) and Checklist.tsx refactor fix data loading
 - **[1.0.20] - 2025-10-02: MiniPlayer V2: Work Session Manager**: feat(player): Implement Work Session Manager and MiniPlayer V2
@@ -83,6 +76,35 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
+## [1.0.23] - 2025-10-04: Bulk Task Management
+**feat(tasks): Implement bulk task actions and enhanced bulk add.**
+
+This update introduces a powerful set of features for managing multiple tasks at once, significantly improving workflow efficiency.
+
+#### Features & UI Improvements:
+-   **Bulk Task Selection**:
+    -   Added checkboxes to every task in both the active and completed lists.
+    -   Implemented "Select All" checkboxes in the headers for both the active and completed task lists, with support for an "indeterminate" state.
+-   **Bulk Action Bar**:
+    -   A new `BulkActionBar` appears at the top of the screen whenever one or more tasks are selected.
+    -   **Change Category**: A clean, single-level dropdown allows for moving all selected tasks to a new category.
+    -   **Set Due Date**: A pop-up date/time picker allows for setting a new due date for all selected tasks.
+    -   **Change Priority**: A dropdown allows for setting the priority (High, Medium, Low) for all selected tasks.
+    -   **Complete/Reopen Selected**: The action bar intelligently shows a "Complete Selected" button for active tasks and a "Reopen Selected" button for completed tasks.
+    -   **Delete Selected**: A two-click confirmation button allows for safe bulk deletion of any selected tasks.
+-   **Enhanced Bulk Add**:
+    -   The "Bulk Add" accordion in the sidebar now includes options to set a **Category**, **Priority**, and **Due Date** for all tasks being created.
+    -   The "Use Current View" option for categories is now smarter, correctly defaulting to the active sub-category if one is selected.
+
+#### Fixed
+-   **UI/UX Refinements**:
+    -   Fixed multiple UI bugs related to the `BulkActionBar`, including positioning, dropdown menu behavior, and styling to ensure a smooth and intuitive user experience.
+    -   Resolved several "Rules of Hooks" errors that occurred when conditionally rendering components with hooks, ensuring component stability.
+
+#### Summary
+This update delivers a comprehensive suite of bulk editing tools, empowering users to select and modify multiple tasks with just a few clicks. The enhanced "Bulk Add" feature further streamlines the process of creating structured tasks.
+
+---
 ## [1.0.22] - 2025-10-03: Workflow Features & UI Overhaul
 **feat(core): Enhance task workflows, stabilize editor, and overhaul UI.**
 

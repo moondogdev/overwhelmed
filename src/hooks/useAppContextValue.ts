@@ -19,6 +19,14 @@ interface StandaloneProps {
   handleTaskUpdate: (updatedTask: Task) => void;
   handleAccordionToggle: (taskId: number) => void;
   focusAddTaskInput: () => void;
+  handleBulkDelete: (taskIds: number[]) => void;
+  handleBulkAdd: (options: { categoryId: number | 'default'; priority: 'High' | 'Medium' | 'Low'; completeBy?: string; }) => void;
+  handleBulkReopen: (taskIds: number[]) => void;
+  handleBulkComplete: (taskIds: number[]) => void;
+  handleBulkSetPriority: (taskIds: number[], priority: 'High' | 'Medium' | 'Low') => void;
+  handleBulkSetDueDate: (taskIds: number[], completeBy: number) => void;
+  handleBulkSetCategory: (taskIds: number[], categoryId: number) => void;
+  handleToggleTaskSelection: (taskId: number) => void;
   handleChecklistCompletion: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
   handleGlobalToggleTimer: (taskId: number, entryId: number, entry?: TimeLogEntry, newTimeLog?: TimeLogEntry[]) => void;
   handleTogglePause: (taskId: number) => void;
@@ -41,6 +49,7 @@ interface StandaloneProps {
   activeChecklistRef: React.RefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
   filteredTasks: Task[];
   newTaskTitleInputRef: React.RefObject<HTMLInputElement>;
+  setSelectedTaskIds: React.Dispatch<React.SetStateAction<number[]>>;
 }
 
 type AppContextProps = StandaloneProps & {

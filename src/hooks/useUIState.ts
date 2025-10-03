@@ -22,6 +22,12 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
   const [editingViaContext, setEditingViaContext] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState('');
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
+  // New state for bulk add options
+  const [bulkAddCategoryId, setBulkAddCategoryId] = useState<number | 'default'>('default');
+  const [bulkAddPriority, setBulkAddPriority] = useState<'High' | 'Medium' | 'Low'>('Medium');
+  const [bulkAddCompleteBy, setBulkAddCompleteBy] = useState<string>('');
+
   const [newTask, setNewTask] = useState<Partial<Task>>({
     text: '',
     url: '',
@@ -73,13 +79,25 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
     }, duration);
   }, []);
 
+  const handleToggleTaskSelection = useCallback((taskId: number) => {
+    setSelectedTaskIds(prevSelectedIds => {
+      if (prevSelectedIds.includes(taskId)) {
+        return prevSelectedIds.filter(id => id !== taskId);
+      } else {
+        return [...prevSelectedIds, taskId];
+      }
+    });
+  }, []);
+
   return {
     activeInboxTab, setActiveInboxTab, fullTaskViewId, setFullTaskViewId, bulkAddText, setBulkAddText,
     isPromptOpen, setIsPromptOpen, isLoading, setIsLoading, isDirty, setIsDirty, lastSaveTime, setLastSaveTime,
     autoSaveCountdown, setAutoSaveCountdown, focusChecklistItemId, setFocusChecklistItemId, searchQuery, setSearchQuery,
     isAddTaskOpen, setIsAddTaskOpen, editingViaContext, setEditingViaContext, newTask, setNewTask,
     isWorkSessionManagerOpen, setIsWorkSessionManagerOpen,
-    focusAddTaskInput,
+    focusAddTaskInput, selectedTaskIds, setSelectedTaskIds, handleToggleTaskSelection,
+    bulkAddCategoryId, setBulkAddCategoryId, bulkAddPriority, setBulkAddPriority,
+    bulkAddCompleteBy, setBulkAddCompleteBy,
     toastMessage,
     showToast,
   };

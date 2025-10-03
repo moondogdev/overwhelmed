@@ -208,6 +208,32 @@ button {
 .dropdown-menu button {
   width: 100%;
   text-align: left;
+  /* New styles for consistent dark UI */
+  background-color: transparent;
+  border: none;
+  color: #ccc;
+  padding: 8px 12px;
+  border-radius: 3px;
+  margin: 0; /* Override default button margins */
+}
+
+.dropdown-menu button:hover {
+  background-color: #3a3f4b;
+  color: #fff;
+}
+
+.dropdown-menu button.active {
+  background-color: #3a4f39; /* A subtle green to indicate active state */
+  color: #a5d6a7; /* A lighter green for the text */
+  font-weight: bold;
+}
+
+/* Add a checkmark icon before the text of an active button */
+.dropdown-menu button.active::before {
+  font-family: "Font Awesome 5 Free";
+  font-weight: 900; /* Solid style */
+  content: '\f00c'; /* Unicode for fa-check */
+  margin-right: 10px;
 }
 
 /* --- Misc Utility Classes --- */

@@ -21,6 +21,7 @@ import { ProjectActions } from './ProjectActions';
 import { BackupManager } from './BackupManager';
 import { MemeViewSettings } from './MemeViewSettings';
 import { WorkSessionManager } from './WorkSessionManager';
+import { BulkActionBar } from './BulkActionBar';
 import './styles/Sidebar.css';
 
 export function AppLayout() {
@@ -50,6 +51,7 @@ export function AppLayout() {
             <MiniPlayer />
             <SaveStatus />
             <WorkSessionManager />
+            <BulkActionBar />
         </div>
     );
 }

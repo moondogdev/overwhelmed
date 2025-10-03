@@ -203,3 +203,15 @@ input[type="datetime-local"] + .button-group button {
 .backup-list li.manual-backup .backup-date {
   color: #61dafb; /* Highlight manual backups */
 }
+
+.bulk-add-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.bulk-add-options label {
+  font-size: 0.9em;
+  color: #ccc;
+}

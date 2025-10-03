@@ -34,8 +34,8 @@ function App() {
   // We can destructure `setSettings` first, then initialize all states.
   const { setSettings: tempSetSettings } = useSettings({ showToast: () => {} }); // This is fine, it's just for initialization
   const uiState = useUIState({ setSettings: tempSetSettings, newTaskTitleInputRef });  
-  // Destructure only the variables needed by other hooks or top-level components.
-  const { newTask, setNewTask, bulkAddText, setBulkAddText, isLoading, setIsLoading, isDirty, setIsDirty, setLastSaveTime, setAutoSaveCountdown, showToast, focusAddTaskInput } = uiState;
+  // Destructure only the variables needed by other hooks or top-level components.  
+  const { newTask, setNewTask, bulkAddText, setBulkAddText, isLoading, setIsLoading, isDirty, setIsDirty, setLastSaveTime, setAutoSaveCountdown, showToast, focusAddTaskInput, handleToggleTaskSelection, setSelectedTaskIds } = uiState;
   
   const settingsState = useSettings({ showToast });
   const { settings, setSettings, settingsRef, handleAccordionToggle } = settingsState;
@@ -47,7 +47,7 @@ function App() {
   const taskState = useTaskState({
     setInboxMessages, showToast, newTask, setNewTask, bulkAddText, setBulkAddText, settings,
   });
-  const { tasks, setTasks, completedTasks, setCompletedTasks, handleCompleteTask: originalHandleCompleteTask, removeTask, handleTaskUpdate, handleChecklistCompletion, handleClearAll, handleCopyList, handleTogglePause, tasksRef, completedTasksRef } = taskState;
+  const { tasks, setTasks, completedTasks, setCompletedTasks, handleCompleteTask: originalHandleCompleteTask, removeTask, handleTaskUpdate, handleChecklistCompletion, handleClearAll, handleCopyList, handleTogglePause, tasksRef, completedTasksRef, handleBulkAdd, handleBulkDelete, handleBulkSetCategory, handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen } = taskState;
 
   // --- Global Timer State (managed by custom hook) ---
   const globalTimerState = useGlobalTimer({
@@ -162,8 +162,16 @@ function App() {
     handleCompleteTask,
     handleCopyList,
     handleTaskUpdate,
+    handleBulkAdd,
+    handleBulkReopen,
+    handleBulkComplete,
+    handleBulkSetPriority,
+    handleBulkSetDueDate,
+    handleBulkSetCategory,
+    handleBulkDelete,
     handleAccordionToggle,
     focusAddTaskInput,
+    handleToggleTaskSelection,
     handleChecklistCompletion,
     handleGlobalToggleTimer,
     handleTogglePause,
@@ -182,7 +190,8 @@ function App() {
     handleStartTaskFromSession,
     filteredTasks,
     // Pass remaining refs
-    searchInputRef, sortSelectRef, snoozeTimeSelectRef, activeChecklistRef, newTaskTitleInputRef,
+    searchInputRef, sortSelectRef, snoozeTimeSelectRef, activeChecklistRef, newTaskTitleInputRef,    
+    setSelectedTaskIds,
   });    
 
   return (

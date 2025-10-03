@@ -259,18 +259,32 @@ export function useTaskState({
     showToast('All open tasks cleared!');
   }, [showToast]);
 
-  const handleBulkAdd = useCallback(() => {
+  const handleBulkAdd = useCallback((options: { categoryId: number | 'default', priority: 'High' | 'Medium' | 'Low', completeBy?: string }) => {
     if (bulkAddText.trim() === "") return;
 
     const tasksToAdd = bulkAddText.split(/[\n,]+/).map(t => t.trim()).filter(t => t);
     if (tasksToAdd.length === 0) return;
+
+    let targetCategoryId: number | undefined;
+    if (options.categoryId === 'default') {
+      // Prioritize the active sub-category if one is selected.
+      if (settings.activeSubCategoryId && settings.activeSubCategoryId !== 'all') {
+        targetCategoryId = settings.activeSubCategoryId;
+      } else if (settings.activeCategoryId && settings.activeCategoryId !== 'all') {
+        targetCategoryId = settings.activeCategoryId;
+      }
+    } else { targetCategoryId = options.categoryId; }
+
+    const completeByTimestamp = options.completeBy ? new Date(options.completeBy).getTime() : undefined;
 
     const newTasks = tasksToAdd.map(text => {
       const newTaskObject: Task = {
         id: Date.now() + Math.random(),
         text,
         x: 0, y: 0,
-        categoryId: settings.activeCategoryId === 'all' ? (settings.categories[0]?.id || 1) : settings.activeCategoryId,
+        categoryId: targetCategoryId,
+        priority: options.priority,
+        completeBy: completeByTimestamp,
         manualTime: 0,
         manualTimeRunning: false,
         manualTimeStart: 0,
@@ -293,7 +307,89 @@ export function useTaskState({
 
     setTasks(prev => [...prev, ...newTasks]);
     setBulkAddText(""); // Clear the textarea
-  }, [bulkAddText, setBulkAddText, settings.activeCategoryId, settings.categories, setInboxMessages, setTasks]);
+  }, [bulkAddText, setBulkAddText, settings.activeCategoryId, settings.activeSubCategoryId, settings.categories, setInboxMessages, setTasks]);
+
+  const handleBulkDelete = useCallback((taskIds: number[]) => {
+    if (taskIds.length === 0) return;
+    setTasks(prev => prev.filter(task => !taskIds.includes(task.id)));
+    setCompletedTasks(prev => prev.filter(task => !taskIds.includes(task.id)));
+    setInboxMessages(prev => [{
+      id: Date.now() + Math.random(),
+      type: 'deleted',
+      text: `Bulk deleted ${taskIds.length} tasks.`,
+      timestamp: Date.now(),
+    }, ...prev]);
+    showToast(`${taskIds.length} tasks deleted.`);
+  }, [setTasks, setCompletedTasks, setInboxMessages, showToast]);
+
+  const handleBulkComplete = useCallback((taskIds: number[]) => {
+    if (taskIds.length === 0) return;
+
+    const tasksToComplete = tasks.filter(task => taskIds.includes(task.id));
+    if (tasksToComplete.length === 0) return;
+
+    const now = Date.now();
+    const completedTasksToAdd = tasksToComplete.map(task => {
+        const finalDuration = task.isPaused ? task.pausedDuration : (task.pausedDuration || 0) + (now - task.createdAt);
+        return { ...task, completedDuration: finalDuration, completionStatus: 'completed' as 'completed' | 'skipped' };
+    });
+
+    setTasks(prev => prev.filter(task => !taskIds.includes(task.id)));
+    setCompletedTasks(prev => [...completedTasksToAdd, ...prev]);
+
+    setInboxMessages(prev => [{
+        id: Date.now() + Math.random(),
+        type: 'completed',
+        text: `Bulk completed ${taskIds.length} tasks.`,
+        timestamp: now,
+    }, ...prev]);
+    showToast(`${taskIds.length} tasks completed.`);
+  }, [tasks, setTasks, setCompletedTasks, setInboxMessages, showToast]);
+
+  const handleBulkReopen = useCallback((taskIds: number[]) => {
+    if (taskIds.length === 0) return;
+
+    const tasksToReopen = completedTasks.filter(task => taskIds.includes(task.id));
+    if (tasksToReopen.length === 0) return;
+
+    const reopenedTasks = tasksToReopen.map(task => ({ ...task, completedDuration: undefined, completionStatus: undefined } as Task));
+
+    setCompletedTasks(prev => prev.filter(task => !taskIds.includes(task.id)));
+    setTasks(prev => [...reopenedTasks, ...prev]);
+
+    showToast(`${taskIds.length} tasks reopened.`);
+  }, [completedTasks, setTasks, setCompletedTasks, showToast]);
+
+  const handleBulkSetDueDate = useCallback((taskIds: number[], completeBy: number) => {
+    if (taskIds.length === 0) return;
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        taskIds.includes(task.id) ? { ...task, completeBy } : task
+      )
+    );
+    showToast(`${taskIds.length} tasks updated with new due date.`);
+  }, [setTasks, showToast]);
+
+  const handleBulkSetPriority = useCallback((taskIds: number[], priority: 'High' | 'Medium' | 'Low') => {
+    if (taskIds.length === 0) return;
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        taskIds.includes(task.id) ? { ...task, priority } : task
+      )
+    );
+    showToast(`${taskIds.length} tasks set to ${priority} priority.`);
+  }, [setTasks, showToast]);
+
+  const handleBulkSetCategory = useCallback((taskIds: number[], categoryId: number) => {
+    if (taskIds.length === 0) return;
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        taskIds.includes(task.id) ? { ...task, categoryId } : task
+      )
+    );
+    const categoryName = settings.categories.find(c => c.id === categoryId)?.name || 'a category';
+    showToast(`${taskIds.length} tasks moved to "${categoryName}".`);
+  }, [setTasks, showToast, settings.categories]);
 
   const handleCopyList = useCallback(() => {
     const reportHeader = "Open Tasks Report\n===================\n";
@@ -371,6 +467,12 @@ export function useTaskState({
     handleChecklistCompletion,
     handleClearAll,
     handleBulkAdd,
+    handleBulkDelete,
+    handleBulkComplete,
+    handleBulkReopen,
+    handleBulkSetPriority,
+    handleBulkSetDueDate,
+    handleBulkSetCategory,
     handleCopyList,
     handleTogglePause,
     moveTask,
