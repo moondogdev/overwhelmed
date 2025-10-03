@@ -353,6 +353,18 @@ Please keep this consistent to keep the maintainer from having to make frequent 
 
 ### Log of Issues and Lessons
 
+#### [1.0.22] - The Perils of `contentEditable`
+-   **Issue**: While building the rich text editor, attempts to add custom formatting features (like lists, headers, and custom undo/redo for native actions) led to a cascade of unpredictable bugs, including cursor jumping, random content deletion, and state desynchronization.
+-   **Lesson**: A `contentEditable` `div` is a "black box" with its own internal state and rules. Manually manipulating its DOM while the browser is also trying to manage it is a losing battle. The correct architectural decision is to either use a dedicated editor library (like Tiptap or Slate) that manages its own state model, or to drastically simplify the feature set to avoid conflicting with native browser behavior. We chose the latter for stability, removing our custom formatting shortcuts. See `Rule 72.0` for a full explanation.
+
+---
+
+#### [1.0.22] - Falsy `0` Rendering in React
+-   **Issue**: A stray "0" was being rendered in the UI when a task's pay rate was zero. The conditional rendering logic `{task.payRate && task.payRate > 0 && ...}` was returning `0` when `task.payRate` was `0`, and React rendered it as a text node.
+-   **Lesson**: The `&&` operator in JavaScript returns the value of the first "falsy" operand it encounters. If that value is `0`, React will render the number `0`. To prevent this, conditional rendering logic must always evaluate to a clean boolean (`true`/`false`) or `null`/`undefined`. The fix was to simplify the condition to just `task.payRate > 0`, which correctly evaluates to `false` when the pay rate is `0`. See `Rule 73.0` for a full explanation.
+
+---
+
 #### [1.0.20] - State Replacement vs. State Merging
 -   **Issue**: Updating a single setting (like expanding a checklist section) would wipe out the entire `settings` object, causing data loss on the next save. This happened because we were calling `onSettingsChange({ openChecklistSectionIds: newOpenIds })`, which replaces the state object instead of merging with it.
 -   **Lesson**: When updating a piece of a complex state object, **always** use the functional update form to ensure the new value is merged with the previous state, not replacing it.
@@ -553,6 +565,8 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 69.0: The Orchestrator Component and Custom Hooks
   - Rule 70.0: Refactoring Monolithic Components
   - Rule 71.0: State Replacement vs. State Merging
+  - Rule 72.0: The Perils of `contentEditable`
+  - Rule 73.0: Safe Conditional Rendering in JSX
 
 ---
 
@@ -3432,3 +3446,61 @@ onSettingsChange({ openChecklistSectionIds: newOpenIds });
 // Correct (Merges State):
 onSettingsChange(prevSettings => ({ ...prevSettings, openChecklistSectionIds: newOpenIds }));
 ```
+
+---
+
+### Developer Guide - Rule 72.0: The Perils of `contentEditable`
+
+This guide documents the significant challenges encountered while building our custom rich text editor and the architectural lessons learned.
+
+#### The Problem: The `contentEditable` Black Box
+
+A `div` with the `contentEditable` attribute is not a simple input field. It's a complex "black box" where the browser maintains its own internal, hidden state model of the content. When we tried to add custom features by manually manipulating the DOM (e.g., creating `<ul>` or `<h1>` elements), we were directly fighting the browser's internal model.
+
+This conflict was the root cause of numerous bugs:
+-   **State Desynchronization**: The browser's internal state would no longer match what was on the screen, causing native actions like `Backspace` to behave erratically (e.g., deleting an entire word instead of a character).
+-   **Cursor Loss**: After our code manually inserted a node, the browser would lose track of the cursor's position and reset it to the beginning of the editor.
+-   **Unpredictable Formatting**: The browser would sometimes automatically wrap our new elements in `<p>` or `<div>` tags we didn't ask for, breaking our logic on subsequent edits.
+
+#### The Solution: Strategic Retreat and Future Direction
+
+After numerous attempts to patch these issues, we concluded that fighting the browser's native behavior is an unstable and unscalable approach. The industry-standard solutions follow one of two paths:
+
+1.  **Use a Dedicated Library**: Frameworks like **Tiptap**, **Slate.js**, or **Quill.js** were created specifically to solve this problem. They use `contentEditable` only as a "view" layer while maintaining their own, predictable data model of the document. This is the recommended approach for any feature-rich editor.
+
+2.  **Drastic Simplification**: If a full library is not an option, the only stable path is to drastically simplify the feature set and avoid any custom logic that conflicts with core editing behavior.
+
+We chose the second path for immediate stability. We removed all custom formatting shortcuts (`Ctrl+L`, `Alt+1-6`, etc.) and our attempts to add native actions (`Backspace`) to our undo history. We kept only the features that were stable and did not interfere with the browser's core text manipulation, such as our paste-to-link functionality.
+
+**Golden Rule**: Do not fight `contentEditable`. Either embrace its limitations and keep custom features minimal, or use a dedicated library that abstracts away its complexities.
+
+---
+
+### Developer Guide - Rule 73.0: Safe Conditional Rendering in JSX
+
+This guide explains a common pitfall in React's conditional rendering that can lead to unexpected output in the UI, specifically the rendering of a stray `0`.
+
+#### The Problem: The `&&` Operator and Falsy Values
+
+A common and convenient pattern for conditional rendering in JSX is `condition && <Component />`. This works because in JavaScript, `true && expression` evaluates to `expression`, and `false && expression` evaluates to `false`. React does not render `false`, `null`, or `undefined`, so the component correctly disappears.
+
+However, a bug occurs when the condition can be the number `0`. In JavaScript, `0` is a "falsy" value.
+
+Consider this code:
+`{task.payRate && task.payRate > 0 && <MyComponent />}`
+
+If `task.payRate` is `0`:
+1.  The expression starts evaluating: `0 && ...`
+2.  The `&&` operator sees the first operand is `0` (which is falsy).
+3.  It immediately stops and returns the value of that falsy operand, which is `0`.
+4.  React receives the value `0` and, unlike `false` or `null`, **React renders the number `0` as a text node.**
+
+This is why we saw a stray "0" appearing in our UI with no styling.
+
+#### The Solution: Ensure a Boolean Evaluation
+
+To prevent this, you must ensure your conditional expression always evaluates to a true boolean (`true` or `false`), or to a value that React doesn't render (like `null` or `undefined`).
+
+**Incorrect (Unsafe):**
+```jsx
+{task.payRate && task.payRate > 0 && <MyComponent />}

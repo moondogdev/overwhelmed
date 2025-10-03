@@ -42,11 +42,15 @@ export const parseInputTimestamp = (datetime: string): number => {
 };
 
 export const getRelativeDateHeader = (dateStr: string): string => {
+  // This function now correctly handles timezones and day boundaries.
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const [year, month, day] = dateStr.split('-').map(Number);
-  const taskDate = new Date(year, month - 1, day);
-  const diffTime = taskDate.getTime() - today.getTime();
+
+  // The dateStr is in 'YYYY-MM-DD' format from UTC. We need to parse it as such.
+  const taskDate = new Date(dateStr + 'T00:00:00Z'); // Treat as UTC midnight
+  const localTaskDate = new Date(taskDate.getUTCFullYear(), taskDate.getUTCMonth(), taskDate.getUTCDate());
+
+  const diffTime = localTaskDate.getTime() - today.getTime();
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
   if (diffDays === 0) return 'Today';
@@ -59,7 +63,7 @@ export const getRelativeDateHeader = (dateStr: string): string => {
     day: 'numeric',
     year: 'numeric',
   };
-  return taskDate.toLocaleDateString(undefined, options);
+  return localTaskDate.toLocaleDateString(undefined, options);
 };
 
 export const getContrastColor = (hexColor: string): string => {
@@ -176,4 +180,32 @@ export const formatTimeLogSessionForCopy = (session: TimeLogSession): string => 
     output += `${entry.description}: ${formatTime(entry.duration)}\n`;
   }
   return output;
+};
+
+export const calculateNextOccurrence = (task: Task): Date | null => {
+  if (!task.isRecurring && !task.isDailyRecurring && !task.isWeeklyRecurring && !task.isMonthlyRecurring && !task.isYearlyRecurring) {
+    return null;
+  }
+
+  const now = Date.now();
+  let nextDate: Date;
+
+  // For fixed intervals, the base is the *current* due date.
+  // If no due date, it's based on now.
+  if (task.isDailyRecurring || task.isWeeklyRecurring || task.isMonthlyRecurring || task.isYearlyRecurring) {
+    nextDate = new Date(task.completeBy || now);
+    if (task.isDailyRecurring) nextDate.setDate(nextDate.getDate() + 1);
+    else if (task.isWeeklyRecurring) nextDate.setDate(nextDate.getDate() + 7);
+    else if (task.isMonthlyRecurring) nextDate.setMonth(nextDate.getMonth() + 1);
+    else if (task.isYearlyRecurring) nextDate.setFullYear(nextDate.getFullYear() + 1);
+  } 
+  // For generic "re-occurs on complete", the next due date is based on the original duration from NOW.
+  else if (task.isRecurring && task.completeBy && task.createdAt) {
+    const originalDuration = task.completeBy - task.createdAt;
+    nextDate = new Date(now + originalDuration);
+  } else {
+    return null; // Not enough info to calculate
+  }
+
+  return nextDate;
 };

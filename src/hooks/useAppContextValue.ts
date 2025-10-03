@@ -13,7 +13,7 @@ import { useUIState } from './useUIState';
 
 interface StandaloneProps {
   showToast: (message: string, duration?: number) => void;
-  handleCompleteTask: (task: Task) => void;
+  handleCompleteTask: (task: Task, status?: 'completed' | 'skipped') => void;
   handleClearAll: () => void;
   handleCopyList: () => void;
   handleTaskUpdate: (updatedTask: Task) => void;
@@ -39,6 +39,7 @@ interface StandaloneProps {
   sortSelectRef: React.RefObject<HTMLSelectElement>;
   snoozeTimeSelectRef: React.RefObject<HTMLSelectElement>;
   activeChecklistRef: React.RefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
+  filteredTasks: Task[];
   newTaskTitleInputRef: React.RefObject<HTMLInputElement>;
 }
 

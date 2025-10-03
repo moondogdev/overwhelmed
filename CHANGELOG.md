@@ -4,33 +4,9 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
-## Future Features 
-- ### Linked / Looped Tasks:
-    - Task Series Loop: Need to implement a series of tasks that are using the new linked task loop logic
-    - Linked Task Offset: Add offset to the Linked task so the deadline of the link task starts + the value input
-
-- ### Tasks
-    - **Complete Task**: 
-        - Add a new "Complete Task" option that functions like a "move task to Completed so all the connective logic triggers but set its status to a "Not Completed/Skipped" for tasks that become annoying that weren't actually Completed. 
-        - if the Task was reoccurring, or linked etc, it would still all trigger those events like our normal 'Completed' does. 
-        - Maybe add a new Completed grouping that indicates which tasks were 'Skipped' so the user can dismiss certain reoccurring tasks without them coming back but have an area to check. 
-        - This would be useful for tasks that are scheduled that get misssed but still want to trigger their connective logic.
-
-
+## Future Features
 - ### Accordion Task
-    - Accordion Task Header UI: Re-Occurring dropdown menu doesn't really indicate when an item is selected
-    - Accordion Task Header Context Menu Add Category: Lets add a faster way to add a category to a task with context menu Add Category > ??? whats best way to handle providing a choice
-    - Accordion Task Content: Look into the links where the Description: section is. Some of them don't work after adding the checklists.
-    - Accordion Task Content Response Section: Add "Responses" section similar to the Notes: section where we add content intended to reply to a ticket
-    - Accordion Task Content: Goto Next in Context Menu / Collapse Current Task
-    - Sort by Due Date Issue: in the new Sort by Due Date logic that groups the tasks by days, when a task is completed and re-occuring, it sends tasks that are due for today's date to the "tomorrow section". Maybe issue with the "Tomorrow" logic.    
     - Select Tasks for Bulk Edits: Add/Update/Delete All Category - maybe like select amount and dropdown to change category for all?
-
--   ### Text Editors Issues
-    - Text Editors: Text Editor issue with Pasting Link/Control+K: Errors with `Control+K` link apply to text: goes to the top of the content and applies a fresh link to that area, leaving the original 
-    - Rich Text editor Tab: add tab support to list items 
-    - Rich Text editor Undo/Redo: Need to keep a history and control z / control Y should undo / redo the history actions in the text editors when we tab away they lose their history
-    - Rich Text editor Links: Linked items are aggressively default blue in the "View" tab of the "Edit" view of the task content for Description and Notes
 
 - ### Bulk Add: 
     - Lets expand the Bulk Add sidebar option:
@@ -38,22 +14,9 @@ All notable changes to this project will be documented in this file. See `## Log
         - Bulk Add: Choose due date/time     
 
 - ### Overdue Toast Additions: 
-    - Overdue Toast: Dismiss message? Not sure how this would be handled? Silent?
     - Overdue Toast: Long Snooze? 1hr?
     - Overdue Toast: Reveal Snoozes, Dismisses/Silenced?: Would this be a good way to handle undoing a silent 
     - Overdue Toast: Maybe in the Overdue: {} count section as it expands this will be where we add the Reveal Snooze/Dismiss could be revealed when clicked on a button within this container
-
--   ### **Templated Tasks**: 
-    Save a task to use when creating a new task & predefined Templates to choose from:
-    -   **Template: Finance**:
-    -   **Template: Learning**:
-    -   **Template: Cooking**:
-    -   **Template: Health & Exercise**:
-    -   **Template: Travel**:
-    -   **Template: Work**:
-    -   **Template: Shopping**:
-    -   **Template: Home & Car Maintenance**:
-    -   **Template: Billing**: 
 
 -   ### **Copy to Sheets**: 
     Explore how we could copy a task to sheets possibly or what we'd use this for
@@ -61,53 +24,40 @@ All notable changes to this project will be documented in this file. See `## Log
 -   ### **Inbox Expansion**:
     The Inbox will need further expansion to support options, context menus, and sorting
     -   **Inbox Options**: Expand the inbox options to choose which message are received/displayed
-    -   **Inbox Context Menus**: We need to add support for all inbox menu types
     -   **Inbox Sort Overhaul**: Currently the sort only works for Active tab.
     -   **Inbox Sort**: Expand sort to include `by: Important` 
     
 -   ### **Standalone Application**: 
     Package the application into a distributable and installable format for major operating systems (Windows, macOS, Linux).
 
--   ### **Users**: Add a feature to create users and assign tickets to them, with the ability to filter the list to view tickets assigned to a specific user.
+-   ### **Users**: 
+    -    Add a feature to create users and assign tickets to them, with the ability to filter the list to view tickets assigned to a specific user.
 
--   ### **Themes**: Different style layouts
+-   ### **Themes**: 
+    -   Different style layouts
 
--   ### **Settings**: Missing a few settings options and probably want to build a full settings view soon
+-   ### **Settings**: 
+    -   Missing a few settings options and probably want to build a full settings view soon
 
--   ### **Calendar**: Task view in Calendar form. Can start new task on a specific due date by using the calendar
+-   ### **Calendar**: 
+    -   Task view in Calendar form. Can start new task on a specific due date by using the calendar
 
--   ### **Achievements**: Fun goal tracking system
+-   ### **Response to Ticket**: 
+    -   Maybe expand this section to include some details from the task and likely where we could tie in the "scripted responses" from the next request so we can use a dropdown to input a variety of responses which we can edit in the response field to either leave there or copy for use externally. like hello these tasks were completed on xxx. please blah blah blah. 
 
--   ### **Score**: Add score to tasks
-
--   ### **Response to Ticket**: Like a comment but we want this to be a field where we would draft a response to a task acting as a ticket. Ideally we would be able to grab data from the task to help construct the response.
-
--   ### **Filtered search of Scripted responses**: Similar to above and likely used for the Response to Ticket but also allowing the user to user from a variety of responses and oneliners for Tasks functioning as Tickets. 
+-   ### **Filtered search of Scripted responses**: 
+    -   Similar to above and likely used for the Response to Ticket but also allowing the user to user from a variety of responses and oneliners for Tasks functioning as Tickets. 
 
 -   ### **Send Notifications externally**: Attempts to hook the various toast alerts to external sources
     -   **Send to Desktop Notifications**: See whats possible with Electron
     -   **Send to Email Notifications**: See whats possible with Electron
     -   **Send to SMS Notifications**: See whats possible with Electron
 
--   ### **Advanced Checklist System**:  This system is already in place but we're still expanding it out.
-    -   Checklist Template Management
-        -   Implemented a full template system to save, load, and manage reusable checklists:
-            -   Phase 1: Data Structure & Storage
-            -   Phase 2: UI/UX Implementation
-            -   Phase 3: State Management & Logic
-        -   Add a "Manage Templates" button to open a modal for renaming/deleting templates.
-
--   ### **Total Refactoring**:  The codebase's individual files are getting rather large and likely need to start compartmentalizing structure into individual files to reduce strain on both the developer and code assist tools.
-    - **Change "Word" to "Task"**: When the application was first created, its only purpose was to display a "word cloud," so the main data object was fittingly named Word. As we added more and more features, we transformed that simple Word object into a complex Task manager, but the original variable names like Word, words, handleCompleteWord, etc., remained. See "Rule 08.0: Codebase Naming Conventions (Word vs. Task)" for more details.
-      - We need to update this handling to avoid confusion moving forward as the application grows from its original intention. The App started as a simple "word cloud" generator on a meme, which still functions as both a Meme Generator and links the tasks to a google search result when clicked. 
-      - We can likely overhaul the Meme view into a fullblown Meme Generator by including a different subview that allows the user to choose the image, text, and placement.    
-    - **Check for Duplications**: The codebase might have duplication in its declaratives so we'll need to check for that.
-    - **Refactor `<App>`**: App is growing too large and will cause performance issues 
-
 ---
 
 ## Log of Changes
 
+- **[1.0.22] - 2025-10-03: Workflow Features & UI Overhaul**: feat(core): Enhance task workflows, stabilize editor, and overhaul UI.
 - **[1.0.21] - 2025-10-02: Codebase Cleanup & Bug Fixes**: refactor(core): Standardize naming conventions (Word->Task) and Checklist.tsx refactor fix data loading
 - **[1.0.20] - 2025-10-02: MiniPlayer V2: Work Session Manager**: feat(player): Implement Work Session Manager and MiniPlayer V2
 - **[1.0.19] - 2025-09-27: Full Refactor to Hook-Based Architecture**: refactor: Complete full refactor to hook-based architecture and MiniPlayer
@@ -130,6 +80,37 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.22] - 2025-10-03: Workflow Features & UI Overhaul
+**feat(core): Enhance task workflows, stabilize editor, and overhaul UI.**
+
+This update rolls up a significant number of features and bug fixes, focusing on stabilizing the rich text editor and implementing a series of UI/UX improvements for a more polished and intuitive experience.
+
+#### Features & UI Improvements:
+-   **Rich Text Editor Stabilization**: To resolve numerous conflicts with native browser behavior, the editor has been simplified.
+    -   Conflicting custom shortcuts for lists (`Ctrl+L`) and headers (`Alt+1-6`) have been removed. The editor now reliably supports basic browser formatting (`Ctrl+B/I/U`).
+    -   A custom undo/redo history (`Ctrl+Z/Y`) has been implemented that correctly tracks our custom paste-to-link actions.
+-   **Linked Task Offset**: Added an "Offset" input field to linked tasks, allowing a delay to be set for when the successor task becomes due.
+-   **Task Navigation**: Implemented "Goto Next/Previous Task" actions in the task context menu and MiniPlayer for easier navigation through the task list.
+-   **Skipped Task Status**: Added a "Skip" action for tasks. Skipped tasks are moved to the "Completed" list but are visually distinct, allowing re-occurring tasks to advance without being marked as successfully completed.
+-   **Re-occurring Task Display**: The task header now clearly displays the next scheduled date and time for any re-occurring task, making it easy to forecast and verify recurrence settings.
+-   **Cleaner Task Headers**: The task accordion header has been streamlined by:
+    -   Removing the redundant Task ID.
+    -   Removing the text label for "Priority," relying on the colored dot and a new tooltip.
+    -   Replacing the "Time Open" display with a clearer "Due Date" and "Due Time" pill.
+-   **Conditional Task Fields**: The "Image Links," "Attachments," and "Pay Rate"/"Task Cost" fields in the read-only task view are now hidden if they are empty, reducing clutter.
+-   **Improved Link Styling**: Links in the rich text editor no longer use the default browser blue and are now styled to match the application's theme.
+
+#### Fixed
+-   **Pasting Bugs**: Resolved a series of critical bugs related to pasting plain text and links. The cursor now correctly remains at the end of the pasted content, and multi-line text is inserted with proper line breaks.
+-   **Re-occurring Task Logic**: Fixed a bug where the `openDate` for re-occurring tasks was not being calculated correctly, ensuring that the start time is preserved for scheduled tasks.
+-   **Sort by Due Date**: Fixed a critical timezone-related bug that caused tasks due "today" to sometimes appear under the "Tomorrow" heading.
+-   **Pay Rate Display**: Fixed a UI bug where a "0" would appear without context if a task's pay rate was set to zero.
+
+#### Summary
+This update stabilizes the rich text editor and delivers a wide range of UI/UX enhancements, resulting in a significantly more polished, predictable, and usable application.
 
 ---
 

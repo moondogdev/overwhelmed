@@ -90,7 +90,8 @@ export function NotificationCenter({}: NotificationCenterProps) {
                     <div className="overdue-notification-actions">
                       <button onClick={() => handleSnooze(task)} title={`Snooze for ${settings.snoozeTime === 'low' ? '1' : settings.snoozeTime === 'medium' ? '5' : '10'} minutes`}>Snooze</button>
                       <button onClick={() => handleSnooze(task, 'high')} title="Snooze for 10 minutes">Snooze 10m</button>
-                      <button onClick={() => handleCompleteTask(task)} title="Complete this task">Complete</button>
+                      <button onClick={() => handleCompleteTask(task, 'skipped')} title="Skip this task">Skip</button>
+                      <button onClick={() => handleCompleteTask(task, 'completed')} title="Complete this task">Complete</button>
                       <button onClick={() => removeTask(task.id)} title="Delete this task">Delete</button>
                     </div>
                   </div>

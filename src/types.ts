@@ -64,6 +64,7 @@ export interface Task {
   attachments?: Attachment[];
   checklist?: ChecklistSection[] | ChecklistItem[]; // Support both for migration
   notes?: string;
+  responses?: string;
   // Add dimensions for hit detection
   width?: number;
   height?: number;
@@ -72,6 +73,7 @@ export interface Task {
   isPaused?: boolean;
   pausedDuration?: number;
   completedDuration?: number; // The final duration when completed
+  completionStatus?: 'completed' | 'skipped'; // To distinguish between completed and skipped tasks
   manualTime?: number; // Manually tracked time in ms
   payRate?: number; // Dollars per hour
   isRecurring?: boolean;
@@ -86,6 +88,7 @@ export interface Task {
   manualTimeRunning?: boolean;
   taskType?: string; // New property for task types
   startsTaskIdOnComplete?: number; // ID of the task to start when this one is completed
+  linkedTaskOffset?: number;
   manualTimeStart?: number; // Timestamp when manual timer was started
   timeLog?: TimeLogEntry[];
   timeLogSessions?: TimeLogSession[];

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Task, Settings, Category } from '../types';
-import { formatTime, getContrastColor } from '../utils';
+import { formatTime, getContrastColor, calculateNextOccurrence, formatTimestamp } from '../utils';
 
 export function Dropdown({ trigger, children }: { trigger: React.ReactNode, children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -187,8 +187,7 @@ export function TaskAccordionHeader({
   return (
     <>
       <div className="accordion-title-container">
-        <span className="accordion-main-title">{task.text}</span>
-        <span className="task-id-display">(ID: {task.id})</span>
+        <span className="accordion-main-title">{task.text}</span>        
         {(() => {
           if (!task.categoryId) return null;
           const category = settings.categories.find(c => c.id === task.categoryId);
@@ -223,21 +222,20 @@ export function TaskAccordionHeader({
             </>
           );
         })()}
-        <span className={`priority-indicator priority-${(task.priority || 'Medium').toLowerCase()}`}>
+        <span className={`priority-indicator priority-${(task.priority || 'Medium').toLowerCase()}`} title={`Priority: ${task.priority || 'Medium'}`}>
           <span className="priority-dot"></span>
-          {task.priority || 'Medium'}
         </span>
       </div>
       <div className="accordion-subtitle">
-        <span className="timer-pill">
-          <i className="fas fa-clock"></i>
-          <TimeOpen startDate={task.createdAt} />
-        </span>
         {task.completeBy && (
           <>
             <span className="due-date-pill">
               <i className="fas fa-calendar-alt"></i>
               Due: {new Date(task.completeBy).toLocaleDateString()}
+            </span>
+            <span className="due-date-pill">
+              <i className="fas fa-clock"></i>
+              {new Date(task.completeBy).toLocaleTimeString()}
             </span>
             <span className="timer-pill">
               <i className="fas fa-hourglass-half"></i>
@@ -245,6 +243,25 @@ export function TaskAccordionHeader({
             </span>
           </>
         )}
+        {(() => {
+          let recurringText = '';
+          if (task.isDailyRecurring) recurringText = 'Repeats Daily';
+          else if (task.isWeeklyRecurring) recurringText = 'Repeats Weekly';
+          else if (task.isMonthlyRecurring) recurringText = 'Repeats Monthly';
+          else if (task.isYearlyRecurring) recurringText = 'Repeats Yearly';
+          else if (task.isRecurring) recurringText = 'Re-occurs on Complete';
+
+          if (recurringText) {
+            const nextOccurrence = calculateNextOccurrence(task);
+            return (
+              <span className="timer-pill recurring-status-pill" title={nextOccurrence ? `Next occurrence: ${formatTimestamp(nextOccurrence.getTime())}` : 'Recurring task'}>
+                <i className="fas fa-sync-alt"></i>
+                {recurringText} {nextOccurrence && `(Next: ${nextOccurrence.toLocaleDateString()}, ${nextOccurrence.toLocaleTimeString()})`}
+              </span>
+            );
+          }
+          return null;
+        })()}
       </div>
       {task.startsTaskIdOnComplete && (
         (() => {
@@ -289,7 +306,7 @@ export function TaskAccordion({
             e.preventDefault();
             const isInEditMode = settings.activeTaskTabs?.[task.id] === 'edit';
             const hasCompletedTasks = completedTasks.length > 0;
-            window.electronAPI.showTaskContextMenu({ taskId: task.id, x: e.clientX, y: e.clientY, isInEditMode, hasCompletedTasks });
+            window.electronAPI.showTaskContextMenu({ taskId: task.id, x: e.clientX, y: e.clientY, isInEditMode, hasCompletedTasks, categories: settings.categories });
           }}
         >
           <span className="accordion-icon"><i className={`fas ${isOpen ? 'fa-minus' : 'fa-plus'}`}></i></span>

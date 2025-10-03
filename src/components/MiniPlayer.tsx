@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { formatTime } from '../utils';
-import { useAppContext } from '../contexts/AppContext';
+import { useAppContext } from '../contexts/AppContext'; 
 import { ChecklistSection, ChecklistItem, TimeLogEntry, Task } from '../types';
 import './styles/MiniPlayer.css';
 
@@ -25,13 +25,17 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
     handlePostAndResetLog,
     handleResetAllLogEntries,
     handlePostAndComplete,
-    tasks, // Get all tasks to find the task title
-    setIsWorkSessionManagerOpen, // Get the handler to open the modal
-    primedTaskId, // The ID of the task that is "on deck"
-    handlePrimeTask, // We don't use this here, but it's part of the context
+    tasks,
+    setIsWorkSessionManagerOpen,
+    primedTaskId,
+    handlePrimeTask,
     settings,
     showToast,
-    handleTaskUpdate, // Get the global task update handler
+    handleTaskUpdate,
+    // Add the new navigation handlers and filteredTasks from context
+    handleGoToNextTask,
+    handleGoToPreviousTask,
+    filteredTasks,
   } = useAppContext();
   
   const [isEntryListVisible, setIsEntryListVisible] = useState(false);
@@ -43,7 +47,9 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
   const taskForDisplayId = activeTimerTaskId ?? primedTaskId;
   const activeTask = taskForDisplayId ? tasks.find(t => t.id === taskForDisplayId) : null;
 
-  // If a timer is active, find the live entry. Otherwise, find the first playable entry of the primed task.
+  // Correctly calculate navigation button states using filteredTasks from context.
+  const currentTaskIndex = activeTask ? filteredTasks.findIndex(t => t.id === activeTask.id) : -1;
+  
   const currentEntryForDisplay = isTimerActive 
     ? activeTimerEntry 
     : activeTask?.timeLog?.find(e => e.type !== 'header');
@@ -109,11 +115,11 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
     [timeLog, currentIndex]
   );
 
-  const canGoNext = nextPlayableIndex !== -1 && nextPlayableIndex < timeLog.length;
-  const canGoPrevious = prevPlayableIndex !== -1 && (currentIndex - 1 - prevPlayableIndex) >= 0;
+  const canGoNextEntry = nextPlayableIndex !== -1 && nextPlayableIndex < timeLog.length;
+  const canGoPreviousEntry = prevPlayableIndex !== -1 && (currentIndex - 1 - prevPlayableIndex) >= 0;
 
-  const nextEntryDescription = canGoNext ? timeLog[nextPlayableIndex].description : null;
-  const previousEntryDescription = canGoPrevious ? timeLog[currentIndex - 1 - prevPlayableIndex].description : null;
+  const nextEntryDescription = canGoNextEntry ? timeLog[nextPlayableIndex].description : null;
+  const previousEntryDescription = canGoPreviousEntry ? timeLog[currentIndex - 1 - prevPlayableIndex].description : null;
 
   const groupedTimeLog = useMemo(() => {
     if (!timeLog || timeLog.length === 0) return [];
@@ -230,7 +236,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
             className="icon-button" 
             title="Previous Entry"
             onClick={handlePreviousEntry}
-            disabled={!canGoPrevious}
+            disabled={!canGoPreviousEntry}
           >
             <i className="fas fa-step-backward"></i>
           </button>
@@ -263,7 +269,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
             className="icon-button" 
             title="Next Entry"
             onClick={handleNextEntry}
-            disabled={!canGoNext}
+            disabled={!canGoNextEntry}
           >
             <i className="fas fa-step-forward"></i>
           </button>
@@ -277,22 +283,26 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
           <i className="fas fa-forward"></i>
         </button>
         </div>
-        <button 
-          className="icon-button" 
-          title="Previous Task"
-          onClick={handlePreviousTask}
-          disabled={(settings.workSessionQueue || []).indexOf(activeTimerTaskId) <= 0}
-        >
-          <i className="fas fa-fast-backward"></i>
-        </button>
-        <button 
-          className="icon-button" 
-          title="Next Task"
-          onClick={handleNextTask}
-          disabled={(settings.workSessionQueue || []).indexOf(activeTimerTaskId) < 0 || (settings.workSessionQueue || []).indexOf(activeTimerTaskId) >= (settings.workSessionQueue || []).length - 1}
-        >
-          <i className="fas fa-fast-forward"></i>
-        </button>
+        {taskForDisplayId && (
+          <>
+            <button
+              className="icon-button"
+              title="Go to Previous Task in List"
+              onClick={() => activeTask && handleGoToPreviousTask(activeTask.id)}
+              disabled={!(currentTaskIndex > 0)}
+            >
+              <i className="fas fa-chevron-left"></i>
+            </button>
+            <button
+              className="icon-button"
+              title="Go to Next Task in List"
+              onClick={() => activeTask && handleGoToNextTask(activeTask.id)}
+              disabled={!(currentTaskIndex !== -1 && currentTaskIndex < filteredTasks.length - 1)}
+            >
+              <i className="fas fa-chevron-right"></i>
+            </button>
+          </>
+        )}
         <div 
           className="mini-player-dropdown-container"
           onMouseEnter={() => setIsActionsListVisible(true)}

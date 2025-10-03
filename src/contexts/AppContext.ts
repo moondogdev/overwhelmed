@@ -57,6 +57,7 @@ export interface AppContextType {
   searchInputRef: React.RefObject<HTMLInputElement>;
   sortSelectRef: React.RefObject<HTMLSelectElement>;
   snoozeTimeSelectRef: React.RefObject<HTMLSelectElement>;
+  filteredTasks: Task[];
   activeChecklistRef: React.RefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
 
   // Handlers
@@ -64,7 +65,7 @@ export interface AppContextType {
   handleClearAll: () => void;
   handleCopyList: () => void;
   handleClearCompleted: () => void;
-  handleCompleteTask: (task: Task) => void;
+  handleCompleteTask: (task: Task, status?: 'completed' | 'skipped') => void;
   moveTask: (taskId: number, targetTaskId: number) => void;
   removeTask: (id: number) => void;
   handleTaskUpdate: (task: Task) => void;
@@ -102,6 +103,8 @@ export interface AppContextType {
   handleCompleteAllOverdue: () => void;
   handleDeleteAllOverdue: () => void;
   handleCreateNewTask: () => void;
+  handleGoToPreviousTask: (currentTaskId: number) => void;
+  handleGoToNextTask: (currentTaskId: number) => void;
   navigateToTask: (taskId: number, sectionId?: number) => void;
   handleSaveProject: () => void;
   navigateToView: (view: 'meme' | 'list' | 'reports' | 'inbox') => void;

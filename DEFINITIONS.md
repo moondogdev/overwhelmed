@@ -132,8 +132,40 @@ interface ChecklistSection {
 }
 ```
 ---
-### `FullTaskViewProps` Interface (deprecated)
+### `ChecklistTemplate` Interface
+```typescript
+interface ChecklistTemplate {
+  id: number;
+  name: string;
+  sections: ChecklistSection[];
+}
+```
 ---
+### `TimeLogEntry` Interface
+```typescript
+interface TimeLogEntry {
+  id: number;
+  description: string;
+  duration: number; // in milliseconds
+  startTime?: number; // timestamp for when it started running
+  isRunning?: boolean;
+  createdAt?: number; // Timestamp for when the entry was created
+  type?: 'entry' | 'header';
+  checklistItemId?: number; // Link back to the original checklist item
+  isCompleted?: boolean; // New flag to mark as completed
+}
+```
+---
+### `TimeLogSession` Interface
+```typescript
+interface TimeLogSession {
+  id: number;
+  title: string;
+  entries: TimeLogEntry[];
+  createdAt?: number; // Timestamp for when the session was created
+}
+```
+### `FullTaskViewProps` Interface (deprecated)
 ### `InboxMessage` Interface
 ```ts
 interface InboxMessage {
@@ -141,17 +173,16 @@ interface InboxMessage {
   type: 'overdue' | 'timer-alert' | 'created' | 'completed' | 'deleted' | 'updated';
   text: string;
   timestamp: number;
-  wordId?: number;
+  taskId?: number;
   sectionId?: number;
   isImportant?: boolean;
   isArchived?: boolean;
 }
 ```
----
 ### `PrioritySortConfig` Interface
 ```ts
 interface PrioritySortConfig {
-  [key: string]: { key: keyof Word | 'timeOpen', direction: 'ascending' | 'descending' } | null;
+  [key: string]: { key: keyof Task | 'timeOpen', direction: 'ascending' | 'descending' } | null;
 }
 ```
 ---
@@ -218,9 +249,9 @@ interface Settings {
 }
 ```
 ---
-### `Word` Interface
+### `Task` Interface
 ```ts
-interface Word {
+interface Task {
   id: number;
   text: string;
   x: number; // Add x coordinate
@@ -263,12 +294,9 @@ interface Word {
 }
 
 ```
----
 ## Interface Descriptions
 
-### `Word`
--   **Description**: The primary data object representing a single task.
--   **`startsTaskIdOnComplete?: number`**: An optional field that holds the `id` of another task. When the current task is completed, the task with this ID will have its `openDate` set to `Date.now()`, effectively activating it.
+### `Task`
 
 ---
 
@@ -359,8 +387,7 @@ This pattern explains why we use separate state arrays for different views (e.g.
 
 ## TypeScript Patterns
 
-### `(keyof Interface)[]` (e.g., `(keyof Word)[]`)
+### `(keyof Interface)[]` (e.g., `(keyof Task)[]`)
 
--   **`keyof Word`**: This TypeScript operator creates a union type of all the property names (keys) from the `Word` interface. For example: `'id' | 'text' | 'priority' | ...`.
--   **`(...)[]`**: This denotes an array of the type inside the parentheses.
--   **Together**: `(keyof Word)[]` defines a type for an array that can *only* contain strings that are valid keys of the `Word` interface. We use this in our `TaskType` interface to ensure that when we define which fields a task type should show, we can only use valid field names, preventing typos and runtime errors.
+-   **`keyof Task`**: This TypeScript operator creates a union type of all the property names (keys) from the `Task` interface. For example: `'id' | 'text' | 'priority' | ...`.
+-   **Together**: `(keyof Task)[]` defines a type for an array that can *only* contain strings that are valid keys of the `Task` interface. We use this in our `TaskType` interface to ensure that when we define which fields a task type should show, we can only use valid field names, preventing typos and runtime errors.

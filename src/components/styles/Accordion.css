@@ -55,6 +55,16 @@
   font-weight: bold;
 }
 
+.accordion-main-title.skipped-task {
+  color: #aaa;
+  font-style: italic;
+}
+
+.skipped-icon {
+  margin-right: 8px;
+  color: #f4d03f; /* A yellow/orange color */
+}
+
 .accordion-title-summary {
   font-size: 0.8em;
   font-weight: normal;

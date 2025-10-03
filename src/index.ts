@@ -371,8 +371,29 @@ app.whenReady().then(() => {
     isDirty = dirtyState;
   });
   ipcMain.on('show-task-context-menu', (event, payload) => {
-    const { taskId, x, y, hasCompletedTasks, isInEditMode } = payload;
+    const { taskId, x, y, hasCompletedTasks, isInEditMode, categories } = payload;
     const webContents = event.sender;
+
+    // Build hierarchical category submenu
+    const parentCategories = categories.filter((c: any) => !c.parentId);
+    const categorySubmenu = parentCategories.map((parentCat: any) => {
+      const subCategories = categories.filter((c: any) => c.parentId === parentCat.id);
+      const subMenuItems = subCategories.map((subCat: any) => ({
+        label: subCat.name,
+        click: () => webContents.send('context-menu-command', { command: 'set_category', taskId, categoryId: subCat.id })
+      }));
+
+      return {
+        label: parentCat.name,
+        submenu: [
+          {
+            label: `Assign to "${parentCat.name}"`,
+            click: () => webContents.send('context-menu-command', { command: 'set_category', taskId, categoryId: parentCat.id })
+          },
+          ...(subMenuItems.length > 0 ? [{ type: 'separator' as const }, ...subMenuItems] : [])
+        ]
+      };
+    });
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];
 
     // Dynamically add 'View' or 'Edit' based on the current mode
@@ -394,10 +415,27 @@ app.whenReady().then(() => {
         label: 'Add to Work Session',
         click: () => webContents.send('context-menu-command', { command: 'add_to_session', taskId }),
       },
+      {
+        label: 'Goto Previous Task',
+        click: () => webContents.send('context-menu-command', { command: 'go_to_previous', taskId }),
+      },
+      {
+        label: 'Goto Next Task',
+        click: () => webContents.send('context-menu-command', { command: 'go_to_next', taskId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Set Category',
+        submenu: categorySubmenu
+      },
       { type: 'separator' },
       {
         label: 'Complete Task',
         click: () => webContents.send('context-menu-command', { command: 'complete', taskId }),
+      },
+      {
+        label: 'Skip Task',
+        click: () => webContents.send('context-menu-command', { command: 'skip', taskId }),
       },
       {
         label: 'Duplicate Task',
@@ -828,6 +866,15 @@ app.whenReady().then(() => {
         click: () => webContents.send('checklist-section-command', { command: 'edit', taskId }),
       });
     }
+    template.push({ type: 'separator' });
+    template.push({
+      label: 'Go to Previous & Collapse',
+      click: () => webContents.send('checklist-section-command', { command: 'go_to_previous', taskId }),
+    });
+    template.push({
+      label: 'Go to Next Task',
+      click: () => webContents.send('checklist-section-command', { command: 'go_to_next', taskId }),
+    });
     template.push(
       { type: 'separator' },
       {

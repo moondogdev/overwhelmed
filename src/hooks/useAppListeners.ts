@@ -77,8 +77,8 @@ export function useAppListeners({
 
   // Effect to handle commands from the ticket context menu
   useEffect(() => {
-    const handleMenuCommand = (payload: { command: string, taskId: number }) => {
-      const { command, taskId } = payload;
+    const handleMenuCommand = (payload: { command: string, taskId: number, categoryId?: number }) => {
+      const { command, taskId, categoryId } = payload;
       const targetTask = [...taskState.tasks, ...taskState.completedTasks].find(w => w.id === taskId);
       if (!targetTask) return;
 
@@ -95,6 +95,9 @@ export function useAppListeners({
         case 'complete':
           if (!targetTask.completedDuration) taskState.handleCompleteTask(targetTask);
           break;
+        case 'skip':
+          if (!targetTask.completedDuration) taskState.handleCompleteTask(targetTask, 'skipped');
+          break;
         case 'duplicate':
           taskState.handleDuplicateTask(targetTask);
           break;
@@ -107,6 +110,16 @@ export function useAppListeners({
             workSessionQueue: [...(prev.workSessionQueue || []), taskId]
           }));
           uiState.showToast(`Added "${targetTask.text}" to work session.`);
+          break;
+        case 'set_category':
+          if (categoryId) taskState.handleTaskUpdate({ ...targetTask, categoryId: categoryId });
+          uiState.showToast(`Task category updated!`);
+          break;
+        case 'go_to_next':
+          navigationState.handleGoToNextTask(taskId);
+          break;
+        case 'go_to_previous':
+          navigationState.handleGoToPreviousTask(taskId);
           break;
       }
     };
@@ -178,6 +191,17 @@ export function useAppListeners({
     const cleanup = window.electronAPI.on('inbox-context-menu-command', handleMenuCommand);
     return cleanup;
   }, [taskState, notificationsState, navigationState, inboxState]);
+  
+  useEffect(() => {
+    const cleanup = window.electronAPI.on('checklist-section-command', (payload) => { 
+      if (payload.command === 'go_to_next') {
+        navigationState.handleGoToNextTask(payload.taskId) 
+      } else if (payload.command === 'go_to_previous') {
+        navigationState.handleGoToPreviousTask(payload.taskId)
+      }
+    });
+    return () => cleanup?.();
+  }, [navigationState.handleGoToNextTask]);
 
   // Effect to handle commands from the navigation context menu
   useEffect(() => {

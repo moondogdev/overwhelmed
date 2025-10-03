@@ -6,7 +6,7 @@ A log of what was commited to git.
 
 ## Log of Changes
 
-- **[1.0.21] - 2025-09-28: Codebase Cleanup & Bug Fixes**: refactor(core): Standardize naming conventions (Word->Task) and fix data loading
+- **[1.0.22] - 2025-10-03: Workflow Features & UI Overhaul**: feat(core): Enhance task workflows, stabilize editor, and overhaul UI.
 - **[1.0.19] - 2025-09-27: Full Refactor to Hook-Based Architecture**: refactor: Complete full refactor to hook-based architecture and MiniPlayer
 - **[1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls**: feat(time): Implement Time Log Sessions and advanced timer controls
 - **[1.0.17] - 2025-09-26: Time Tracker Log & Checklist Integration**: feat(time): Implement detailed time tracker log and checklist integration
@@ -30,8 +30,8 @@ A log of what was commited to git.
 
 ---
 
-## [1.0.21] - 2025-09-28: Codebase Cleanup & Bug Fixes
-**refactor(core): Standardize naming conventions (Word->Task) and fix data loading**
+## [1.0.22] - 2025-10-03: Workflow Features & UI Overhaul
+**feat(core): Enhance task workflows, stabilize editor, and overhaul UI.**
 
 This commit completes a major codebase cleanup initiative, standardizing legacy naming conventions and fixing a critical data loading bug.
 

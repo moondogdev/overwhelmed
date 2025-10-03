@@ -108,12 +108,13 @@ export function TabbedView({
         e.stopPropagation(); // CRITICAL: Stop the event from bubbling up to the global listener.
         const isInEditMode = activeTab === 'edit';
         const hasCompletedTasks = completedTasks.length > 0;
-        window.electronAPI.showTaskContextMenu({ taskId: task.id, x: e.clientX, y: e.clientY, isInEditMode, hasCompletedTasks });
+        window.electronAPI.showTaskContextMenu({ taskId: task.id, x: e.clientX, y: e.clientY, isInEditMode, hasCompletedTasks, categories: settings.categories });
     };
 
     // Hooks must be called at the top level, not inside conditionals.
     const descriptionRef = useRef<HTMLDivElement>(null);
     const notesRef = useRef<HTMLDivElement>(null);
+    const responsesRef = useRef<HTMLDivElement>(null);
     const handleCopyDescription = async () => {
         if (descriptionRef.current) {
             try {
@@ -151,6 +152,29 @@ export function TabbedView({
                 }
             } catch (err) {
                 console.error('Failed to copy notes: ', err);
+                showToast('Copy failed!');
+            }
+        }
+    };
+
+    const handleCopyResponses = async () => {
+        if (responsesRef.current) {
+            try {
+                await navigator.permissions.query({ name: 'clipboard-write' as PermissionName });
+                // The responses are inside a DescriptionEditor, which has a content-editable div.
+                // We need to find that div to get its innerHTML and innerText.
+                const editorDiv = responsesRef.current.querySelector('.rich-text-editor');
+                if (editorDiv) {
+                    const html = editorDiv.innerHTML;
+                    const text = (editorDiv as HTMLElement).innerText;
+                    const htmlBlob = new Blob([html], { type: 'text/html' });
+                    const textBlob = new Blob([text], { type: 'text/plain' });
+                    const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
+                    await navigator.clipboard.write(data);
+                    showToast('Responses copied!');
+                }
+            } catch (err) {
+                console.error('Failed to copy responses: ', err);
                 showToast('Copy failed!');
             }
         }
@@ -229,35 +253,46 @@ export function TabbedView({
                                 checklistRef={activeChecklistRef}
                             />
                         </div>
-                        <div><strong>Task Cost:</strong>
-                            <span> ${(((task.manualTime || 0) / (1000 * 60 * 60)) * (task.payRate || 0)).toFixed(2)}</span>
-                        </div>
+                        {task.payRate > 0 && (
+                            <div>
+                                <p><strong>Pay Rate:</strong> ${task.payRate.toFixed(2)}/hr</p>
+                                <div><strong>Task Cost:</strong>
+                                    {(task.manualTime || 0) > 0
+                                        ? <span> ${(((task.manualTime || 0) / (1000 * 60 * 60)) * task.payRate).toFixed(2)}</span>
+                                        : <span style={{ fontStyle: 'italic', opacity: 0.7 }}> (requires time log)</span>}
+                                </div>
+                            </div>
+                        )}
                         {task.websiteUrl && <p><strong>Website URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: task.websiteUrl, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{task.websiteUrl}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(task.websiteUrl); showToast('Website URL copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
-                        <div><strong>Image Links:</strong>
-                            <div className="image-links-display">
-                                {(task.imageLinks || []).map((link, index) => (
-                                    <div key={index} className="image-link-item">
-                                        <img src={link} alt={`Image ${index + 1}`} />
-                                        <div className="image-link-actions">
-                                            <button className="icon-button" onClick={() => window.electronAPI.downloadImage(link)} title="Download Image"><i className="fas fa-download"></i></button>
-                                            <button className="icon-button" onClick={() => { navigator.clipboard.writeText(link); showToast('Image URL copied!'); }} title="Copy URL"><i className="fas fa-copy"></i></button>
+                        {task.imageLinks && task.imageLinks.length > 0 && (
+                            <div><strong>Image Links:</strong>
+                                <div className="image-links-display">
+                                    {task.imageLinks.map((link, index) => (
+                                        <div key={index} className="image-link-item">
+                                            <img src={link} alt={`Image ${index + 1}`} />
+                                            <div className="image-link-actions">
+                                                <button className="icon-button" onClick={() => window.electronAPI.downloadImage(link)} title="Download Image"><i className="fas fa-download"></i></button>
+                                                <button className="icon-button" onClick={() => { navigator.clipboard.writeText(link); showToast('Image URL copied!'); }} title="Copy URL"><i className="fas fa-copy"></i></button>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                        <div><strong>Attachments:</strong>
-                            <div className="attachments-display">
-                                {(task.attachments || []).map((file, index) => (
-                                    <div key={index} className="attachment-item">
-                                        <span className="attachment-name" onClick={() => window.electronAPI.manageFile({ action: 'open', filePath: file.path })} title={`Open ${file.name}`}>
-                                            📄 {file.name}
-                                        </span>
-                                        {/* The remove button is only shown in the edit view for clarity */}
-                                    </div>
-                                ))}
+                        )}
+                        {task.attachments && task.attachments.length > 0 && (
+                            <div><strong>Attachments:</strong>
+                                <div className="attachments-display">
+                                    {task.attachments.map((file, index) => (
+                                        <div key={index} className="attachment-item">
+                                            <span className="attachment-name" onClick={() => window.electronAPI.manageFile({ action: 'open', filePath: file.path, fileName: file.name })} title={`Open ${file.name}`}>
+                                                <i className="fas fa-file-alt"></i> {file.name}
+                                            </span>
+                                            {/* The remove button is only shown in the edit view for clarity */}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
+                        )}
                         {tabHeaders}
                         <div className="description-container" onContextMenu={(e) => {
                             const selection = window.getSelection();
@@ -340,6 +375,22 @@ export function TabbedView({
                                 settings={settings}                                
                                 onSettingsChange={onSettingsChange || setSettings}
                                 editorKey={`task-notes-${task.id}`} />
+                        </div>
+                        <div className="description-container" ref={responsesRef}>
+                            <div className="description-header">
+                                <strong>Responses:</strong>
+                                <button className="icon-button copy-btn" title="Copy Responses Text" onClick={handleCopyResponses}><i className="fas fa-copy"></i></button>
+                                <button className="icon-button copy-btn" title="Copy Responses HTML" onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(task.responses || ''); showToast('Responses HTML copied!');
+                                }}><i className="fas fa-code"></i></button>
+                            </div>
+                            <DescriptionEditor
+                                description={task.responses || ''}
+                                onDescriptionChange={(html) => handleFieldChange('responses', html)}
+                                settings={settings}
+                                onSettingsChange={onSettingsChange || setSettings}
+                                editorKey={`task-responses-${task.id}`} />
                         </div>
                     </div>
                 )}
@@ -434,8 +485,8 @@ export function TabbedView({
                         <label><h4>Attachments:</h4>
                             {(task.attachments || []).map((file, index) => (
                                 <div key={index} className="attachment-edit">
-                                    <span className="attachment-name" onClick={() => window.electronAPI.manageFile({ action: 'open', filePath: file.path })} title={`Open ${file.name}`}>
-                                        📄 {file.name}
+                                    <span className="attachment-name" onClick={() => window.electronAPI.manageFile({ action: 'open', filePath: file.path, fileName: file.name })} title={`Open ${file.name}`}>
+                                        <i className="fas fa-file-alt"></i> {file.name}
                                     </span>
                                     <button className="icon-button" onClick={() => handleFieldChange('attachments', (task.attachments || []).filter((_, i) => i !== index))}><i className="fas fa-minus"></i></button>
                                 </div>
@@ -493,6 +544,15 @@ export function TabbedView({
                                 onSettingsChange={onSettingsChange || setSettings}
                                 editorKey={`edit-notes-${task.id}`} />
                         </div>
+                        <div className="description-container">
+                            <strong>Responses:</strong>
+                            <DescriptionEditor
+                                description={task.responses || ''}
+                                onDescriptionChange={(html) => handleFieldChange('responses', html)}
+                                settings={settings}
+                                onSettingsChange={onSettingsChange || setSettings}
+                                editorKey={`edit-responses-${task.id}`} />
+                        </div>
                         <label className="checkbox-label flexed-column">
                             <input type="checkbox" checked={task.isRecurring || false} onChange={(e) => handleFieldChange('isRecurring', e.target.checked)} />
                             <span className="checkbox-label-text">Re-occurring Task</span>
@@ -529,6 +589,14 @@ export function TabbedView({
                                         <option key={t.id} value={t.id}>{t.text}</option>
                                     ))}
                             </select>
+                        </label>
+                        <label><h4>Offset next task by (minutes):</h4>
+                            <input
+                                type="number"
+                                value={(task.linkedTaskOffset || 0) / 60000} // Display as minutes
+                                onChange={(e) => handleFieldChange('linkedTaskOffset', Number(e.target.value) * 60000)} // Store as ms
+                                placeholder="0"
+                            />
                         </label>
                     </div>
                 )}

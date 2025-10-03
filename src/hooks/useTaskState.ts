@@ -38,55 +38,46 @@ export function useTaskState({
 
   tasksRefForDebounce.current = tasks;
 
-  const handleCompleteTask = useCallback((taskToComplete: Task) => {
+  const handleCompleteTask = useCallback((taskToComplete: Task, status: 'completed' | 'skipped' = 'completed') => {
     const finalDuration = taskToComplete.isPaused
       ? taskToComplete.pausedDuration
       : (taskToComplete.pausedDuration || 0) + (Date.now() - taskToComplete.createdAt);
 
-    const completedTask = { ...taskToComplete, completedDuration: finalDuration };
+    const completedTask = { ...taskToComplete, completedDuration: finalDuration, completionStatus: status };
 
     setCompletedTasks(prev => [completedTask, ...prev]);
     setTasks(prev => prev.filter(task => task.id !== taskToComplete.id));
     setInboxMessages(prev => [{ 
       id: Date.now() + Math.random(),
       type: 'completed',
-      text: `Task completed: "${completedTask.text}"`,
+      text: `Task ${status}: "${completedTask.text}"`,
       timestamp: Date.now(),
       taskId: completedTask.id,
     }, ...prev]);
-    showToast('Task completed!');
+    showToast(`Task ${status}!`);
 
     let newRecurringTask: Task | null = null;
 
     if (taskToComplete.isRecurring || taskToComplete.isDailyRecurring || taskToComplete.isWeeklyRecurring || taskToComplete.isMonthlyRecurring || taskToComplete.isYearlyRecurring) {
-      let newOpenDate = Date.now();
+      const newOpenDate = Date.now();
       let newCompleteBy: number | undefined = undefined;
+      const originalCompleteBy = taskToComplete.completeBy ? new Date(taskToComplete.completeBy) : new Date(newOpenDate);
 
       if (taskToComplete.isDailyRecurring) {
-        newOpenDate += 24 * 60 * 60 * 1000;
-        if (taskToComplete.completeBy) newCompleteBy = taskToComplete.completeBy + 24 * 60 * 60 * 1000;
+        originalCompleteBy.setDate(originalCompleteBy.getDate() + 1);
+        newCompleteBy = originalCompleteBy.getTime();
       } else if (taskToComplete.isWeeklyRecurring) {
-        newOpenDate += 7 * 24 * 60 * 60 * 1000;
-        if (taskToComplete.completeBy) newCompleteBy = taskToComplete.completeBy + 7 * 24 * 60 * 60 * 1000;
+        originalCompleteBy.setDate(originalCompleteBy.getDate() + 7);
+        newCompleteBy = originalCompleteBy.getTime();
       } else if (taskToComplete.isMonthlyRecurring) {
-        const d = new Date(newOpenDate);
-        d.setMonth(d.getMonth() + 1);
-        newOpenDate = d.getTime();
-        if (taskToComplete.completeBy) {
-          const cbd = new Date(taskToComplete.completeBy);
-          cbd.setMonth(cbd.getMonth() + 1);
-          newCompleteBy = cbd.getTime();
-        }
+        originalCompleteBy.setMonth(originalCompleteBy.getMonth() + 1);
+        newCompleteBy = originalCompleteBy.getTime();
       } else if (taskToComplete.isYearlyRecurring) {
-        const d = new Date(newOpenDate);
-        d.setFullYear(d.getFullYear() + 1);
-        newOpenDate = d.getTime();
-        if (taskToComplete.completeBy) {
-          const cbd = new Date(taskToComplete.completeBy);
-          cbd.setFullYear(cbd.getFullYear() + 1);
-          newCompleteBy = cbd.getTime();
-        }
+        originalCompleteBy.setFullYear(originalCompleteBy.getFullYear() + 1);
+        newCompleteBy = originalCompleteBy.getTime();
       } else if (taskToComplete.isRecurring && taskToComplete.completeBy && taskToComplete.createdAt) {
+        // This is the generic "re-occur on complete" which bases the new deadline
+        // on when it was completed, not on a fixed interval.
         const originalDuration = taskToComplete.completeBy - taskToComplete.createdAt;
         newCompleteBy = Date.now() + originalDuration;
       }
@@ -94,7 +85,7 @@ export function useTaskState({
       newRecurringTask = {
         ...taskToComplete,
         id: Date.now() + Math.random(),
-        createdAt: newOpenDate,
+        createdAt: newOpenDate, // The new task is "created" now.
         openDate: newOpenDate,
         completedDuration: undefined,
         completeBy: newCompleteBy,
@@ -107,7 +98,12 @@ export function useTaskState({
       setTasks(prevTasks => {
         let newTasks = prevTasks.map(t => {
           if (t.id !== successorTaskId) return t;
-          const updatedSuccessor = { ...t, openDate: Date.now(), completeBy: Date.now() };
+          // Use the offset from the *completed* task to set the new due date
+          const offset = taskToComplete.linkedTaskOffset || 0; // Default to 0 if not set
+          const updatedSuccessor = { 
+            ...t, 
+            openDate: Date.now(), 
+            completeBy: Date.now() + offset };
           if (t.startsTaskIdOnComplete === taskToComplete.id && newRecurringTask) {
             updatedSuccessor.startsTaskIdOnComplete = newRecurringTask.id;
           }
@@ -204,6 +200,7 @@ export function useTaskState({
       attachments: [],
       checklist: [],
       notes: '',
+      responses: '',
       description: '',
       manualTime: 0,
       manualTimeRunning: false,

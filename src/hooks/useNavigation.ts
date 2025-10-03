@@ -3,11 +3,12 @@ import { Task, Settings, InboxMessage } from '../types';
 
 interface UseNavigationProps {
   tasks: Task[];
+  filteredTasks: Task[]; // Add filteredTasks to props
   settings: Settings;
   setSettings: React.Dispatch<React.SetStateAction<Settings>>;
 }
 
-export function useNavigation({ tasks, settings, setSettings }: UseNavigationProps) {
+export function useNavigation({ tasks, filteredTasks, settings, setSettings }: UseNavigationProps) {
   const [viewHistory, setViewHistory] = useState(['meme']);
   const [historyIndex, setHistoryIndex] = useState(0);
 
@@ -74,9 +75,47 @@ export function useNavigation({ tasks, settings, setSettings }: UseNavigationPro
     }
   }, [historyIndex, viewHistory, setSettings]);
 
+  const handleGoToNextTask = useCallback((currentTaskId: number) => {
+    const currentIndex = filteredTasks.findIndex(t => t.id === currentTaskId);
+    if (currentIndex === -1 || currentIndex >= filteredTasks.length - 1) {
+      // If it's the last task or not found, do nothing.
+      return;
+    }
+
+    const nextTask = filteredTasks[currentIndex + 1];
+    if (nextTask) {
+      // Update open accordions: close current, open next.
+      setSettings(prev => ({
+        ...prev,
+        openAccordionIds: prev.openAccordionIds.filter(id => id !== currentTaskId).concat(nextTask.id),
+      }));
+      // Scroll the next task into view.
+      navigateToTask(nextTask.id);
+    }
+  }, [filteredTasks, setSettings, navigateToTask]);
+
+  const handleGoToPreviousTask = useCallback((currentTaskId: number) => {
+    const currentIndex = filteredTasks.findIndex(t => t.id === currentTaskId);
+    if (currentIndex <= 0) {
+      // If it's the first task or not found, do nothing.
+      return;
+    }
+
+    const previousTask = filteredTasks[currentIndex - 1];
+    if (previousTask) {
+      // Update open accordions: close current, open previous.
+      setSettings(prev => ({
+        ...prev,
+        openAccordionIds: prev.openAccordionIds.filter(id => id !== currentTaskId).concat(previousTask.id),
+      }));
+      // Scroll the previous task into view.
+      navigateToTask(previousTask.id);
+    }
+  }, [filteredTasks, setSettings, navigateToTask]);
+
   return {
     viewHistory, historyIndex,
-    navigateToView, navigateToTask, handleInboxItemClick,
+    navigateToView, navigateToTask, handleInboxItemClick, handleGoToNextTask, handleGoToPreviousTask,
     goBack, goForward,
   };
 }

@@ -49,6 +49,8 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
     lastNotified: undefined,
     snoozedAt: undefined,
     notes: '',
+    responses: '',
+    linkedTaskOffset: 0, // Initialize the new property
   });
 
   const focusAddTaskInput = useCallback(() => {

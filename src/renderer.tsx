@@ -65,9 +65,30 @@ function App() {
     tasks, setTasks,
   });
 
+  // This logic is duplicated from ListView to make filteredTasks available to the navigation hook.
+  // This is a candidate for future refactoring if more hooks need this data.
+  const filteredTasks = tasks.filter(task => {
+    const activeCategoryId = settings.activeCategoryId ?? 'all';
+    const activeSubCategoryId = settings.activeSubCategoryId ?? 'all';
+    const searchQuery = uiState.searchQuery;
+
+    if (activeCategoryId === 'all' && !searchQuery) return true;
+    const matchesSearch = searchQuery ? task.text.toLowerCase().includes(searchQuery.toLowerCase()) : true;
+    if (!matchesSearch) return false;
+    if (activeCategoryId === 'all') return true;
+    const activeCategory = settings.categories.find(c => c.id === activeCategoryId);
+    const parentId = activeCategory?.parentId || activeCategoryId;
+    const subCategoriesForParent = settings.categories.filter(c => c.parentId === parentId);
+    if (activeSubCategoryId !== 'all') {
+      return task.categoryId === activeSubCategoryId;
+    }
+    const categoryIdsToShow = [parentId, ...subCategoriesForParent.map(sc => sc.id)];
+    return categoryIdsToShow.includes(task.categoryId);
+  });
+
   // --- Navigation State (managed by custom hook) ---
   const navigationState = useNavigation({
-    tasks, settings, setSettings,
+    tasks, filteredTasks, settings, setSettings,
   });
 
   // --- Data Persistence Logic (managed by custom hook) ---
@@ -99,8 +120,8 @@ function App() {
   });
 
   // --- Combined Handlers for Cross-Hook Logic ---
-  const handleCompleteTask = (taskToComplete: Task) => {
-    originalHandleCompleteTask(taskToComplete);
+  const handleCompleteTask = (taskToComplete: Task, status: 'completed' | 'skipped' = 'completed') => {
+    originalHandleCompleteTask(taskToComplete, status);
     // If autoplay is on and the completed task was in the session, move to the next one.    
     if (settings.autoplayNextInSession && settings.workSessionQueue.includes(taskToComplete.id)) {
       // A small timeout ensures the state updates from completion settle before starting the next task.
@@ -159,6 +180,7 @@ function App() {
     handlePostAndResetLog,
     handleResetAllLogEntries,
     handleStartTaskFromSession,
+    filteredTasks,
     // Pass remaining refs
     searchInputRef, sortSelectRef, snoozeTimeSelectRef, activeChecklistRef, newTaskTitleInputRef,
   });    

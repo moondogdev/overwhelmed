@@ -3,9 +3,7 @@ import { Settings } from '../types';
 import './styles/Modal.css';
 
 // --- Editor Constants ---
-const headerShortcutKeys = ['1', '2', '3', '4', '5', '6'];
-const headerShortcutKeyDisplay = headerShortcutKeys.map(key => `<b>Alt+${key}</b>: H${key}`).join(', ');
-const otherShortcutKeys = `<span><b>Ctrl+B</b>: Bold, <i>Ctrl+I</i>: Italic, <u>Ctrl+U</u>: Underline, <b>Ctrl+K</b>: Link, <b>Ctrl+L</b>: List, <b>Ctrl+P</b>: Paragraph, <b>Ctrl+\\</b>: Clear Format</span>`;
+const otherShortcutKeys = `<span><b>Ctrl+B</b>: Bold, <i>Ctrl+I</i>: Italic, <u>Ctrl+U</u>: Underline</span>`;
 
 // --- Modals ---
 
@@ -118,6 +116,19 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
   // State for link modal
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [selectionRange, setSelectionRange] = useState<Range | null>(null);
+  // --- NEW: Custom Undo/Redo History State ---
+  const [history, setHistory] = useState<string[]>([description]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const isUndoingRedoing = useRef(false);
+
+  const [initialCursorPos, setInitialCursorPos] = useState<number | null>(null);
+
+  useEffect(() => {
+    // This effect synchronizes the DOM with React's state, especially after undo/redo.
+    if (editorRef.current && htmlContent !== editorRef.current.innerHTML) {
+      editorRef.current.innerHTML = htmlContent;
+    }
+  }, [htmlContent]);
 
   const handleBlur = (e: React.FocusEvent<HTMLDivElement | HTMLTextAreaElement>) => {
     const newHtml = activeView === 'view' ? (e.target as HTMLDivElement).innerHTML : (e.target as HTMLTextAreaElement).value;
@@ -125,6 +136,13 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
     onDescriptionChange(newHtml);
   };
 
+  const updateHistory = (newHtml: string) => {
+    if (isUndoingRedoing.current) return;
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(newHtml);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
   const handleConfirmLink = (url: string) => {
     // Ensure the URL has a protocol
     let fullUrl = url;
@@ -133,44 +151,98 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
     }
 
     if (selectionRange) {
+      // Restore the selection that was lost when the modal opened.
       const selection = window.getSelection();
-      // CRITICAL FIX: The selection is lost when the modal is used.
-      // We must re-add our saved range to the selection before executing a command.
       selection.removeAllRanges();
       selection.addRange(selectionRange);
-      document.execCommand('createLink', false, fullUrl);
-      // After command, update state
+
+      // Modern link creation: Manually create and insert the link node.
+      const selectedText = selectionRange.toString();
+      selectionRange.deleteContents();
+      const link = document.createElement('a');
+      link.href = fullUrl;
+      link.textContent = selectedText || fullUrl; // Use URL as text if selection was empty
+      selectionRange.insertNode(link);
+
+      // Update state and history
       if (editorRef.current) {
+        const newHtml = editorRef.current.innerHTML;
+        updateHistory(newHtml);
         onDescriptionChange(editorRef.current.innerHTML);
       }
     }
     setIsLinkModalOpen(false);
   };
 
+  const handleEditorFocus = () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      // Store the initial cursor position when the editor gains focus
+      setInitialCursorPos(range.startOffset);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'ArrowLeft' && initialCursorPos !== null) {
+      const selection = window.getSelection();
+      if (!selection) return;
+
+      const range = selection.getRangeAt(0);
+      // Check if the new cursor position would be before the initial position
+      if (range.startOffset <= initialCursorPos) {
+        // Prevent the default action to keep the cursor in place
+        e.preventDefault();
+      }
+    }
+    handleRichTextKeyDown(e);
+  };
+
+
   const handleRichTextKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     let commandExecuted = false;
+    const isCtrl = e.ctrlKey || e.metaKey;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+    let block = range.startContainer;
+
+    // Traverse up to find the block-level element (or the editor itself)
+    while (block.nodeType !== Node.ELEMENT_NODE || window.getComputedStyle(block as Element).display !== 'block') {
+      if (block.parentNode === editorRef.current || !block.parentNode) break;
+      block = block.parentNode;
+    }
   
-    if (e.altKey && !e.shiftKey && !e.ctrlKey && headerShortcutKeys.includes(e.key)) {
-      e.preventDefault();
-      const headerLevel = e.key;
-      document.execCommand('removeFormat', false, null);
-      document.execCommand('formatBlock', false, `H${headerLevel}`);
-      commandExecuted = true;
-    } else if (e.ctrlKey) {
+    // We will only handle Ctrl+K for linking and our custom Undo/Redo.
+    // All other formatting commands are removed to prevent conflicts with native behavior.
+    if (isCtrl) {
       switch (e.key.toLowerCase()) {
-        case 'k':
+        case 'z': // Undo
           e.preventDefault();
-          const selection = window.getSelection();
-          if (selection && selection.rangeCount > 0) {
-            setSelectionRange(selection.getRangeAt(0));
-            setIsLinkModalOpen(true);
+          if (historyIndex > 0) {
+            isUndoingRedoing.current = true;
+            const newIndex = historyIndex - 1;
+            setHistoryIndex(newIndex);
+            setHtmlContent(history[newIndex]); // Update local state
+            onDescriptionChange(history[newIndex]); // Notify parent
+            setTimeout(() => isUndoingRedoing.current = false, 0);
           }
           break;
-        case 'l': e.preventDefault(); document.execCommand('insertUnorderedList', false, null); commandExecuted = true; break;
-        case '\\': e.preventDefault(); document.execCommand('removeFormat', false, null); commandExecuted = true; break;
-        case 'p': e.preventDefault(); document.execCommand('formatBlock', false, 'P'); commandExecuted = true; break;
+        case 'y': // Redo
+          e.preventDefault();
+          if (historyIndex < history.length - 1) {
+            isUndoingRedoing.current = true;
+            const newIndex = historyIndex + 1;
+            setHistoryIndex(newIndex);
+            setHtmlContent(history[newIndex]); // Update local state
+            onDescriptionChange(history[newIndex]); // Notify parent
+            setTimeout(() => isUndoingRedoing.current = false, 0);
+          }
+          break;
         default:
           // Allow default browser behavior for Ctrl+C, Ctrl+V, etc.
+          // We no longer intercept other formatting commands.
       }
     }
   
@@ -178,7 +250,8 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
       // Use a timeout to ensure the DOM has been updated by the browser before we read it.
       setTimeout(() => {
         if (editorRef.current) {
-          onDescriptionChange(editorRef.current.innerHTML);
+          // This block is now only used for our custom commands (like linking)
+          // which already update history internally.
         }
       }, 0);
     }
@@ -213,16 +286,25 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
       selection.removeAllRanges();
       selection.addRange(selectionRange);
     } else {
-      // MODERN PASTE LOGIC:
-      // 1. Get the current selection range.
+      // --- ROBUST MODERN PASTE LOGIC ---
+      // This manual approach gives us full control over the cursor position.
       const range = selection.getRangeAt(0);
-      // 2. Delete anything that was highlighted.
       range.deleteContents();
-      // 3. Create a new text node with the pasted content.
-      const textNode = document.createTextNode(pastedText);
-      range.insertNode(textNode);
-      // 4. Move the cursor to the end of the newly inserted text.
-      range.setStartAfter(textNode);
+
+      // Create a document fragment to hold all the new nodes.
+      const fragment = document.createDocumentFragment();
+      const lines = pastedText.split('\n');
+
+      lines.forEach((line, index) => {
+        if (line) fragment.appendChild(document.createTextNode(line));
+        if (index < lines.length - 1) fragment.appendChild(document.createElement('br'));
+      });
+
+      const lastNode = fragment.lastChild;
+      range.insertNode(fragment);
+
+      // Correctly move the cursor to the end of the pasted content.
+      if (lastNode) range.setStartAfter(lastNode);
       range.collapse(true);
       selection.removeAllRanges();
       selection.addRange(range);
@@ -233,7 +315,9 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
     setTimeout(() => {
       if (editorRef.current) {
         const newHtml = editorRef.current.innerHTML;
-        onDescriptionChange(newHtml); // Only notify the parent, don't trigger a local re-render.
+        // After our manual DOM change, update the history and the parent state.
+        updateHistory(newHtml);
+        onDescriptionChange(newHtml);
       }
     }, 0);
   };
@@ -267,6 +351,7 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
           className="rich-text-editor"
           contentEditable
           dangerouslySetInnerHTML={{ __html: htmlContent }}
+          onFocus={handleEditorFocus}
           onBlur={handleBlur}
           onKeyDown={handleRichTextKeyDown}
           onPaste={handlePaste}
@@ -285,7 +370,7 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
       )}
       <div className="shortcut-key">
         <span>Shortcuts:</span>
-        <span dangerouslySetInnerHTML={{ __html: `${headerShortcutKeyDisplay}, ${otherShortcutKeys}` }} />
+        <span dangerouslySetInnerHTML={{ __html: `${otherShortcutKeys}` }} />
       </div>
     </div>
   );
