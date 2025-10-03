@@ -4,103 +4,6 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
-### To do: Refactor Monolithic `Checklist.tsx` Component
-
-The `Checklist.tsx` component has become a monolithic component, handling too many responsibilities. This makes it difficult to read, maintain, and extend. This plan outlines the steps to refactor it into a modular, maintainable structure.
-
-#### **Analysis: What's Causing the Bloat?**
--   **State Overload**: The component manages over 20 `useState` and `useRef` hooks for UI state, confirmation states, and local undo/redo history.
--   **Handler Proliferation**: There are more than 30 `handle...` functions for every conceivable action (add, delete, update, duplicate, move, toggle) across items, sections, notes, and responses.
--   **Massive `useEffect` for IPC**: The `useEffect` hook for handling context menu commands is enormous, mixing UI logic with data manipulation in a large `switch` statement.
--   **Complex, Nested JSX**: The `return` statement is long and contains multiple levels of `.map()` loops with complex conditional rendering, making the structure hard to follow.
-
----
-
-#### **The Refactoring Plan: From Monolith to Modular**
-
-The goal is to apply the **Orchestrator Component** pattern (see Rule 69.0) by separating the UI (what it looks like) from the logic (how it works).
-
----
-
-##### **Phase 1: Extract UI into "Dumb" Presentational Components**
-
-Break the large JSX structure into smaller, focused components that only render UI based on props.
-
-1.  **Create `ChecklistItem.tsx`**:
-    -   **Action**: Create a new component responsible for rendering a single checklist item.
-    -   **Details**: Move the JSX from the `section.items.map(...)` loop into this new component. It will receive props like `item`, `isEditable`, `editingItemId`, and all necessary handlers (`onToggleItem`, `onUpdateItemText`, etc.).
-
-2.  **Create `ChecklistSection.tsx`**:
-    -   **Action**: Create a component for rendering a single checklist section.
-    -   **Details**: Move the JSX from the `history[historyIndex].map(...)` loop into this component. It will render its own header and then map over its items, using the new `ChecklistItem` component.
-
-3.  **Create `ChecklistHeader.tsx`**:
-    -   **Action**: Create a component for the main "Checklist" header.
-    -   **Details**: This will contain the global action buttons (Expand/Collapse All, Add Note to All, etc.).
-
----
-
-##### **Phase 2: Extract Logic into a Custom Hook**
-
-Consolidate all state management and handler functions into a dedicated custom hook.
-
-**Create `useChecklist.ts`**:
--   **Action**: Create a new custom hook file at `src/hooks/useChecklist.ts`.
--   **Details**: Move all `useState`, `useRef`, `useEffect` hooks, and all 30+ `handle...` functions from `Checklist.tsx` into this new hook. The hook will accept essential props (`initialSections`, `onUpdate`, `wordId`) and return an object containing all the state and handlers that the new UI components need.
-
----
-
-##### **Phase 3: Re-assemble as an Orchestrator**
-
-Rewrite the `Checklist.tsx` component to be a clean "orchestrator."
-
-**The New `Checklist.tsx`**:
--   **Action**: Refactor the component to be a simple orchestrator.
--   **Details**: Its only job will be to call the new `useChecklist()` hook to get all the state and logic. It will then render the new UI components (`ChecklistHeader`, `ChecklistSection`, etc.), passing them the state and handlers they need from the hook.
-
----
-
-#### **Outcome**
-
-By the end of this process, `Checklist.tsx` will be a small, easy-to-read file that clearly shows how the logic from the hook is connected to the presentational UI components. This modular structure will make the entire feature vastly easier to debug and extend in the future.
-
-This is a significant but very important refactoring task that should be approached phase by phase to ensure stability.
----
-
-
--   **Major Refactor: Rename `Word` to `Task`**: This plan outlines the steps to update the legacy naming convention of `Word` to the more accurate `Task`. This will be a global find-and-replace operation, but it must be done carefully.
-
-1.  **Interface Renaming**:
-    -   In `src/types.ts`, rename the `Word` interface to `Task`.
-
-2.  **Global Find & Replace (Case-Sensitive)**:
-    -   `Word` -> `Task` (for type annotations, e.g., `word: Word` becomes `task: Task`).
-    -   `words` -> `tasks` (for state variables, e.g., `const [words, setWords]` becomes `const [tasks, setTasks]`).
-    -   `wordId` -> `taskId` (for props and variables).
-    -   `handleWordUpdate` -> `handleTaskUpdate`.
-    -   `handleCompleteWord` -> `handleCompleteTask`.
-    -   ...and all other related function and variable names (`activeTimerWordId`, etc.).
-
-3.  **Verification**: After the find-and-replace, manually review all modified files (`renderer.tsx`, `index.ts`, `preload.ts`, and all new component files) to catch any instances that were missed or incorrectly changed.
-
--   **Major Refactor: Rename `copyStatus` to `toastMessage`**: This plan outlines the steps to update the legacy naming convention of `copyStatus` to the more accurate `toastMessage`. This will improve codebase clarity, as the feature evolved from a simple "copy status" indicator to the application's central toast notification system.
-
-1.  **State Renaming in `useUIState.ts`**:
-    -   Rename `const [copyStatus, setToastStatus] = useState('');` to `const [toastMessage, setToastMessage] = useState('');`.
-    -   Update the `showToast` function to use `setToastMessage`.
-    -   Update the return object to export `toastMessage` instead of `copyStatus`.
-
-2.  **Global Find & Replace (Case-Sensitive)**:
-    -   `copyStatus` -> `toastMessage` (for state variables and props).
-    -   `setToastStatus` -> `setToastMessage` (for the state setter).
-
-3.  **Update `AppContext.ts`**:
-    -   In the `AppContextType` interface, rename `copyStatus: string;` to `toastMessage: string;`.
-
-4.  **Verification**: After the find-and-replace, manually review all modified files (`renderer.tsx`, `useUIState.ts`, `AppContext.ts`, `useAppListeners.ts`, and any components that might use it directly) to ensure all instances have been correctly updated.
-
----
-
 ## Future Features 
 - ### Linked / Looped Tasks:
     - Task Series Loop: Need to implement a series of tasks that are using the new linked task loop logic
@@ -205,7 +108,8 @@ This is a significant but very important refactoring task that should be approac
 
 ## Log of Changes
 
-- **[1.0.20] - 2025-09-28: MiniPlayer V2: Work Session Manager**: feat(player): Implement Work Session Manager and MiniPlayer V2
+- **[1.0.21] - 2025-10-02: Codebase Cleanup & Bug Fixes**: refactor(core): Standardize naming conventions (Word->Task) and Checklist.tsx refactor fix data loading
+- **[1.0.20] - 2025-10-02: MiniPlayer V2: Work Session Manager**: feat(player): Implement Work Session Manager and MiniPlayer V2
 - **[1.0.19] - 2025-09-27: Full Refactor to Hook-Based Architecture**: refactor: Complete full refactor to hook-based architecture and MiniPlayer
 - **[1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls**: feat(time): Implement Time Log Sessions and advanced timer controls
 - **[1.0.17] - 2025-09-26: Time Tracker Log & Checklist Integration**: feat(time): Implement detailed time tracker log and checklist integration
@@ -229,7 +133,25 @@ This is a significant but very important refactoring task that should be approac
 
 ---
 
-## [1.0.20] - 2025-09-28: MiniPlayer V2: Work Session Manager
+## [1.0.21] - 2025-09-28: Codebase Cleanup & Bug Fixes
+**refactor(core): Standardize naming conventions (Word->Task) and fix data loading**
+
+This commit completes a major codebase cleanup initiative, standardizing legacy naming conventions and fixing a critical data loading bug.
+
+#### Refactored
+-   **`Checklist.tsx` Component**: The monolithic `Checklist.tsx` component was refactored into a clean "Orchestrator" component. All state management and logic were extracted into a dedicated `useChecklist` custom hook, and all UI rendering was moved into smaller, single-responsibility presentational components (`ChecklistHeader`, `ChecklistSection`, `ChecklistItemComponent`). This dramatically improves maintainability and readability.
+-   **`Word` -> `Task`**: Completed a global refactor to rename the core data object from the legacy `Word` to the more accurate `Task`. This includes all related type definitions, state variables (`words` -> `tasks`), and handler functions (`handleWordUpdate` -> `handleTaskUpdate`) across the entire application. This significantly improves code clarity and maintainability.
+-   **`copyStatus` -> `toastMessage`**: Refactored the global `copyStatus` state to the more descriptive `toastMessage`. This accurately reflects its role as the application's central toast notification system.
+
+#### Fixed
+-   **Critical Data Loading Bug**: Fixed a critical bug where users' existing tasks would not load after the `Word` -> `Task` refactor. The data persistence logic in `useDataPersistence.ts` now implements a "smart loading" fallback, first checking for the new `overwhelmed-tasks` key and then checking for the old `overwhelmed-words` key. This ensures a seamless, non-destructive migration for all existing users.
+
+#### Summary
+This update finalizes the transition to a more modern and intuitive codebase. By refactoring the checklist system, standardizing naming conventions, and ensuring backward compatibility for data loading, the application is now more robust and easier for future development.
+
+---
+
+## [1.0.20] - 2025-10-2: MiniPlayer V2: Work Session Manager
 **feat(player): Implement Work Session Manager and MiniPlayer V2**
 
 This commit evolves the `MiniPlayer` from a simple timer display into an interactive "Work Session Manager," allowing users to queue up tasks and navigate between them seamlessly.
@@ -256,47 +178,6 @@ This commit evolves the `MiniPlayer` from a simple timer display into an interac
 
 #### Summary:
 This update transforms the MiniPlayer into a powerful tool for focused work. Users can now build a playlist of tasks, navigate between them with dedicated controls, and automate their workflow with the new autoplay feature, creating a true "work session" experience.
-
----
-
-## [1.0.19] - 2025-09-27: Full Refactor to Hook-Based Architecture
-**refactor: Complete full refactor to hook-based architecture**
-
-This commit marks the completion of a major architectural refactoring. The monolithic `renderer.tsx` file, which previously contained thousands of lines of mixed state, UI logic, and event handlers, has been completely overhauled.
-
-#### Changes:
--   **Hook-Based Architecture**: All application state and logic have been extracted from `renderer.tsx` and organized into a suite of single-responsibility custom hooks:
-    -   `useTaskState`: Manages all task-related data and actions.
-    -   `useUIState`: Manages global UI state (modals, toasts, loading indicators).
-    -   `useSettings`: Manages all user-configurable settings.
-    -   `useDataPersistence`: Handles all data loading, saving, import, and export logic.
-    -   `useGlobalTimer`: Manages the state for the globally active timer, laying the foundation for the MiniPlayer component.
--   **Orchestrator Component**: The `App` component in `renderer.tsx` is now a clean "orchestrator." Its sole responsibility is to initialize these hooks and provide their state to the rest of the application via the `AppContext`.
--   **Improved Maintainability**: This new architecture makes the codebase significantly easier to read, debug, and extend. Each piece of logic is now located in a predictable, self-contained file.
-
-## [1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls
-**feat(time): Implement Time Log Sessions and advanced timer controls**
-
-This commit introduces a major enhancement to the `TimeTrackerLog`, adding a persistent "Time Log Sessions" feature and a suite of advanced controls for managing both live and saved time logs.
-
-#### Time Log Sessions Features:
--   **Post to Sessions**: A new "Post" button allows users to save the current live time log as a persistent, named session.
--   **Session Management**: Saved sessions are displayed in a sortable table below the live timer. Users can expand sessions to view their entries.
--   **Full CRUD for Sessions**:
-    -   **Create**: Post a new session.
-    -   **Read**: View all saved sessions and their entries.
-    -   **Update**: Edit session titles and individual entry descriptions and durations directly in the UI.
-    -   **Delete**: Delete individual entries, clear all entries from a session, or delete entire sessions.
--   **Session Actions**: A full context menu and UI buttons provide actions to "Restart", "Duplicate", and "Copy" sessions.
-
-#### Live Timer Enhancements:
--   **Robust Controls**: Added distinct buttons to "Clear Entries" (keeping the title) and "Wipe Timer" (clearing entries and title).
--   **Duration Editing**: The duration of a live timer entry can now be edited by double-clicking it, allowing for manual corrections.
--   **Race Condition Fix**: Resolved a potential race condition in the `handlePostTimeLog` function to ensure accurate time capture.
--   **Improved Bulk Add**: The "Bulk Add" feature is now more flexible in how it detects titles from pasted text.
-
-#### Summary:
-This update transforms the `TimeTrackerLog` into a complete time management system. Users can now not only track live work but also save, review, and edit historical work sessions, providing a comprehensive record of time spent on a task.
 
 ---
 

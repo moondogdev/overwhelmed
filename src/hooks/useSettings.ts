@@ -62,13 +62,13 @@ export function useSettings({ showToast }: UseSettingsProps) {
     setSettings(prev => ({ ...prev, openAccordionIds: updater(prev.openAccordionIds) }));
   }, []);
 
-  const handleAccordionToggle = useCallback((wordId: number) => {
+  const handleAccordionToggle = useCallback((taskId: number) => {
     setOpenAccordionIds(prev => {
-      const isOpen = prev.includes(wordId);
+      const isOpen = prev.includes(taskId);
       if (isOpen) {
-        return prev.filter(id => id !== wordId);
+        return prev.filter(id => id !== taskId);
       }
-      return [...prev, wordId];
+      return [...prev, taskId];
     });
   }, [setOpenAccordionIds]);
 

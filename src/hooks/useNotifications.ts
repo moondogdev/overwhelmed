@@ -1,57 +1,57 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Word, Settings, InboxMessage } from '../types';
+import { Task, Settings, InboxMessage } from '../types';
 
 interface UseNotificationsProps {
-  words: Word[];
-  setWords: React.Dispatch<React.SetStateAction<Word[]>>;
+  tasks: Task[];
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   settings: Settings;
   setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>;
-  handleCompleteWord: (word: Word) => void;
-  removeWord: (id: number) => void;
+  handleCompleteTask: (task: Task) => void;
+  removeTask: (id: number) => void;
   isLoading: boolean;
 }
 
 export function useNotifications({
-  words,
-  setWords,
+  tasks,
+  setTasks,
   settings,
   setInboxMessages,
-  handleCompleteWord,
-  removeWord,
+  handleCompleteTask,
+  removeTask,
   isLoading,
 }: UseNotificationsProps) {
-  const [timerNotifications, setTimerNotifications] = useState<Word[]>([]);
+  const [timerNotifications, setTimerNotifications] = useState<Task[]>([]);
   const [overdueNotifications, setOverdueNotifications] = useState<Set<number>>(new Set());
   const overdueMessageSentRef = useRef(new Set<number>());
 
-  const handleTaskOverdue = useCallback((wordId: number) => {
+  const handleTaskOverdue = useCallback((taskId: number) => {
     setOverdueNotifications(prev => {
-      if (prev.has(wordId)) {
+      if (prev.has(taskId)) {
         return prev;
       }
-      if (!overdueMessageSentRef.current.has(wordId)) {
-        const word = words.find(w => w.id === wordId);
-        setInboxMessages(currentInbox => [{ id: Date.now() + Math.random(), type: 'overdue', text: `Task is overdue: ${word?.text || 'Unknown Task'}`, timestamp: Date.now(), wordId: wordId }, ...currentInbox]);
-        overdueMessageSentRef.current.add(wordId);
+      if (!overdueMessageSentRef.current.has(taskId)) {
+        const task = tasks.find(t => t.id === taskId);
+        setInboxMessages(currentInbox => [{ id: Date.now() + Math.random(), type: 'overdue', text: `Task is overdue: ${task?.text || 'Unknown Task'}`, timestamp: Date.now(), taskId: taskId }, ...currentInbox]);
+        overdueMessageSentRef.current.add(taskId);
       }
-      return new Set(prev).add(wordId);
+      return new Set(prev).add(taskId);
     });
-  }, [words, setInboxMessages]);
+  }, [tasks, setInboxMessages]);
 
-  const handleTimerNotify = useCallback((word: Word) => {
-    setTimerNotifications(prev => [...prev, word]);
+  const handleTimerNotify = useCallback((task: Task) => {
+    setTimerNotifications(prev => [...prev, task]);
     setTimeout(() => {
-      setTimerNotifications(prev => prev.filter(n => n.id !== word.id));
+      setTimerNotifications(prev => prev.filter(n => n.id !== task.id));
     }, 8000);
   }, []);
 
-  const handleSnooze = useCallback((wordToSnooze: Word, duration?: 'low' | 'medium' | 'high') => {
+  const handleSnooze = useCallback((taskToSnooze: Task, duration?: 'low' | 'medium' | 'high') => {
     const snoozeDurations = { low: 1 * 60 * 1000, medium: 5 * 60 * 1000, high: 10 * 60 * 1000 };
     const snoozeDurationMs = snoozeDurations[duration || settings.snoozeTime];
     const snoozedUntil = Date.now() + snoozeDurationMs;
-    setWords(prevWords => prevWords.map(w => w.id === wordToSnooze.id ? { ...w, lastNotified: snoozedUntil, snoozeCount: (w.snoozeCount || 0) + 1, snoozedAt: Date.now() } : w));
-    setOverdueNotifications(prev => { const newSet = new Set(prev); newSet.delete(wordToSnooze.id); return newSet; });
-  }, [settings.snoozeTime, setWords]);
+    setTasks(prevTasks => prevTasks.map(t => t.id === taskToSnooze.id ? { ...t, lastNotified: snoozedUntil, snoozeCount: (t.snoozeCount || 0) + 1, snoozedAt: Date.now() } : t));
+    setOverdueNotifications(prev => { const newSet = new Set(prev); newSet.delete(taskToSnooze.id); return newSet; });
+  }, [settings.snoozeTime, setTasks]);
 
   const handleSnoozeAll = useCallback((duration?: 'low' | 'medium' | 'high') => {
     const now = Date.now();
@@ -59,27 +59,27 @@ export function useNotifications({
     const snoozeDurationMs = snoozeDurations[duration || settings.snoozeTime];
     const snoozedUntil = now + snoozeDurationMs;
     const overdueIds = Array.from(overdueNotifications);
-    setWords(prevWords => prevWords.map(w =>
-      overdueIds.includes(w.id) ? { ...w, lastNotified: snoozedUntil, snoozeCount: (w.snoozeCount || 0) + 1, snoozedAt: now } : w
+    setTasks(prevTasks => prevTasks.map(t =>
+      overdueIds.includes(t.id) ? { ...t, lastNotified: snoozedUntil, snoozeCount: (t.snoozeCount || 0) + 1, snoozedAt: now } : t
     ));
     setOverdueNotifications(new Set());
-  }, [overdueNotifications, settings.snoozeTime, setWords]);
+  }, [overdueNotifications, settings.snoozeTime, setTasks]);
 
   const handleCompleteAllOverdue = useCallback(() => {
     const overdueIds = Array.from(overdueNotifications);
     overdueIds.forEach(id => {
-      const wordToComplete = words.find(w => w.id === id);
-      if (wordToComplete) handleCompleteWord(wordToComplete);
+      const taskToComplete = tasks.find(t => t.id === id);
+      if (taskToComplete) handleCompleteTask(taskToComplete);
     });
-  }, [overdueNotifications, words, handleCompleteWord]);
+  }, [overdueNotifications, tasks, handleCompleteTask]);
 
   const handleDeleteAllOverdue = useCallback(() => {
     const overdueIds = Array.from(overdueNotifications);
     overdueIds.forEach(id => {
-      const wordToDelete = words.find(w => w.id === id);
-      if (wordToDelete) removeWord(wordToDelete.id);
+      const taskToDelete = tasks.find(t => t.id === id);
+      if (taskToDelete) removeTask(taskToDelete.id);
     });
-  }, [overdueNotifications, words, removeWord]);
+  }, [overdueNotifications, tasks, removeTask]);
 
   useEffect(() => {
     // Do not run any timer logic until the initial data load is complete.
@@ -88,23 +88,23 @@ export function useNotifications({
     const notificationInterval = setInterval(() => {
       const now = Date.now();
       const newlyOverdueIds = new Set<number>();
-      const approachingWords: Word[] = [];
+      const approachingTasks: Task[] = [];
 
       // First, collect all events for this tick
-      for (const word of words) {
-        if (!word.completeBy) continue;
+      for (const task of tasks) {
+        if (!task.completeBy) continue;
 
-        const ms = word.completeBy - now;
+        const ms = task.completeBy - now;
         if (ms < 0) { // Task is overdue
-          const snoozedUntil = word.lastNotified || 0;
+          const snoozedUntil = task.lastNotified || 0;
           if (now > snoozedUntil) {
-            newlyOverdueIds.add(word.id);
+            newlyOverdueIds.add(task.id);
           }
         } else { // Task is not yet due, check for approaching deadline
           if (settings.timerNotificationLevel === 'silent') continue;
 
           const minutesLeft = Math.floor(ms / 60000);
-          const lastNotifiedMinutes = word.lastNotified ? Math.floor((word.completeBy - word.lastNotified) / 60000) : Infinity;
+          const lastNotifiedMinutes = task.lastNotified ? Math.floor((task.completeBy - task.lastNotified) / 60000) : Infinity;
 
           let shouldNotify = false;
           if (settings.timerNotificationLevel === 'high' && minutesLeft > 0 && (minutesLeft % 60 === 0 || (minutesLeft <= 60 && minutesLeft % 15 === 0)) && lastNotifiedMinutes > minutesLeft) {
@@ -116,7 +116,7 @@ export function useNotifications({
           }
 
           if (shouldNotify) {
-            approachingWords.push(word);
+            approachingTasks.push(task);
           }
         }
       }
@@ -125,13 +125,13 @@ export function useNotifications({
       if (newlyOverdueIds.size > 0) {
         newlyOverdueIds.forEach(id => handleTaskOverdue(id));
       }
-      if (approachingWords.length > 0) {
-        approachingWords.forEach(word => handleTimerNotify(word));
-        setWords(prev => prev.map(w => approachingWords.find(aw => aw.id === w.id) ? { ...w, lastNotified: now } : w));
+      if (approachingTasks.length > 0) {
+        approachingTasks.forEach(task => handleTimerNotify(task));
+        setTasks(prev => prev.map(t => approachingTasks.find(at => at.id === t.id) ? { ...t, lastNotified: now } : t));
       }
     }, 1000); // Check every second
     return () => clearInterval(notificationInterval);
-  }, [isLoading, words, settings, handleTaskOverdue, handleTimerNotify, setWords]);
+  }, [isLoading, tasks, settings, handleTaskOverdue, handleTimerNotify, setTasks]);
 
   return {
     timerNotifications, overdueNotifications, handleTaskOverdue, handleTimerNotify,

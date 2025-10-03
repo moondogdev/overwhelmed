@@ -1,5 +1,5 @@
 import React from 'react';
-import { Word, Settings } from '../types';
+import { Task, Settings } from '../types';
 import { TimeLeft } from './TaskComponents';
 import { useAppContext } from '../contexts/AppContext';
 
@@ -7,13 +7,13 @@ interface OverdueNoticeProps {}
 
 export function OverdueNotice({}: OverdueNoticeProps) {
   const {
-    overdueNotifications, words, settings, setSettings, snoozeTimeSelectRef, handleSnoozeAll,
+    overdueNotifications, tasks, settings, setSettings, snoozeTimeSelectRef, handleSnoozeAll,
     handleCompleteAllOverdue, handleDeleteAllOverdue, navigateToTask, handleSnooze,
-    handleCompleteWord, removeWord, setWords, handleTimerNotify
+    handleCompleteTask, removeTask, setTasks, handleTimerNotify
   } = useAppContext();
 
-  const handleInboxItemClick = (message: { wordId: number }) => {
-    navigateToTask(message.wordId);
+  const handleInboxItemClick = (message: { taskId: number }) => {
+    navigateToTask(message.taskId);
   };
 
   if (overdueNotifications.size === 0) {
@@ -34,27 +34,27 @@ export function OverdueNotice({}: OverdueNoticeProps) {
         )}
       </div>
       <div className="overdue-notification-list">
-        {Array.from(overdueNotifications).map(wordId => {
-          const word = words.find(w => w.id === wordId);
-          if (!word) return null;
+        {Array.from(overdueNotifications).map(taskId => {
+          const task = tasks.find(t => t.id === taskId);
+          if (!task) return null;
           return (
             <div
-              key={word.id}
+              key={task.id}
               className="overdue-notification-toast"
               onContextMenu={(e) => {
                 e.preventDefault();
-                const isInEditMode = settings.activeTaskTabs?.[word.id] === 'edit';
-                window.electronAPI.showToastContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY, isInEditMode });
+                const isInEditMode = settings.activeTaskTabs?.[task.id] === 'edit';
+                window.electronAPI.showToastContextMenu({ taskId: task.id, x: e.clientX, y: e.clientY, isInEditMode });
               }}
             >
               <div className="overdue-notification-content">
                 <div className="overdue-title-bar">
                   <span
                     className="clickable"
-                    onClick={() => handleInboxItemClick({ wordId: word.id })}
+                    onClick={() => handleInboxItemClick({ taskId: task.id })}
                     title="Go to task">
                     <span className="toast-icon">🚨</span>
-                    <strong>{word.text}</strong> is Due!
+                    <strong>{task.text}</strong> is Due!
                   </span><button className="icon-button overdue-settings-btn" title="Edit Notification Settings" onClick={() => {
                     const timeManagementAccordionId = -2;
                     setSettings(prev => ({ ...prev, openAccordionIds: [...new Set([...prev.openAccordionIds, timeManagementAccordionId])] }));
@@ -65,17 +65,17 @@ export function OverdueNotice({}: OverdueNoticeProps) {
                     }, 100);;
                   }}><i className="fas fa-cog"></i></button>
                 </div>
-                <div className="overdue-timer clickable" onClick={() => handleInboxItemClick({ wordId: word.id })} title="Go to task">
-                  <TimeLeft word={word} onUpdate={(updatedWord) => setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w))} onNotify={handleTimerNotify} settings={settings} />
+                <div className="overdue-timer clickable" onClick={() => handleInboxItemClick({ taskId: task.id })} title="Go to task">
+                  <TimeLeft task={task} onUpdate={(updatedTask) => setTasks(tasks.map(t => t.id === updatedTask.id ? updatedTask : t))} onNotify={handleTimerNotify} settings={settings} />
                 </div>
                 <div className="overdue-inbox-link">
                   Notification sent to <a href="#" onClick={(e) => { e.preventDefault(); setSettings(prev => ({...prev, currentView: 'inbox'})); }}>Inbox</a>
                 </div>
                 <div className="overdue-notification-actions">
-                  <button onClick={() => handleSnooze(word)} title={`Snooze for ${settings.snoozeTime === 'low' ? '1' : settings.snoozeTime === 'medium' ? '5' : '10'} minutes`}>Snooze</button>
-                  <button onClick={() => handleSnooze(word, 'high')} title="Snooze for 10 minutes">Snooze 10m</button>
-                  <button onClick={() => handleCompleteWord(word)} title="Complete this task">Complete</button>
-                  <button onClick={() => removeWord(word.id)} title="Delete this task">Delete</button>
+                  <button onClick={() => handleSnooze(task)} title={`Snooze for ${settings.snoozeTime === 'low' ? '1' : settings.snoozeTime === 'medium' ? '5' : '10'} minutes`}>Snooze</button>
+                  <button onClick={() => handleSnooze(task, 'high')} title="Snooze for 10 minutes">Snooze 10m</button>
+                  <button onClick={() => handleCompleteTask(task)} title="Complete this task">Complete</button>
+                  <button onClick={() => removeTask(task.id)} title="Delete this task">Delete</button>
                 </div>
               </div>
             </div>

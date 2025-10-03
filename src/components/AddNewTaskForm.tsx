@@ -1,5 +1,5 @@
 import React from 'react';
-import { Word, Settings, ChecklistItem, ChecklistSection } from '../types';
+import { Task, Settings, ChecklistItem, ChecklistSection } from '../types';
 import { formatTimestampForInput, parseInputTimestamp } from '../utils';
 import { CategoryOptions } from './TaskView';
 import { Checklist } from './Checklist';
@@ -9,7 +9,7 @@ import { SimpleAccordion } from './SidebarComponents';
 
 export function AddNewTaskForm() {
   const {
-    newTask, setNewTask, settings, setSettings, words, setInboxMessages,
+    newTask, setNewTask, settings, setSettings, tasks, setInboxMessages,
     handleChecklistCompletion, activeChecklistRef, showToast, focusChecklistItemId,
     setFocusChecklistItemId, handleGlobalToggleTimer, handleCreateNewTask, handleClearActiveTimer, handlePrimeTask, handlePrimeTaskWithNewLog, activeTimerEntry, activeTimerLiveTime,
     newTaskTitleInputRef, isAddTaskOpen, setIsAddTaskOpen,
@@ -24,7 +24,7 @@ export function AddNewTaskForm() {
     }
   };
 
-  const shouldShow = (fieldName: keyof Word) => visibleFields.includes(fieldName);
+  const shouldShow = (fieldName: keyof Task) => visibleFields.includes(fieldName);
 
   return (
     <SimpleAccordion title="Add New Task" startOpen={isAddTaskOpen} onToggle={setIsAddTaskOpen}>
@@ -116,12 +116,12 @@ export function AddNewTaskForm() {
         onUpdate={(newSections) => setNewTask({ ...newTask, checklist: newSections })}
         onComplete={handleChecklistCompletion}
         isEditable={true}
-        onWordUpdate={(updatedWord) => setNewTask(updatedWord)}
-        word={newTask as Word}
-        words={words}
+        onTaskUpdate={(updatedTask) => setNewTask(updatedTask)}
+        task={newTask as Task}
+        tasks={tasks}
         setInboxMessages={setInboxMessages}
         checklistRef={activeChecklistRef}
-        wordId={Date.now()} // Use a temporary ID for the new task context
+        taskId={Date.now()} // Use a temporary ID for the new task context
         showToast={showToast}
         focusItemId={focusChecklistItemId}
         onFocusHandled={() => setFocusChecklistItemId(null)}

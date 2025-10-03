@@ -1,21 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Word, TimeLogEntry, Settings, ChecklistSection, ChecklistItem, TimeLogSession } from '../types';
+import { Task, TimeLogEntry, Settings, ChecklistSection, ChecklistItem, TimeLogSession } from '../types';
 import { formatTime } from '../utils';
 
 interface UseGlobalTimerProps {
-  words: Word[];
-  setWords: React.Dispatch<React.SetStateAction<Word[]>>;
+  tasks: Task[];
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   settings: Settings;
 }
 
-export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProps) {
-  const [activeTimerWordId, setActiveTimerWordId] = useState<number | null>(null);
+export function useGlobalTimer({ tasks, setTasks, settings }: UseGlobalTimerProps) {
+  const [activeTimerTaskId, setActiveTimerTaskId] = useState<number | null>(null);
   const [activeTimerEntry, setActiveTimerEntry] = useState<TimeLogEntry | null>(null);
   const [activeTimerLiveTime, setActiveTimerLiveTime] = useState<number>(0);  
   const [primedTaskId, setPrimedTaskId] = useState<number | null>(null);
 
   // Refs to hold the latest timer state for background processes
-  const activeTimerWordIdRef = useRef(activeTimerWordId);
+  const activeTimerTaskIdRef = useRef(activeTimerTaskId);
   const activeTimerEntryRef = useRef(activeTimerEntry);
 
 
@@ -32,61 +32,61 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
 
   // Keep refs updated with the latest state
   useEffect(() => {
-    activeTimerWordIdRef.current = activeTimerWordId;
-  }, [activeTimerWordId]);
+    activeTimerTaskIdRef.current = activeTimerTaskId;
+  }, [activeTimerTaskId]);
   useEffect(() => {
     activeTimerEntryRef.current = activeTimerEntry;
   }, [activeTimerEntry]);
 
   const handleGlobalStopTimer = useCallback(() => {
-    if (!activeTimerWordId || !activeTimerEntry) return;
+    if (!activeTimerTaskId || !activeTimerEntry) return;
 
     const now = Date.now();
     const elapsed = now - (activeTimerEntry.startTime || now);
     const finalDuration = activeTimerEntry.duration + elapsed;
 
-    setWords(prevWords =>
-      prevWords.map(w => {
-        if (w.id !== activeTimerWordId) return w;
-        const newTimeLog = (w.timeLog || []).map(entry =>
+    setTasks(prevTasks =>
+      prevTasks.map(t => {
+        if (t.id !== activeTimerTaskId) return t;
+        const newTimeLog = (t.timeLog || []).map(entry =>
           entry.id === activeTimerEntry.id
             ? { ...entry, duration: finalDuration, isRunning: false, startTime: undefined }
             : entry
         );
-        return { ...w, timeLog: newTimeLog };
+        return { ...t, timeLog: newTimeLog };
       })
     );
 
-    setActiveTimerWordId(null);
+    setActiveTimerTaskId(null);
     setActiveTimerEntry(null);
     setActiveTimerLiveTime(0);
     setPrimedTaskId(null);
-  }, [activeTimerWordId, activeTimerEntry, setWords]);
+  }, [activeTimerTaskId, activeTimerEntry, setTasks]);
 
-  const handleGlobalToggleTimer = useCallback((wordIdToToggle: number, entryIdToToggle: number, entryToStart?: TimeLogEntry, newTimeLog?: TimeLogEntry[]) => {
+  const handleGlobalToggleTimer = useCallback((taskIdToToggle: number, entryIdToToggle: number, entryToStart?: TimeLogEntry, newTimeLog?: TimeLogEntry[]) => {
     const now = Date.now();
 
-    setWords(prevWords => {
-      let wordsWithStoppedTimer = [...prevWords];
-      const isSwitchingTimers = activeTimerWordId && activeTimerEntry && (activeTimerWordId !== wordIdToToggle || activeTimerEntry.id !== entryIdToToggle);
+    setTasks(prevTasks => {
+      let tasksWithStoppedTimer = [...prevTasks];
+      const isSwitchingTimers = activeTimerTaskId && activeTimerEntry && (activeTimerTaskId !== taskIdToToggle || activeTimerEntry.id !== entryIdToToggle);
 
       // --- Step 1: Gracefully stop the currently running timer if we are switching ---
       if (isSwitchingTimers) {
-        const lastActiveWordId = activeTimerWordId;
+        const lastActiveTaskId = activeTimerTaskId;
         const lastActiveEntry = activeTimerEntry;
         const elapsed = now - (lastActiveEntry.startTime || now);
         const finalDuration = lastActiveEntry.duration + elapsed;
 
-        wordsWithStoppedTimer = wordsWithStoppedTimer.map(w => {
-          if (w.id !== lastActiveWordId) return w;
-          const updatedTimeLog = (w.timeLog || []).map(entry =>
+        tasksWithStoppedTimer = tasksWithStoppedTimer.map(t => {
+          if (t.id !== lastActiveTaskId) return t;
+          const updatedTimeLog = (t.timeLog || []).map(entry =>
             entry.id === lastActiveEntry.id
               ? { ...entry, duration: finalDuration, isRunning: false, startTime: undefined }
               : entry
           );
 
           // Find the corresponding checklist item and update its loggedTime.
-          let updatedChecklist = w.checklist || [];
+          let updatedChecklist = t.checklist || [];
           if (lastActiveEntry.checklistItemId) {
             updatedChecklist = updatedChecklist.map(sectionOrItem => {
               if ('items' in sectionOrItem) { // It's a ChecklistSection
@@ -95,21 +95,21 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
               return sectionOrItem;
             }) as ChecklistSection[] | ChecklistItem[]; // Cast to satisfy TypeScript's union type
           }
-          return { ...w, timeLog: updatedTimeLog, checklist: updatedChecklist };
+          return { ...t, timeLog: updatedTimeLog, checklist: updatedChecklist };
         });
       }
 
       // --- Step 2: Toggle the target timer ---
-      return wordsWithStoppedTimer.map(w => {
-        if (w.id !== wordIdToToggle) return w; // Not the task we're interested in.
+      return tasksWithStoppedTimer.map(t => {
+        if (t.id !== taskIdToToggle) return t; // Not the task we're interested in.
 
-        let timeLog = newTimeLog ? [...newTimeLog] : [...(w.timeLog || [])];
+        let timeLog = newTimeLog ? [...newTimeLog] : [...(t.timeLog || [])];
         const entryIndex = timeLog.findIndex(e => e.id === entryIdToToggle);
         let targetEntry = entryIndex !== -1 ? timeLog[entryIndex] : entryToStart;
 
-        if (!targetEntry) return w;
+        if (!targetEntry) return t;
 
-        const isCurrentlyRunning = targetEntry.isRunning && activeTimerWordId === wordIdToToggle && activeTimerEntry?.id === entryIdToToggle;
+        const isCurrentlyRunning = targetEntry.isRunning && activeTimerTaskId === taskIdToToggle && activeTimerEntry?.id === entryIdToToggle;
 
         if (isCurrentlyRunning) {
           // PAUSE: Calculate final duration and update the entry.
@@ -118,7 +118,7 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
 
           // Also update the corresponding checklist item's loggedTime
           if (targetEntry.checklistItemId) {
-            w.checklist = (w.checklist || []).map(sectionOrItem => {
+            t.checklist = (t.checklist || []).map(sectionOrItem => {
               if ('items' in sectionOrItem) {
                 return { ...sectionOrItem, items: sectionOrItem.items.map(item => item.id === targetEntry.checklistItemId ? { ...item, loggedTime: finalDuration } : item) };
               }
@@ -127,7 +127,7 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
           }
           targetEntry = { ...targetEntry, duration: finalDuration, isRunning: false, startTime: undefined };
           // Keep the timer "active" but in a paused state.
-          setActiveTimerWordId(wordIdToToggle);
+          setActiveTimerTaskId(taskIdToToggle);
           setActiveTimerEntry(targetEntry);
           setActiveTimerLiveTime(finalDuration);
         } else {
@@ -138,7 +138,7 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
             newDuration += timeSinceLastSave;
           }
           targetEntry = { ...targetEntry, duration: newDuration, isRunning: true, startTime: now };
-          setActiveTimerWordId(wordIdToToggle);
+          setActiveTimerTaskId(taskIdToToggle);
           setActiveTimerEntry(targetEntry);
           setActiveTimerLiveTime(targetEntry.duration);
           setPrimedTaskId(null);
@@ -151,26 +151,26 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
           timeLog.push(targetEntry);
         }
 
-        return { ...w, timeLog };
+        return { ...t, timeLog };
       });
     });
-  }, [activeTimerWordId, activeTimerEntry, setWords]);
+  }, [activeTimerTaskId, activeTimerEntry, setTasks]);
 
-  const handleGlobalResetTimer = useCallback((wordId: number, entryId: number) => {
-    setWords(prevWords =>
-      prevWords.map(w => {
-        if (w.id !== wordId) return w;
-        const newTimeLog = (w.timeLog || []).map(entry =>
+  const handleGlobalResetTimer = useCallback((taskId: number, entryId: number) => {
+    setTasks(prevTasks =>
+      prevTasks.map(t => {
+        if (t.id !== taskId) return t;
+        const newTimeLog = (t.timeLog || []).map(entry =>
           entry.id === entryId
             ? { ...entry, duration: 0, isRunning: false, startTime: undefined }
             : entry
         );
-        return { ...w, timeLog: newTimeLog };
+        return { ...t, timeLog: newTimeLog };
       })
     );
 
     // If this was the active timer, clear the global state to stop the player
-    if (activeTimerWordId === wordId && activeTimerEntry && activeTimerEntry.id === entryId) {
+    if (activeTimerTaskId === taskId && activeTimerEntry && activeTimerEntry.id === entryId) {
       // New Logic: Instead of clearing the player, update it to show the reset (but still active) entry.
       const resetEntry: TimeLogEntry = {
         ...activeTimerEntry,
@@ -181,10 +181,10 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
       setActiveTimerEntry(resetEntry);
       setActiveTimerLiveTime(0);
     }
-  }, [words, setWords, activeTimerWordId, activeTimerEntry]);
+  }, [tasks, setTasks, activeTimerTaskId, activeTimerEntry]);
 
   const handleClearActiveTimer = useCallback(() => {
-    setActiveTimerWordId(null);
+    setActiveTimerTaskId(null);
     setActiveTimerEntry(null);
     setActiveTimerLiveTime(0);
     setPrimedTaskId(null);
@@ -200,34 +200,34 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
     const firstPlayableEntry = newTimeLog.find(e => e.type !== 'header');
 
     // This is an atomic operation to prevent race conditions.
-    setWords(prevWords => 
-      prevWords.map(w => 
-        w.id === taskId 
-          ? { ...w, timeLog: newTimeLog, timeLogTitle: timeLogTitle } 
-          : w
+    setTasks(prevTasks => 
+      prevTasks.map(t => 
+        t.id === taskId 
+          ? { ...t, timeLog: newTimeLog, timeLogTitle: timeLogTitle } 
+          : t
       )
     );
-    // After the word state is updated, we set the active timer state to reflect the primed task,
+    // After the task state is updated, we set the active timer state to reflect the primed task,
     // but in a non-running state. This ensures the MiniPlayer has a concrete entry to display immediately.
     if (firstPlayableEntry) {
-      setActiveTimerWordId(taskId);
+      setActiveTimerTaskId(taskId);
       setActiveTimerEntry({ ...firstPlayableEntry, isRunning: false, startTime: undefined }); // Ensure it's not running
       setActiveTimerLiveTime(firstPlayableEntry.duration); // Show its duration
       setPrimedTaskId(null); // It's now "active" (loaded), not just primed.
     } else {
       // If no playable entry, clear everything.
-      setActiveTimerWordId(null);
+      setActiveTimerTaskId(null);
       setActiveTimerEntry(null);
       setActiveTimerLiveTime(0);
       setPrimedTaskId(null);
     }
-  }, [setWords]);
+  }, [setTasks]);
 
   const handleNavigateWorkSession = useCallback((direction: 'next' | 'previous') => {
     const workSessionQueue = settings.workSessionQueue || [];
     if (workSessionQueue.length === 0) return;
 
-    const currentIndex = activeTimerWordId !== null ? workSessionQueue.indexOf(activeTimerWordId) : -1;
+    const currentIndex = activeTimerTaskId !== null ? workSessionQueue.indexOf(activeTimerTaskId) : -1;
     let nextIndex = -1;
 
     if (direction === 'next') {
@@ -245,26 +245,26 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
     // If we found a valid next index to move to
     if (nextIndex !== -1) {
       const nextTaskId = workSessionQueue[nextIndex];
-      const nextTask = words.find(w => w.id === nextTaskId);
+      const nextTask = tasks.find(t => t.id === nextTaskId);
       if (nextTask) {
         handleGlobalStopTimer(); // Stop current timer if any
         // Create a new entry and start it using the unified toggle function
         const newEntry: TimeLogEntry = { id: Date.now(), description: `Starting session: ${nextTask.text}`, duration: 0, createdAt: Date.now() };
-        setWords(prev => prev.map(w => w.id === nextTaskId ? { ...w, timeLog: [...(w.timeLog || []), newEntry] } : w));
+        setTasks(prev => prev.map(t => t.id === nextTaskId ? { ...t, timeLog: [...(t.timeLog || []), newEntry] } : t));
         setTimeout(() => {
           handleGlobalToggleTimer(nextTaskId, newEntry.id, newEntry);
         }, 100);
       }
     }
-  }, [activeTimerWordId, settings.workSessionQueue, words, handleGlobalStopTimer, handleGlobalToggleTimer, setWords]);
+  }, [activeTimerTaskId, settings.workSessionQueue, tasks, handleGlobalStopTimer, handleGlobalToggleTimer, setTasks]);
 
   const handleNextTask = useCallback(() => handleNavigateWorkSession('next'), [handleNavigateWorkSession]);
   const handlePreviousTask = useCallback(() => handleNavigateWorkSession('previous'), [handleNavigateWorkSession]);
 
   const handleNavigateChapter = useCallback((direction: 'next' | 'previous') => {
-    if (!activeTimerWordId || !activeTimerEntry) return;
+    if (!activeTimerTaskId || !activeTimerEntry) return;
 
-    const currentTask = words.find(w => w.id === activeTimerWordId);
+    const currentTask = tasks.find(t => t.id === activeTimerTaskId);
     const timeLog = currentTask?.timeLog || [];
     if (timeLog.length < 2) return;
 
@@ -301,15 +301,15 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
     if (targetHeaderIndex !== -1) {
       const firstEntryOfChapter = timeLog.find((entry, index) => index > targetHeaderIndex && entry.type !== 'header');
       if (firstEntryOfChapter) {
-        handleGlobalToggleTimer(activeTimerWordId, firstEntryOfChapter.id);
+        handleGlobalToggleTimer(activeTimerTaskId, firstEntryOfChapter.id);
       }
     }
-  }, [activeTimerWordId, activeTimerEntry, words, handleGlobalToggleTimer]);
+  }, [activeTimerTaskId, activeTimerEntry, tasks, handleGlobalToggleTimer]);
 
   const handleNavigateLogEntry = useCallback((direction: 'next' | 'previous') => {
-    if (!activeTimerWordId || !activeTimerEntry) return;
+    if (!activeTimerTaskId || !activeTimerEntry) return;
 
-    const currentTask = words.find(w => w.id === activeTimerWordId);
+    const currentTask = tasks.find(t => t.id === activeTimerTaskId);
     const timeLog = currentTask?.timeLog || [];
     if (timeLog.length < 2) return;
 
@@ -339,16 +339,16 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
     if (nextIndex !== -1) {
       const nextEntry = timeLog[nextIndex];
       // Use handleGlobalToggleTimer to stop the current and start the next one.
-      handleGlobalToggleTimer(activeTimerWordId, nextEntry.id);
+      handleGlobalToggleTimer(activeTimerTaskId, nextEntry.id);
     }
-  }, [activeTimerWordId, activeTimerEntry, words, handleGlobalToggleTimer]);
+  }, [activeTimerTaskId, activeTimerEntry, tasks, handleGlobalToggleTimer]);
 
   const handleStartSession = useCallback(() => {
     const workSessionQueue = settings.workSessionQueue || [];
     if (workSessionQueue.length === 0) return;
 
     const firstTaskId = workSessionQueue[0];
-    const firstTask = words.find(w => w.id === firstTaskId);
+    const firstTask = tasks.find(t => t.id === firstTaskId);
     if (firstTask) {
       // If the task has a pre-existing work timer list, start from the first entry.
       if (firstTask.timeLog && firstTask.timeLog.length > 0) {
@@ -357,16 +357,16 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
       } else {
         // Otherwise, create a new entry to start the session.
         const newEntry: TimeLogEntry = { id: Date.now(), description: `Starting session: ${firstTask.text}`, duration: 0, createdAt: Date.now() };
-        setWords(prev => prev.map(w => w.id === firstTaskId ? { ...w, timeLog: [newEntry] } : w));
+        setTasks(prev => prev.map(t => t.id === firstTaskId ? { ...t, timeLog: [newEntry] } : t));
         setTimeout(() => {
           handleGlobalToggleTimer(firstTaskId, newEntry.id, newEntry, [newEntry]);
         }, 100);
       }
     }
-  }, [settings.workSessionQueue, words, handleGlobalToggleTimer, setWords]);
+  }, [settings.workSessionQueue, tasks, handleGlobalToggleTimer, setTasks]);
 
   const handleStartTaskFromSession = useCallback((taskId: number) => {
-    const task = words.find(w => w.id === taskId);
+    const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
     // Case 1: The task already has a populated time log. Start from the first entry.
@@ -401,28 +401,28 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
     } else {
       // Case 3: The task has no time log and no checklist. Create a default entry.
       const newEntry: TimeLogEntry = { id: Date.now(), description: `Starting session: ${task.text}`, duration: 0, createdAt: Date.now() };
-      setWords(prev => prev.map(w => w.id === taskId ? { ...w, timeLog: [newEntry] } : w));
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, timeLog: [newEntry] } : t));
       setTimeout(() => {
         handleGlobalToggleTimer(taskId, newEntry.id, newEntry, [newEntry]);
       }, 100);
     }
-  }, [words, handleGlobalToggleTimer, setWords]);
+  }, [tasks, handleGlobalToggleTimer, setTasks]);
 
   const handleNextEntry = useCallback(() => handleNavigateLogEntry('next'), [handleNavigateLogEntry]);
   const handlePreviousEntry = useCallback(() => handleNavigateLogEntry('previous'), [handleNavigateLogEntry]);
   const handleNextChapter = useCallback(() => handleNavigateChapter('next'), [handleNavigateChapter]);
   const handlePreviousChapter = useCallback(() => handleNavigateChapter('previous'), [handleNavigateChapter]);
 
-  const handlePostAndComplete = useCallback((wordId: number, entryId: number, onUpdate: (updatedWord: Word) => void) => {
-    // Find the specific word from the current state
-    const word = words.find(w => w.id === wordId);
-    if (!word) return;
+  const handlePostAndComplete = useCallback((taskId: number, entryId: number, onUpdate: (updatedTask: Task) => void) => {
+    // Find the specific task from the current state
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
   
-    const entry = word.timeLog?.find(e => e.id === entryId);
+    const entry = task.timeLog?.find(e => e.id === entryId);
     if (!entry || !entry.checklistItemId) return;
   
     // Find the checklist item and toggle its completion status
-    const updatedChecklist = (word.checklist || []).map((sectionOrItem): ChecklistItem | ChecklistSection => {
+    const updatedChecklist = (task.checklist || []).map((sectionOrItem): ChecklistItem | ChecklistSection => {
       if ('items' in sectionOrItem) { // It's a ChecklistSection
         return { ...sectionOrItem, items: sectionOrItem.items.map(item => item.id === entry.checklistItemId ? { ...item, isCompleted: !item.isCompleted } : item) };
       }
@@ -430,18 +430,18 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
     });
   
     // We only need to update the checklist. The time log itself is not changed by this action.
-    const updatedWord = { ...word, checklist: updatedChecklist } as Word;
+    const updatedTask = { ...task, checklist: updatedChecklist } as Task;
     
     // Use the passed-in onUpdate for an immediate UI refresh in the parent component
-    onUpdate(updatedWord);
-  }, [words, activeTimerWordId, activeTimerEntry, handleClearActiveTimer]);
+    onUpdate(updatedTask);
+  }, [tasks, activeTimerTaskId, activeTimerEntry, handleClearActiveTimer]);
 
-  const handlePostLog = useCallback((wordId: number) => {
-    setWords(prevWords => {
-      const word = prevWords.find(w => w.id === wordId);
-      if (!word || !word.timeLog || word.timeLog.length === 0) return prevWords;
+  const handlePostLog = useCallback((taskId: number) => {
+    setTasks(prevTasks => {
+      const task = prevTasks.find(t => t.id === taskId);
+      if (!task || !task.timeLog || !task.timeLog.length) return prevTasks;
 
-      let finalTimeLog = [...word.timeLog];
+      let finalTimeLog = [...task.timeLog];
       const runningEntryIndex = finalTimeLog.findIndex(e => e.isRunning);
 
       if (runningEntryIndex !== -1) {
@@ -452,23 +452,23 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
 
       const newSession: TimeLogSession = {
         id: Date.now() + Math.random(),
-        title: word.timeLogTitle || 'New Log Session',
+        title: task.timeLogTitle || 'New Log Session',
         createdAt: Date.now(),
         entries: finalTimeLog
       };
 
-      if (activeTimerWordId === wordId) handleClearActiveTimer();
+      if (activeTimerTaskId === taskId) handleClearActiveTimer();
 
-      return prevWords.map(w => w.id === wordId ? { ...w, timeLog: [], timeLogTitle: undefined, timeLogSessions: [...(w.timeLogSessions || []), newSession] } : w);
+      return prevTasks.map(t => t.id === taskId ? { ...t, timeLog: [], timeLogTitle: undefined, timeLogSessions: [...(t.timeLogSessions || []), newSession] } : t);
     });
-  }, [setWords, activeTimerWordId, handleClearActiveTimer]);
+  }, [setTasks, activeTimerTaskId, handleClearActiveTimer]);
 
-  const handlePostAndResetLog = useCallback((wordId: number) => {
-    setWords(prevWords => {
-      const word = prevWords.find(w => w.id === wordId);
-      if (!word || !word.timeLog || word.timeLog.length === 0) return prevWords;
+  const handlePostAndResetLog = useCallback((taskId: number) => {
+    setTasks(prevTasks => {
+      const task = prevTasks.find(t => t.id === taskId);
+      if (!task || !task.timeLog || !task.timeLog.length) return prevTasks;
 
-      let finalTimeLog = [...word.timeLog];
+      let finalTimeLog = [...task.timeLog];
       const runningEntryIndex = finalTimeLog.findIndex(e => e.isRunning);
 
       if (runningEntryIndex !== -1) {
@@ -479,44 +479,44 @@ export function useGlobalTimer({ words, setWords, settings }: UseGlobalTimerProp
 
       const newSession: TimeLogSession = {
         id: Date.now() + Math.random(),
-        title: word.timeLogTitle || 'New Log Session',
+        title: task.timeLogTitle || 'New Log Session',
         createdAt: Date.now(),
         entries: finalTimeLog,
       };
 
       const resetTimeLog: TimeLogEntry[] = finalTimeLog.map(entry => ({ ...entry, duration: 0, isRunning: false, startTime: undefined } as TimeLogEntry));
 
-      if (activeTimerWordId === wordId) handleClearActiveTimer();
+      if (activeTimerTaskId === taskId) handleClearActiveTimer();
 
-      return prevWords.map(w => w.id === wordId ? { ...w, timeLog: resetTimeLog, timeLogSessions: [...(w.timeLogSessions || []), newSession] } : w);
+      return prevTasks.map(t => t.id === taskId ? { ...t, timeLog: resetTimeLog, timeLogSessions: [...(t.timeLogSessions || []), newSession] } : t);
     });
-  }, [setWords, activeTimerWordId, handleClearActiveTimer]);
+  }, [setTasks, activeTimerTaskId, handleClearActiveTimer]);
 
-  const handleResetAllLogEntries = useCallback((wordId: number) => {
-    setWords(prevWords => {
-      const word = prevWords.find(w => w.id === wordId);
-      if (!word || !word.timeLog) return prevWords;
+  const handleResetAllLogEntries = useCallback((taskId: number) => {
+    setTasks(prevTasks => {
+      const task = prevTasks.find(t => t.id === taskId);
+      if (!task || !task.timeLog) return prevTasks;
 
-      const newTimeLog: TimeLogEntry[] = word.timeLog.map(entry => ({
+      const newTimeLog: TimeLogEntry[] = task.timeLog.map(entry => ({
         ...entry,
         duration: 0,
         isRunning: false,
         startTime: undefined
       } as TimeLogEntry));
 
-      if (activeTimerWordId === wordId) {
+      if (activeTimerTaskId === taskId) {
         handleClearActiveTimer();
       }
 
-      return prevWords.map(w => w.id === wordId ? { ...w, timeLog: newTimeLog } : w);
+      return prevTasks.map(t => t.id === taskId ? { ...t, timeLog: newTimeLog } : t);
     });
-  }, [setWords, activeTimerWordId, handleClearActiveTimer]);
+  }, [setTasks, activeTimerTaskId, handleClearActiveTimer]);
 
   return {
-    activeTimerWordId, setActiveTimerWordId,
+    activeTimerTaskId, setActiveTimerTaskId,
     activeTimerEntry, setActiveTimerEntry,
     activeTimerLiveTime, setActiveTimerLiveTime,
-    activeTimerWordIdRef,
+    activeTimerTaskIdRef,
     activeTimerEntryRef,
     primedTaskId,
     handlePrimeTask,

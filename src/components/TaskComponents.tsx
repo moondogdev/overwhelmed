@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Word, Settings, Category } from '../types';
+import { Task, Settings, Category } from '../types';
 import { formatTime, getContrastColor } from '../utils';
 
 export function Dropdown({ trigger, children }: { trigger: React.ReactNode, children: React.ReactNode }) {
@@ -15,10 +15,10 @@ export function Dropdown({ trigger, children }: { trigger: React.ReactNode, chil
   );
 }
 
-export function TimeLeft({ word, onUpdate, onNotify, settings }: { 
-  word: Word, 
-  onUpdate: (updatedWord: Word) => void, 
-  onNotify: (word: Word) => void, 
+export function TimeLeft({ task, onUpdate, onNotify, settings }: { 
+  task: Task, 
+  onUpdate: (updatedTask: Task) => void, 
+  onNotify: (task: Task) => void, 
   settings: Settings
 }) {
   const [timeLeft, setTimeLeft] = useState('');
@@ -26,10 +26,10 @@ export function TimeLeft({ word, onUpdate, onNotify, settings }: {
 
   useEffect(() => {
     // If the task is completed, calculate its final state and stop the timer.
-    if (word.completedDuration) {
-      if (word.completeBy) {
-        const completionTime = word.createdAt + word.completedDuration;
-        const ms = word.completeBy - completionTime;
+    if (task.completedDuration) {
+      if (task.completeBy) {
+        const completionTime = task.createdAt + task.completedDuration;
+        const ms = task.completeBy - completionTime;
         if (ms < 0) {
           setClassName('priority-high');
           setTimeLeft(`Overdue by ${formatTime(Math.abs(ms))}`);
@@ -40,13 +40,13 @@ export function TimeLeft({ word, onUpdate, onNotify, settings }: {
       return; // Exit the effect, no interval needed.
     }
 
-    if (!word.completeBy) {
+    if (!task.completeBy) {
       setTimeLeft('N/A');
       return;
     }
 
     const update = () => {
-      const ms = word.completeBy - Date.now();
+      const ms = task.completeBy - Date.now();
 
       if (ms < 0) {
         setClassName('priority-high');
@@ -64,7 +64,7 @@ export function TimeLeft({ word, onUpdate, onNotify, settings }: {
     update(); // Run once immediately to set the initial state
     const interval = setInterval(update, 1000); // Update every second
     return () => clearInterval(interval);
-  }, [word, settings.warningTime]);
+  }, [task, settings.warningTime]);
 
   return <span className={className}>{timeLeft}</span>;
 }
@@ -98,22 +98,22 @@ export function TimeOpen({ startDate }: { startDate: number }) {
   return <span className={className}>{timeOpen}</span>;
 }
 
-export function Stopwatch({ word, onTogglePause }: { word: Word, onTogglePause: (id: number) => void }) {
+export function Stopwatch({ task, onTogglePause }: { task: Task, onTogglePause: (id: number) => void }) {
   const [elapsedTime, setElapsedTime] = useState(0);
 
   useEffect(() => {
     const calculateElapsedTime = () => {
-      if (word.isPaused) {
-        return word.pausedDuration || 0;
+      if (task.isPaused) {
+        return task.pausedDuration || 0;
       }
       const now = Date.now();
-      const elapsed = (word.pausedDuration || 0) + (now - word.createdAt);
+      const elapsed = (task.pausedDuration || 0) + (now - task.createdAt);
       return elapsed;
     };
 
     setElapsedTime(calculateElapsedTime());
 
-    if (word.isPaused) {
+    if (task.isPaused) {
       return; // Don't start the interval if paused
     }
 
@@ -122,76 +122,76 @@ export function Stopwatch({ word, onTogglePause }: { word: Word, onTogglePause: 
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [word.isPaused, word.createdAt, word.pausedDuration]);
+  }, [task.isPaused, task.createdAt, task.pausedDuration]);
 
   return (
     <div className="stopwatch-container">
       <span className="stopwatch">{formatTime(elapsedTime)}</span>
-      <button onClick={() => onTogglePause(word.id)} className="pause-btn">
-        {word.isPaused ? '▶' : '❚❚'}
+      <button onClick={() => onTogglePause(task.id)} className="pause-btn">
+        {task.isPaused ? '▶' : '❚❚'}
       </button>
     </div>
   );
 }
 
-export function ManualStopwatch({ word, onUpdate }: { word: Word, onUpdate: (updatedWord: Word) => void }) {
-  const [displayTime, setDisplayTime] = useState(word.manualTime || 0);
+export function ManualStopwatch({ task, onUpdate }: { task: Task, onUpdate: (updatedTask: Task) => void }) {
+  const [displayTime, setDisplayTime] = useState(task.manualTime || 0);
 
   useEffect(() => {
-    if (!word.manualTimeRunning) {
-      setDisplayTime(word.manualTime || 0);
+    if (!task.manualTimeRunning) {
+      setDisplayTime(task.manualTime || 0);
       return;
     }
 
     const interval = setInterval(() => {
-      const elapsed = Date.now() - (word.manualTimeStart || 0);
-      setDisplayTime((word.manualTime || 0) + elapsed);
+      const elapsed = Date.now() - (task.manualTimeStart || 0);
+      setDisplayTime((task.manualTime || 0) + elapsed);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [word.manualTimeRunning, word.manualTime, word.manualTimeStart]);
+  }, [task.manualTimeRunning, task.manualTime, task.manualTimeStart]);
 
   const handleToggle = () => {
-    if (word.manualTimeRunning) {
+    if (task.manualTimeRunning) {
       // Stopping
-      const elapsed = Date.now() - (word.manualTimeStart || 0);
-      onUpdate({ ...word, manualTime: (word.manualTime || 0) + elapsed, manualTimeRunning: false });
+      const elapsed = Date.now() - (task.manualTimeStart || 0);
+      onUpdate({ ...task, manualTime: (task.manualTime || 0) + elapsed, manualTimeRunning: false });
     } else {
       // Starting
-      onUpdate({ ...word, manualTimeStart: Date.now(), manualTimeRunning: true });
+      onUpdate({ ...task, manualTimeStart: Date.now(), manualTimeRunning: true });
     }
   };
 
   const handleReset = () => {
-    onUpdate({ ...word, manualTime: 0, manualTimeRunning: false, manualTimeStart: 0 });
+    onUpdate({ ...task, manualTime: 0, manualTimeRunning: false, manualTimeStart: 0 });
   };
 
   return (
     <div className="manual-stopwatch">
-      <span className="time-display">{formatTime(displayTime)}</span><button className="icon-button" onClick={handleToggle} title={word.manualTimeRunning ? 'Stop Timer' : 'Start Timer'}><i className={`fas ${word.manualTimeRunning ? 'fa-stop' : 'fa-play'}`}></i></button>
+      <span className="time-display">{formatTime(displayTime)}</span><button className="icon-button" onClick={handleToggle} title={task.manualTimeRunning ? 'Stop Timer' : 'Start Timer'}><i className={`fas ${task.manualTimeRunning ? 'fa-stop' : 'fa-play'}`}></i></button>
       <button className="icon-button" onClick={handleReset} title="Reset Timer"><i className="fas fa-undo"></i></button>
     </div>
   );
 }
 
 export function TaskAccordionHeader({
-  word, 
+  task, 
   settings, 
   onCategoryClick,
   onUpdate,
   onNotify,
-  allWords
+  allTasks
 }: { 
-  word: Word, settings: Settings, onCategoryClick: (e: React.MouseEvent, catId: number, parentId?: number) => void, onUpdate?: (updatedWord: Word) => void, onNotify?: (word: Word) => void, allWords: Word[]
+  task: Task, settings: Settings, onCategoryClick: (e: React.MouseEvent, catId: number, parentId?: number) => void, onUpdate?: (updatedTask: Task) => void, onNotify?: (task: Task) => void, allTasks: Task[]
 }) {
   return (
     <>
       <div className="accordion-title-container">
-        <span className="accordion-main-title">{word.text}</span>
-        <span className="task-id-display">(ID: {word.id})</span>
+        <span className="accordion-main-title">{task.text}</span>
+        <span className="task-id-display">(ID: {task.id})</span>
         {(() => {
-          if (!word.categoryId) return null;
-          const category = settings.categories.find(c => c.id === word.categoryId);
+          if (!task.categoryId) return null;
+          const category = settings.categories.find(c => c.id === task.categoryId);
           if (!category) return null;
 
           const parentCategory = category.parentId ? settings.categories.find(c => c.id === category.parentId) : null;
@@ -223,38 +223,38 @@ export function TaskAccordionHeader({
             </>
           );
         })()}
-        <span className={`priority-indicator priority-${(word.priority || 'Medium').toLowerCase()}`}>
+        <span className={`priority-indicator priority-${(task.priority || 'Medium').toLowerCase()}`}>
           <span className="priority-dot"></span>
-          {word.priority || 'Medium'}
+          {task.priority || 'Medium'}
         </span>
       </div>
       <div className="accordion-subtitle">
         <span className="timer-pill">
           <i className="fas fa-clock"></i>
-          <TimeOpen startDate={word.createdAt} />
+          <TimeOpen startDate={task.createdAt} />
         </span>
-        {word.completeBy && (
+        {task.completeBy && (
           <>
             <span className="due-date-pill">
               <i className="fas fa-calendar-alt"></i>
-              Due: {new Date(word.completeBy).toLocaleDateString()}
+              Due: {new Date(task.completeBy).toLocaleDateString()}
             </span>
             <span className="timer-pill">
               <i className="fas fa-hourglass-half"></i>
-              <TimeLeft word={word} onUpdate={onUpdate || (() => {})} onNotify={onNotify || (() => {})} settings={settings} />
+              <TimeLeft task={task} onUpdate={onUpdate || (() => {})} onNotify={onNotify || (() => {})} settings={settings} />
             </span>
           </>
         )}
       </div>
-      {word.startsTaskIdOnComplete && (
+      {task.startsTaskIdOnComplete && (
         (() => {
-          const successorTask = allWords.find(w => w.id === word.startsTaskIdOnComplete);
-          const isLoop = successorTask?.startsTaskIdOnComplete === word.id;
+          const successorTask = allTasks.find(t => t.id === task.startsTaskIdOnComplete);
+          const isLoop = successorTask?.startsTaskIdOnComplete === task.id;
           return (
             <div className="linked-task-display">
               <i className={`fas ${isLoop ? 'fa-sync-alt' : 'fa-link'}`} title={isLoop ? 'This task is part of a loop.' : 'This task starts another.'}></i>
               <span>
-                Completing starts: <strong>{successorTask?.text || 'Unknown Task'} (ID: {word.startsTaskIdOnComplete})</strong>
+                Completing starts: <strong>{successorTask?.text || 'Unknown Task'} (ID: {task.startsTaskIdOnComplete})</strong>
               </span>
             </div>
           );
@@ -269,13 +269,13 @@ export function TaskAccordion({
   children, 
   isOpen, 
   onToggle, 
-  word, 
+  task, 
   settings, 
-  completedWords,
+  completedTasks,
   onUpdate,
   onNotify
 }: { 
-  title: React.ReactNode, children: React.ReactNode, isOpen: boolean, onToggle: () => void, word: Word, settings: Settings, completedWords: Word[], onUpdate?: (word: Word) => void, onNotify?: (word: Word) => void 
+  title: React.ReactNode, children: React.ReactNode, isOpen: boolean, onToggle: () => void, task: Task, settings: Settings, completedTasks: Task[], onUpdate?: (task: Task) => void, onNotify?: (task: Task) => void 
 }) {
   const [content, headerActions] = React.Children.toArray(children);
 
@@ -287,9 +287,9 @@ export function TaskAccordion({
           onClick={onToggle}
           onContextMenu={(e: React.MouseEvent) => {
             e.preventDefault();
-            const isInEditMode = settings.activeTaskTabs?.[word.id] === 'edit';
-            const hasCompletedTasks = completedWords.length > 0;
-            window.electronAPI.showTaskContextMenu({ wordId: word.id, x: e.clientX, y: e.clientY, isInEditMode, hasCompletedTasks });
+            const isInEditMode = settings.activeTaskTabs?.[task.id] === 'edit';
+            const hasCompletedTasks = completedTasks.length > 0;
+            window.electronAPI.showTaskContextMenu({ taskId: task.id, x: e.clientX, y: e.clientY, isInEditMode, hasCompletedTasks });
           }}
         >
           <span className="accordion-icon"><i className={`fas ${isOpen ? 'fa-minus' : 'fa-plus'}`}></i></span>

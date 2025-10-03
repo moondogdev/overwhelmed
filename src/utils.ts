@@ -1,4 +1,4 @@
-import { Category, ChecklistSection, TimeLogSession, Settings, Word } from './types';
+import { Category, ChecklistSection, TimeLogSession, Settings, Task } from './types';
 
 export const formatTime = (ms: number): string => {
   if (typeof ms !== 'number' || !isFinite(ms)) return '00:00:00';
@@ -80,7 +80,7 @@ export const getFontSize = (index: number, total: number, settings: Settings) =>
   return Math.round(size);
 };
 
-export const getNewWordPosition = (canvasWidth: number, canvasHeight: number, newWordMetrics: { width: number, height: number }, wordsRef: React.RefObject<Word[]>) => {
+export const getNewTaskPosition = (canvasWidth: number, canvasHeight: number, newTaskMetrics: { width: number, height: number }, tasksRef: React.RefObject<Task[]>) => {
   if (!canvasWidth || !canvasHeight) {
     return { x: 320, y: 320 };
   }
@@ -88,12 +88,12 @@ export const getNewWordPosition = (canvasWidth: number, canvasHeight: number, ne
   let placementAttempts = 0;
 
   const checkCollision = (x: number, y: number) => {
-    for (const placedWord of wordsRef.current) {
-      if (!placedWord.width || !placedWord.height) continue;
-      const newWordRect = { left: x - newWordMetrics.width / 2, right: x + newWordMetrics.width / 2, top: y - newWordMetrics.height, bottom: y };
-      const placedWordRect = { left: placedWord.x - placedWord.width / 2, right: placedWord.x + placedWord.width / 2, top: placedWord.y - placedWord.height, bottom: placedWord.y };
+    for (const placedTask of tasksRef.current) {
+      if (!placedTask.width || !placedTask.height) continue;
+      const newTaskRect = { left: x - newTaskMetrics.width / 2, right: x + newTaskMetrics.width / 2, top: y - newTaskMetrics.height, bottom: y };
+      const placedTaskRect = { left: placedTask.x - placedTask.width / 2, right: placedTask.x + placedTask.width / 2, top: placedTask.y - placedTask.height, bottom: placedTask.y };
 
-      if (newWordRect.left < placedWordRect.right && newWordRect.right > placedWordRect.left && newWordRect.top < placedWordRect.bottom && newWordRect.bottom > placedWordRect.top) {
+      if (newTaskRect.left < placedTaskRect.right && newTaskRect.right > placedTaskRect.left && newTaskRect.top < placedTaskRect.bottom && newTaskRect.bottom > placedTaskRect.top) {
         return true;
       }
     }
@@ -101,9 +101,9 @@ export const getNewWordPosition = (canvasWidth: number, canvasHeight: number, ne
   };
 
   while (placementAttempts < 500) {
-    const halfWidth = newWordMetrics.width / 2;
+    const halfWidth = newTaskMetrics.width / 2;
     const x = padding + halfWidth + Math.random() * (canvasWidth - (padding + halfWidth) * 2);
-    const halfHeight = newWordMetrics.height / 2;
+    const halfHeight = newTaskMetrics.height / 2;
     const y = padding + halfHeight + Math.random() * (canvasHeight - (padding + halfHeight) * 2);
     if (!checkCollision(x, y)) {
       return { x, y };

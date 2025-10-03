@@ -1,35 +1,35 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Word, TimeLogEntry, TimeLogSession, ChecklistSection } from '../types';
+import { Task, TimeLogEntry, TimeLogSession, ChecklistSection } from '../types';
 import { formatTime, parseTime, formatTimeLogSessionForCopy } from '../utils';
 import './styles/TimeTrackerLog.css';
 
 interface TimeTrackerLogProps {
-  word: Word;
-  onUpdate: (updatedWord: Word) => void;
+  task: Task;
+  onUpdate: (updatedTask: Task) => void;
   showToast: (message: string, duration?: number, type?: 'success' | 'error' | 'info') => void;
-  handleGlobalToggleTimer: (wordId: number, entryId: number) => void;
-  activeTimerWordId: number | null;
+  handleGlobalToggleTimer: (taskId: number, entryId: number) => void;
+  activeTimerTaskId: number | null;
   activeTimerEntry: TimeLogEntry | null;
   activeTimerLiveTime: number;
   handleGlobalStopTimer: () => void;  
   handleClearActiveTimer: () => void;
-  handleGlobalResetTimer: (wordId: number, entryId: number) => void;
+  handleGlobalResetTimer: (taskId: number, entryId: number) => void;
   handleNextEntry: () => void;
   handlePreviousEntry: () => void;
-  handlePostLog: (wordId: number) => void;
-  handlePostAndResetLog: (wordId: number) => void;
-  handleResetAllLogEntries: (wordId: number) => void;
-  handlePostAndComplete: (wordId: number, entryId: number, onUpdate: (updatedWord: Word) => void) => void;
+  handlePostLog: (taskId: number) => void;
+  handlePostAndResetLog: (taskId: number) => void;
+  handleResetAllLogEntries: (taskId: number) => void;
+  handlePostAndComplete: (taskId: number, entryId: number, onUpdate: (updatedTask: Task) => void) => void;
   settings: any; // Add settings to props
   checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
 }
 
 export function TimeTrackerLog({ 
-  word, 
+  task, 
   onUpdate, 
   showToast,
   handleGlobalToggleTimer,
-  activeTimerWordId,
+  activeTimerTaskId,
   activeTimerEntry,
   activeTimerLiveTime,
   handleGlobalStopTimer,  
@@ -54,7 +54,7 @@ export function TimeTrackerLog({
   const [confirmingResetAll, setConfirmingResetAll] = useState(false);
 
   // New state for session management
-  const [liveTimerTitle, setLiveTimerTitle] = useState(word.timeLogTitle || 'Work Timer');
+  const [liveTimerTitle, setLiveTimerTitle] = useState(task.timeLogTitle || 'Work Timer');
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
   const [editingSessionTitle, setEditingSessionTitle] = useState('');
   const [openSessionIds, setOpenSessionIds] = useState<Set<number>>(new Set());
@@ -74,25 +74,25 @@ export function TimeTrackerLog({
 
   // When the word changes, if we are not editing, sync the title.
   useEffect(() => {
-    setLiveTimerTitle(word.timeLogTitle || 'Work Timer');
-  }, [word.timeLogTitle]);
+    setLiveTimerTitle(task.timeLogTitle || 'Work Timer');
+  }, [task.timeLogTitle]);
 
   // Phase 4.4: One-time data migration from old system
   useEffect(() => {
     // If timeLog is missing/empty AND there's legacy manualTime data...
-    if ((!word.timeLog || word.timeLog.length === 0) && (word.manualTime || 0) > 0 && !word.timeLogSessions) {
+    if ((!task.timeLog || task.timeLog.length === 0) && (task.manualTime || 0) > 0 && !task.timeLogSessions) {
       // ...create a new entry from the old data.
       const legacyEntry: TimeLogEntry = {
         id: Date.now(),
         description: 'Legacy Timed Entry',
-        duration: word.manualTime || 0,
+        duration: task.manualTime || 0,
         isRunning: false,
         createdAt: Date.now(),
       };
-      // Update the word object with the new timeLog array.
-      onUpdate({ ...word, timeLog: [legacyEntry] });
+      // Update the task object with the new timeLog array.
+      onUpdate({ ...task, timeLog: [legacyEntry] });
     }
-  }, [word.timeLog, word.manualTime, onUpdate, word.timeLogSessions]);
+  }, [task.timeLog, task.manualTime, onUpdate, task.timeLogSessions]);
 
   // Focus the input when an entry enters edit mode.
   useEffect(() => {
@@ -108,8 +108,8 @@ export function TimeTrackerLog({
   }, [editingSessionId, editingSessionTitle]);
 
   const handleUpdateLog = useCallback((newTimeLog: TimeLogEntry[]) => {
-    onUpdate({ ...word, timeLog: newTimeLog });
-  }, [word, onUpdate]);
+    onUpdate({ ...task, timeLog: newTimeLog });
+  }, [task, onUpdate]);
 
   const handleAddNewEntry = useCallback(() => {
     const newEntry: TimeLogEntry = {
@@ -119,16 +119,16 @@ export function TimeTrackerLog({
       isRunning: false,
       createdAt: Date.now(),
     };
-    const newTimeLog = [...(word.timeLog || []), newEntry];
+    const newTimeLog = [...(task.timeLog || []), newEntry];
     handleUpdateLog(newTimeLog);
     // Immediately enter edit mode for the new entry
     setEditingEntryId(newEntry.id);
     setEditingEntryDescription(newEntry.description);
-  }, [word.timeLog, handleUpdateLog]);
+  }, [task.timeLog, handleUpdateLog]);
 
   const handleDeleteEntry = useCallback((id: number) => {
     if (confirmingDeleteEntry === id) {
-      const newTimeLog = (word.timeLog || []).filter(entry => entry.id !== id);
+      const newTimeLog = (task.timeLog || []).filter(entry => entry.id !== id);
       handleUpdateLog(newTimeLog);
       setConfirmingDeleteEntry(null);
       if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
@@ -137,11 +137,11 @@ export function TimeTrackerLog({
       if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
       confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteEntry(null), 3000);
     }
-  }, [confirmingDeleteEntry, word.timeLog, handleUpdateLog]);
+  }, [confirmingDeleteEntry, task.timeLog, handleUpdateLog]);
 
   const handleSessionCommand = useCallback((payload: { command: string, session: TimeLogSession }) => {
     const { command, session: targetSession } = payload;
-    const currentSessions = word.timeLogSessions || [];
+    const currentSessions = task.timeLogSessions || [];
 
     switch (command) {
       case 'edit_title': {
@@ -153,13 +153,13 @@ export function TimeTrackerLog({
         const updatedSessions = currentSessions.map(s => 
           s.id === targetSession.id ? { ...s, entries: [] } : s
         );
-        onUpdate({ ...word, timeLogSessions: updatedSessions });
+        onUpdate({ ...task, timeLogSessions: updatedSessions });
         showToast('Session entries cleared.');
         break;
       }
       case 'delete_session': {
         const updatedSessions = currentSessions.filter(s => s.id !== targetSession.id);
-        onUpdate({ ...word, timeLogSessions: updatedSessions });
+        onUpdate({ ...task, timeLogSessions: updatedSessions });
         showToast('Session deleted.');
         break;
       }
@@ -170,7 +170,7 @@ export function TimeTrackerLog({
           title: `${targetSession.title} (Copy)`,
         };
         const updatedSessions = [...currentSessions, newSession];
-        onUpdate({ ...word, timeLogSessions: updatedSessions });
+        onUpdate({ ...task, timeLogSessions: updatedSessions });
         showToast('Session duplicated.');
         break;
       }
@@ -181,22 +181,22 @@ export function TimeTrackerLog({
         break;
       }
       case 'restart_session': {
-        let updatedWord = { ...word };
-        if (word.timeLog && word.timeLog.length > 0) {
-          const newSession: TimeLogSession = { id: Date.now() + Math.random(), title: word.timeLogTitle || `Unsaved Session - ${new Date().toLocaleTimeString()}`, entries: word.timeLog, createdAt: Date.now() };
-          updatedWord.timeLogSessions = [...(word.timeLogSessions || []), newSession];
-          updatedWord.timeLog = [];
-          updatedWord.timeLogTitle = undefined;
+        let updatedTask = { ...task };
+        if (task.timeLog && task.timeLog.length > 0) {
+          const newSession: TimeLogSession = { id: Date.now() + Math.random(), title: task.timeLogTitle || `Unsaved Session - ${new Date().toLocaleTimeString()}`, entries: task.timeLog, createdAt: Date.now() };
+          updatedTask.timeLogSessions = [...(task.timeLogSessions || []), newSession];
+          updatedTask.timeLog = [];
+          updatedTask.timeLogTitle = undefined;
           showToast(`Current session saved as "${newSession.title}".`);
         }
-        updatedWord.timeLog = targetSession.entries.map((entry): TimeLogEntry => ({ ...entry, id: Date.now() + Math.random(), isRunning: false, startTime: undefined, createdAt: Date.now() }));
-        updatedWord.timeLogTitle = targetSession.title;
-        onUpdate(updatedWord);
+        updatedTask.timeLog = targetSession.entries.map((entry): TimeLogEntry => ({ ...entry, id: Date.now() + Math.random(), isRunning: false, startTime: undefined, createdAt: Date.now() }));
+        updatedTask.timeLogTitle = targetSession.title;
+        onUpdate(updatedTask);
         showToast(`Session "${targetSession.title}" loaded into timer.`);
         break;
       }
     }
-  }, [word, onUpdate, showToast]);
+  }, [task, onUpdate, showToast]);
 
   const handleStartEditing = useCallback((entry: TimeLogEntry) => {
     setEditingEntryId(entry.id);
@@ -209,7 +209,7 @@ export function TimeTrackerLog({
   }, []);
 
   const handleMoveEntry = useCallback((entryId: number, direction: 'up' | 'down') => {
-    const newTimeLog = [...(word.timeLog || [])];
+    const newTimeLog = [...(task.timeLog || [])];
     const index = newTimeLog.findIndex(e => e.id === entryId);
     if (index === -1) return;
 
@@ -223,12 +223,12 @@ export function TimeTrackerLog({
       newTimeLog.splice(index + 1, 0, item);
     }
     handleUpdateLog(newTimeLog);
-  }, [word.timeLog, handleUpdateLog]);
+  }, [task.timeLog, handleUpdateLog]);
   // Effect to handle commands from the context menus
   const handleItemCommand = useCallback((payload: { command: string, entryId?: number }) => {
     const handleItemCommand = (payload: { command: string, entryId?: number }) => {
       const { command, entryId } = payload;
-      const entry = (word.timeLog || []).find(e => e.id === entryId);
+      const entry = (task.timeLog || []).find(e => e.id === entryId);
       switch (command) {
         case 'edit_description':
           if (entry) handleStartEditing(entry);
@@ -239,7 +239,7 @@ export function TimeTrackerLog({
         case 'duplicate': {          
           if (!entry) break; // Add a guard in case the entry isn't found
           const newEntry: TimeLogEntry = { ...entry, id: Date.now() + Math.random(), isRunning: false, startTime: undefined };
-          const newTimeLog = [...(word.timeLog || [])];
+          const newTimeLog = [...(task.timeLog || [])];
           // Find the index of the item to duplicate
           const index = newTimeLog.findIndex(e => e.id === entryId);
           if (index === -1) break; // If not found, do nothing
@@ -254,11 +254,11 @@ export function TimeTrackerLog({
           if (entryId) handleMoveEntry(entryId, 'down');
           break;
         case 'post_and_complete':
-          if (entryId) handlePostAndComplete(word.id, entryId, onUpdate);
+          if (entryId) handlePostAndComplete(task.id, entryId, onUpdate);
           break;
       }
     };
-  }, [word.id, word.timeLog, handleStartEditing, handleDeleteEntry, handleUpdateLog, handleMoveEntry, handlePostAndComplete, onUpdate]);
+  }, [task.id, task.timeLog, handleStartEditing, handleDeleteEntry, handleUpdateLog, handleMoveEntry, handlePostAndComplete, onUpdate]);
 
   useEffect(() => {
     const handleHeaderCommand = (payload: { command: string, totalTime: number, timeLog: TimeLogEntry[] }) => {
@@ -295,10 +295,10 @@ export function TimeTrackerLog({
       cleanupItem?.();
       cleanupHeader?.();
     };
-  }, [word.timeLog, handleUpdateLog, handleAddNewEntry, showToast, handleItemCommand]);
+  }, [task.timeLog, handleUpdateLog, handleAddNewEntry, showToast, handleItemCommand]);
   const handleSaveEdit = () => {
     if (editingEntryId === null) return;
-    const newTimeLog = (word.timeLog || []).map(entry =>
+    const newTimeLog = (task.timeLog || []).map(entry =>
       entry.id === editingEntryId ? { ...entry, description: editingEntryDescription } : entry
     );
     handleUpdateLog(newTimeLog);
@@ -307,7 +307,7 @@ export function TimeTrackerLog({
   const handleSaveDurationEdit = () => {
     if (editingEntryId === null) return;
     const newDuration = parseTime(editingEntryDuration);
-    const newTimeLog = (word.timeLog || []).map(entry =>
+    const newTimeLog = (task.timeLog || []).map(entry =>
       entry.id === editingEntryId ? { ...entry, duration: newDuration } : entry
     );
     handleUpdateLog(newTimeLog);
@@ -318,7 +318,7 @@ export function TimeTrackerLog({
   const handleDeleteAll = () => {
     if (confirmingDeleteAll) {
       // This is the fix. We need to clear both the timeLog AND the loggedTime on each checklist item.
-      const updatedChecklist = (word.checklist || []).map(sectionOrItem => {
+      const updatedChecklist = (task.checklist || []).map(sectionOrItem => {
         if ('items' in sectionOrItem) { // It's a ChecklistSection
           return {
             ...sectionOrItem,
@@ -330,7 +330,7 @@ export function TimeTrackerLog({
         }
         return sectionOrItem; // Should not happen with normalized data, but safe to keep.
       }) as ChecklistSection[]; // Cast to the expected type to resolve the TS error.
-      onUpdate({ ...word, timeLog: [], timeLogTitle: undefined, checklist: updatedChecklist as any });
+      onUpdate({ ...task, timeLog: [], timeLogTitle: undefined, checklist: updatedChecklist as any });
       checklistRef?.current?.resetHistory(updatedChecklist); // Force the checklist to update its internal history
       setLiveTimerTitle('Work Timer'); // Reset local state as well
       showToast('Timer Wiped!');
@@ -359,10 +359,10 @@ export function TimeTrackerLog({
 
   const handleResetAllEntries = () => {
     if (confirmingResetAll) {
-      handleResetAllLogEntries(word.id);
+      handleResetAllLogEntries(task.id);
       
       // If the active timer was part of this log, stop it globally.
-      if (activeTimerWordId === word.id) {
+      if (activeTimerTaskId === task.id) {
         handleClearActiveTimer(); // Use the non-saving stop function
       }
 
@@ -380,7 +380,7 @@ export function TimeTrackerLog({
     if (!bulkAddText.trim()) return;
 
     const allLines = bulkAddText.split('\n').map(line => line.trim());
-    let updatedWord = { ...word };
+    let updatedTask = { ...task };
     let potentialTitle: string | null = null;
 
     // More flexible title detection: find the first non-empty line before a separator.
@@ -397,7 +397,7 @@ export function TimeTrackerLog({
 
     if (potentialTitle) {
       setLiveTimerTitle(potentialTitle);
-      updatedWord.timeLogTitle = potentialTitle;
+      updatedTask.timeLogTitle = potentialTitle;
     }
 
     // Simplified entry filtering: ignore blank lines, separators, and the detected title.
@@ -411,9 +411,9 @@ export function TimeTrackerLog({
       return { id: Date.now() + Math.random(), description, duration, isRunning: false, createdAt: Date.now() };
     });
 
-    updatedWord.timeLog = [...(word.timeLog || []), ...newEntries];
+    updatedTask.timeLog = [...(task.timeLog || []), ...newEntries];
     setBulkAddText('');
-    onUpdate(updatedWord); // Single update call
+    onUpdate(updatedTask); // Single update call
   };
 
   // Central handler for session context menu commands
@@ -425,15 +425,15 @@ export function TimeTrackerLog({
   // --- NEW SESSION LOGIC ---
 
   const handleUpdateSessionTitle = (sessionId: number) => {
-    const updatedSessions = (word.timeLogSessions || []).map(session =>
+    const updatedSessions = (task.timeLogSessions || []).map(session =>
       session.id === sessionId ? { ...session, title: editingSessionTitle } : session
     );
-    onUpdate({ ...word, timeLogSessions: updatedSessions });
+    onUpdate({ ...task, timeLogSessions: updatedSessions });
     setEditingSessionId(null);
   };
   const handleClearAllSessions = () => {
     if (confirmingDeleteAllSessions) {
-      onUpdate({ ...word, timeLogSessions: [] });
+      onUpdate({ ...task, timeLogSessions: [] });
       showToast('All time log sessions cleared.');
       setConfirmingDeleteAllSessions(false);
       if (confirmTimeoutRef.current) {
@@ -450,7 +450,7 @@ export function TimeTrackerLog({
 
   const handleClearSessionEntries = (sessionId: number) => {
     if (confirmingDeleteAllSessions) {
-      onUpdate({ ...word, timeLogSessions: [] });
+      onUpdate({ ...task, timeLogSessions: [] });
       showToast('All time log sessions cleared.');
       setConfirmingDeleteAllSessions(false);
       if (confirmTimeoutRef.current) {
@@ -464,10 +464,10 @@ export function TimeTrackerLog({
       confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteAllSessions(false), 3000);
     }
     if (confirmingClearSession === sessionId) {
-      const updatedSessions = (word.timeLogSessions || []).map(session =>
+      const updatedSessions = (task.timeLogSessions || []).map(session =>
         session.id === sessionId ? { ...session, entries: [] } : session
       );
-      onUpdate({ ...word, timeLogSessions: updatedSessions });
+      onUpdate({ ...task, timeLogSessions: updatedSessions });
       showToast('Session entries cleared.');
       setConfirmingClearSession(null);
       if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
@@ -492,7 +492,7 @@ export function TimeTrackerLog({
 
     const { sessionId, entryId, field } = editingSessionEntry;
 
-    const updatedSessions = (word.timeLogSessions || []).map(session => {
+    const updatedSessions = (task.timeLogSessions || []).map(session => {
       if (session.id !== sessionId) return session;
 
       const updatedEntries = session.entries.map(entry => {
@@ -507,19 +507,19 @@ export function TimeTrackerLog({
       return { ...session, entries: updatedEntries };
     });
 
-    onUpdate({ ...word, timeLogSessions: updatedSessions });
+    onUpdate({ ...task, timeLogSessions: updatedSessions });
     setEditingSessionEntry(null);
     setEditingSessionEntryValue('');
   };
 
   const handleDeleteSessionEntry = (sessionId: number, entryId: number) => {
     if (confirmingDeleteSessionEntry === entryId) {
-      const updatedSessions = (word.timeLogSessions || []).map(session => {
+      const updatedSessions = (task.timeLogSessions || []).map(session => {
         if (session.id !== sessionId) return session;
         const updatedEntries = session.entries.filter(entry => entry.id !== entryId);
         return { ...session, entries: updatedEntries };
       });
-      onUpdate({ ...word, timeLogSessions: updatedSessions });
+      onUpdate({ ...task, timeLogSessions: updatedSessions });
       showToast('Session entry deleted.');
       setConfirmingDeleteSessionEntry(null);
       if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
@@ -544,16 +544,16 @@ export function TimeTrackerLog({
   };
 
   const totalSessionsTime = React.useMemo(() => {
-    return (word.timeLogSessions || []).reduce((total, session) => {
+    return (task.timeLogSessions || []).reduce((total, session) => {
       return total + calculateSessionDuration(session);
     }, 0);
-  }, [word.timeLogSessions]);
+  }, [task.timeLogSessions]);
 
   // --- NEW TABLE SORTING LOGIC ---
   const [sessionSortConfig, setSessionSortConfig] = useState<{ key: 'title' | 'createdAt' | 'totalTime', direction: 'ascending' | 'descending' }>({ key: 'createdAt', direction: 'descending' });
 
   const sortedSessions = React.useMemo(() => {
-    const sessions = word.timeLogSessions || [];
+    const sessions = task.timeLogSessions || [];
     return [...sessions].sort((a, b) => {
       const { key, direction } = sessionSortConfig;
       let aValue: any, bValue: any;
@@ -570,14 +570,14 @@ export function TimeTrackerLog({
       if (aValue > bValue) return direction === 'ascending' ? 1 : -1;
       return 0;
     });
-  }, [word.timeLogSessions, sessionSortConfig]);
+  }, [task.timeLogSessions, sessionSortConfig]);
   // --- END NEW SESSION LOGIC ---
 
-  const timeLog = word.timeLog || [];
+  const timeLog = task.timeLog || [];
   const runningEntry = timeLog.find(entry => entry.isRunning);
 
   const totalTime = timeLog.reduce((sum, entry) => {
-    const isThisEntryRunning = activeTimerWordId === word.id && activeTimerEntry?.id === entry.id;
+    const isThisEntryRunning = activeTimerTaskId === task.id && activeTimerEntry?.id === entry.id;
     return sum + entry.duration + (isThisEntryRunning ? (activeTimerLiveTime - entry.duration) : 0);
   }, 0);
 
@@ -604,12 +604,12 @@ export function TimeTrackerLog({
               value={liveTimerTitle}
               onChange={(e) => setLiveTimerTitle(e.target.value)}
               onBlur={() => {
-                onUpdate({ ...word, timeLogTitle: liveTimerTitle });
+                onUpdate({ ...task, timeLogTitle: liveTimerTitle });
                 setIsEditingTitle(false);
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === 'Escape') {
-                  onUpdate({ ...word, timeLogTitle: liveTimerTitle });
+                  onUpdate({ ...task, timeLogTitle: liveTimerTitle });
                   setIsEditingTitle(false);
                 }
               }}
@@ -638,8 +638,8 @@ export function TimeTrackerLog({
         </div>
         {/* This block now controls navigation between log entries WITHIN this task */}
         {(() => {
-          const timeLog = word.timeLog || [];
-          const isTimerActiveForThisTask = activeTimerWordId === word.id && activeTimerEntry;
+          const timeLog = task.timeLog || [];
+          const isTimerActiveForThisTask = activeTimerTaskId === task.id && activeTimerEntry;
           const currentIndex = isTimerActiveForThisTask
             ? timeLog.findIndex(e => e.id === activeTimerEntry.id)
             : -1;
@@ -662,13 +662,13 @@ export function TimeTrackerLog({
         <div className="time-tracker-header-right">
           {/* New "Post Log" button */}
           <button onClick={() => {
-            handlePostLog(word.id);
+            handlePostLog(task.id);
             showToast('Session logged!');
           }} className="icon-button" title="Post and Clear Log">
             <i className="fas fa-paper-plane"></i>
           </button>
           <button onClick={() => {
-            handlePostAndResetLog(word.id);
+            handlePostAndResetLog(task.id);
             showToast('Session logged and timer reset.');
           }} className="icon-button" title="Post and Reset Durations">
             <i className="fas fa-clipboard-check"></i>
@@ -714,7 +714,7 @@ export function TimeTrackerLog({
               }}
             >
               <div className="time-log-entry-main">
-                <button onClick={() => handleGlobalToggleTimer(word.id, entry.id)} className="icon-button-small" title={entry.isRunning ? 'Pause' : 'Start'}>
+                <button onClick={() => handleGlobalToggleTimer(task.id, entry.id)} className="icon-button-small" title={entry.isRunning ? 'Pause' : 'Start'}>
                   <i className={`fas ${entry.isRunning ? 'fa-pause-circle' : 'fa-play-circle'}`} style={{ color: entry.isRunning ? (activeTimerEntry?.id === entry.id ? '#f44336' : '#4CAF50') : '#4CAF50' }}></i>
                 </button>
                 <div className="entry-description" onDoubleClick={() => handleStartEditing(entry)}>
@@ -726,19 +726,19 @@ export function TimeTrackerLog({
                   <input type="text" value={editingEntryDuration} onChange={(e) => setEditingEntryDuration(e.target.value)} onBlur={handleSaveDurationEdit} onKeyDown={(e) => e.key === 'Enter' && handleSaveDurationEdit()} className="inline-edit-input" style={{ textAlign: 'right', minWidth: '80px' }} autoFocus />
                 ) : (
                   <span className="entry-duration" onDoubleClick={() => handleStartEditingDuration(entry)}>
-                    {formatTime(activeTimerWordId === word.id && activeTimerEntry?.id === entry.id ? activeTimerLiveTime : entry.duration)}
+                    {formatTime(activeTimerTaskId === task.id && activeTimerEntry?.id === entry.id ? activeTimerLiveTime : entry.duration)}
                   </span>
                 )}
               </div>
               <div className="time-log-entry-actions">
                 {entry.checklistItemId && (
-                  <button onClick={() => handlePostAndComplete(word.id, entry.id, onUpdate)} className="icon-button-small" title="Toggle Checklist Item Complete"><i className="fas fa-check-square"></i></button>
+                  <button onClick={() => handlePostAndComplete(task.id, entry.id, onUpdate)} className="icon-button-small" title="Toggle Checklist Item Complete"><i className="fas fa-check-square"></i></button>
                 )}
                 <button onClick={() => handleStartEditing(entry)} className="icon-button-small" title="Edit Description"><i className="fas fa-pencil-alt"></i></button>
-                <button onClick={() => handleGlobalResetTimer(word.id, entry.id)} className="icon-button-small" title="Reset Duration"><i className="fas fa-undo"></i></button>
+                <button onClick={() => handleGlobalResetTimer(task.id, entry.id)} className="icon-button-small" title="Reset Duration"><i className="fas fa-undo"></i></button>
                 <button onClick={() => {
                   const newEntry: TimeLogEntry = { ...entry, id: Date.now() + Math.random(), isRunning: false, startTime: undefined };
-                  const newTimeLog = [...(word.timeLog || [])];
+                  const newTimeLog = [...(task.timeLog || [])];
                   newTimeLog.splice(index + 1, 0, newEntry);
                   handleUpdateLog(newTimeLog);
                 }} className="icon-button-small" title="Duplicate Entry"><i className="fas fa-copy"></i></button>
@@ -761,7 +761,7 @@ export function TimeTrackerLog({
       </div>
 
       {/* --- NEW SESSION RENDERING LOGIC --- */}
-      {(word.timeLogSessions && word.timeLogSessions.length > 0) && (
+      {(task.timeLogSessions && task.timeLogSessions.length > 0) && (
         <div className="time-log-sessions-container">
           <header>
             <i className="fas fa-history"></i>

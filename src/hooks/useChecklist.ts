@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Word, ChecklistItem, ChecklistSection, InboxMessage, Settings, TimeLogEntry, ChecklistTemplate } from '../types';
+import { Task, ChecklistItem, ChecklistSection, InboxMessage, Settings, TimeLogEntry, ChecklistTemplate } from '../types';
 import { extractUrlFromText, formatChecklistForCopy, formatDate, formatTime } from '../utils';
 
 interface UseChecklistProps {
@@ -7,23 +7,23 @@ interface UseChecklistProps {
     onUpdate: (newSections: ChecklistSection[]) => void;
     isEditable: boolean;
     onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
-    words: Word[];
+    tasks: Task[];
     setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>;
-    word: Word;
-    wordId: number;
-    onWordUpdate: (updatedWord: Word) => void;
+    task: Task;
+    taskId: number;
+    onTaskUpdate: (updatedTask: Task) => void;
     checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
     showToast: (message: string, duration?: number) => void;
     focusItemId: number | null;
     onFocusHandled: () => void;
     settings: Settings;
     onSettingsChange: (update: Partial<Settings> | ((prevSettings: Settings) => Partial<Settings>)) => void;
-    handleGlobalToggleTimer: (wordId: number, entryId: number, entry?: TimeLogEntry, newTimeLog?: TimeLogEntry[]) => void;
+    handleGlobalToggleTimer: (taskId: number, entryId: number, entry?: TimeLogEntry, newTimeLog?: TimeLogEntry[]) => void;
     handleClearActiveTimer: () => void;
-    handlePrimeTask: (wordId: number) => void;
+    handlePrimeTask: (taskId: number) => void;
     activeTimerEntry: TimeLogEntry | null;
     activeTimerLiveTime: number;
-    handlePrimeTaskWithNewLog: (wordId: number, newTimeLog: TimeLogEntry[], timeLogTitle?: string) => void;
+    handlePrimeTaskWithNewLog: (taskId: number, newTimeLog: TimeLogEntry[], timeLogTitle?: string) => void;
 }
 
 export const useChecklist = ({
@@ -31,11 +31,11 @@ export const useChecklist = ({
     onUpdate,
     isEditable,
     onComplete,
-    words,
+    tasks,
     setInboxMessages,
-    word,
-    wordId,
-    onWordUpdate,
+    task,
+    taskId,
+    onTaskUpdate,
     checklistRef,
     showToast,
     focusItemId,
@@ -82,12 +82,12 @@ export const useChecklist = ({
     historyRef.current = history; // Keep the ref updated on every render
     const editingItemInputRef = useRef<HTMLInputElement | null>(null);
 
-    // Create a derived map of checklist item times from the single source of truth: word.timeLog
+    // Create a derived map of checklist item times from the single source of truth: task.timeLog
     const timeLogDurations = useMemo(() => {
         const durations = new Map<number, number>();
-        if (!word.timeLog) return durations;
+        if (!task.timeLog) return durations;
 
-        for (const entry of word.timeLog) {
+        for (const entry of task.timeLog) {
             if (entry.checklistItemId) {
                 const currentDuration = durations.get(entry.checklistItemId) || 0;
                 const isRunning = activeTimerEntry?.id === entry.id;
@@ -96,7 +96,7 @@ export const useChecklist = ({
             }
         }
         return durations;
-    }, [word.timeLog, activeTimerEntry, activeTimerLiveTime]);
+    }, [task.timeLog, activeTimerEntry, activeTimerLiveTime]);
 
     // Data Migration: Handle old format (ChecklistItem[]) and convert to new format (ChecklistSection[])
     const normalizedSections: ChecklistSection[] = React.useMemo(() => {
@@ -114,7 +114,7 @@ export const useChecklist = ({
     useEffect(() => {
         setHistory([normalizedSections]);
         setHistoryIndex(0);
-    }, [wordId]); // Re-initialize history only when the task itself changes
+    }, [taskId]); // Re-initialize history only when the task itself changes
 
     const updateHistory = (newSections: ChecklistSection[]) => {
         const newHistory = history.slice(0, historyIndex + 1);
@@ -187,13 +187,13 @@ export const useChecklist = ({
             const firstEntry = newTimeLogEntries.find(e => e.type === 'entry');
             if (firstEntry) {
                 // Pass the new log AND the entry to start in a single, atomic operation.
-                setTimeout(() => handleGlobalToggleTimer(word.id, firstEntry.id, firstEntry, newTimeLogEntries), 100);
+                setTimeout(() => handleGlobalToggleTimer(task.id, firstEntry.id, firstEntry, newTimeLogEntries), 100);
                 // The checklist state is updated via the global timer handler, so we only need to update history here.
                 updateHistory(updatedSections);
             }
         } else {
             // Use the correct handler to prime the task without starting the timer.
-            handlePrimeTaskWithNewLog(word.id, newTimeLogEntries, word.text);
+            handlePrimeTaskWithNewLog(task.id, newTimeLogEntries, task.text);
             updateHistory(updatedSections);
         }
         showToast('Checklist sent to Work Timer!');
@@ -222,7 +222,7 @@ export const useChecklist = ({
             const firstEntry = newTimeLogEntries.find(e => e.type === 'entry');
             if (firstEntry) {
                 // Pass the new log AND the entry to start in a single, atomic operation.
-                setTimeout(() => handleGlobalToggleTimer(word.id, firstEntry.id, firstEntry, newTimeLogEntries), 100);
+                setTimeout(() => handleGlobalToggleTimer(task.id, firstEntry.id, firstEntry, newTimeLogEntries), 100);
                 // The global timer handler will update the checklist, so we just update local history and notify the parent.
                 const updatedSections = history[historyIndex].map(s => s.id === section.id ? { ...s, items: s.items.map(i => itemsToSend.find(it => it.id === i.id) && i.loggedTime === undefined ? { ...i, loggedTime: 0 } : i) } : s);
                 updateHistory(updatedSections);
@@ -231,7 +231,7 @@ export const useChecklist = ({
         } else {
             // Use the correct handler to prime the task without starting the timer.
             const updatedSections = history[historyIndex].map(s => s.id === section.id ? { ...s, items: s.items.map(i => itemsToSend.find(it => it.id === i.id) && i.loggedTime === undefined ? { ...i, loggedTime: 0 } : i) } : s);
-            handlePrimeTaskWithNewLog(word.id, newTimeLogEntries, section.title);
+            handlePrimeTaskWithNewLog(task.id, newTimeLogEntries, section.title);
             updateHistory(updatedSections);
         }
         showToast(`${itemsToSend.length} item(s) sent to timer!`);
@@ -260,11 +260,11 @@ export const useChecklist = ({
         if (startImmediately) {
             // For starting immediately, we create the new log by appending the entry
             // and pass it all to the atomic handler.
-            const newTimeLog = [...(word.timeLog || []), newEntry];
-            setTimeout(() => handleGlobalToggleTimer(wordId, newEntry.id, newEntry, newTimeLog), 100);
+            const newTimeLog = [...(task.timeLog || []), newEntry];
+            setTimeout(() => handleGlobalToggleTimer(taskId, newEntry.id, newEntry, newTimeLog), 100);
         } else {
             // For just adding without starting, a simple update is sufficient and correct.
-            onWordUpdate({ ...word, timeLog: [...(word.timeLog || []), newEntry] });
+            onTaskUpdate({ ...task, timeLog: [...(task.timeLog || []), newEntry] });
         }
         updateHistory(updatedSections);
         onUpdate(updatedSections);
@@ -610,9 +610,9 @@ export const useChecklist = ({
             });
 
             // Send the single "Section Completed" notification.
-            const parentWord = words.find((w: Word) => w.checklist?.some((s: any) => 'items' in s && s.id === sectionId));
-            if (parentWord) {
-                setInboxMessages((prev: InboxMessage[]) => [{ id: Date.now() + Math.random(), type: 'completed', text: `Section completed: "${sectionToUpdate.title}" in task "${parentWord.text}"`, timestamp: Date.now(), wordId: parentWord.id, sectionId: sectionId }, ...prev]);
+            const parentTask = tasks.find((w: Task) => w.checklist?.some((s: any) => 'items' in s && s.id === sectionId));
+            if (parentTask) {
+                setInboxMessages((prev: InboxMessage[]) => [{ id: Date.now() + Math.random(), type: 'completed', text: `Section completed: "${sectionToUpdate.title}" in task "${parentTask.text}"`, timestamp: Date.now(), taskId: parentTask.id, sectionId: sectionId }, ...prev]);
             }
         }
 
@@ -693,7 +693,7 @@ export const useChecklist = ({
             isUndoingRedoing.current = true;
             const newIndex = historyIndex - 1;
             setHistoryIndex(newIndex);
-            // Find the parent word and update it with the historical checklist state
+            // Find the parent task and update it with the historical checklist state
             onUpdate(history[newIndex]);
             setTimeout(() => isUndoingRedoing.current = false, 0);
         }
@@ -704,7 +704,7 @@ export const useChecklist = ({
             isUndoingRedoing.current = true;
             const newIndex = historyIndex + 1;
             setHistoryIndex(newIndex);
-            // Find the parent word and update it with the historical checklist state
+            // Find the parent task and update it with the historical checklist state
             onUpdate(history[newIndex]);
             setTimeout(() => isUndoingRedoing.current = false, 0);
         }

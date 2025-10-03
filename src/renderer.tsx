@@ -14,7 +14,7 @@ import { useNavigation } from './hooks/useNavigation';
 import { useUIState } from './hooks/useUIState';
 import { useDataPersistence } from './hooks/useDataPersistence';
 import { AppContext } from './contexts/AppContext';
-import { Word, ChecklistSection } from './types';
+import { Task, ChecklistSection } from './types';
 
 function App() {  
   // =================================================================================
@@ -47,37 +47,37 @@ function App() {
   const taskState = useTaskState({
     setInboxMessages, showToast, newTask, setNewTask, bulkAddText, setBulkAddText, settings,
   });
-  const { words, setWords, completedWords, setCompletedWords, handleCompleteWord: originalHandleCompleteWord, removeWord, handleWordUpdate, handleChecklistCompletion, handleClearAll, handleCopyList, handleTogglePause, wordsRef, completedWordsRef } = taskState;
+  const { tasks, setTasks, completedTasks, setCompletedTasks, handleCompleteTask: originalHandleCompleteTask, removeTask, handleTaskUpdate, handleChecklistCompletion, handleClearAll, handleCopyList, handleTogglePause, tasksRef, completedTasksRef } = taskState;
 
   // --- Global Timer State (managed by custom hook) ---
   const globalTimerState = useGlobalTimer({
-    words, setWords, settings
+    tasks, setTasks, settings
   });
-  const { activeTimerWordId, activeTimerEntry, setActiveTimerWordId, setActiveTimerEntry, setActiveTimerLiveTime, handleNextEntry, handlePreviousEntry, handleGlobalResetTimer, handleStartSession, handleStartTaskFromSession, handleClearActiveTimer, handleNextChapter, handlePreviousChapter, handleGlobalToggleTimer, handlePrimeTask, handlePostLog, handlePostAndResetLog, handleResetAllLogEntries, handlePostAndComplete, activeTimerWordIdRef, activeTimerEntryRef } = globalTimerState;
+  const { activeTimerTaskId, activeTimerEntry, setActiveTimerTaskId, setActiveTimerEntry, setActiveTimerLiveTime, handleNextEntry, handlePreviousEntry, handleGlobalResetTimer, handleStartSession, handleStartTaskFromSession, handleClearActiveTimer, handleNextChapter, handlePreviousChapter, handleGlobalToggleTimer, handlePrimeTask, handlePostLog, handlePostAndResetLog, handleResetAllLogEntries, handlePostAndComplete, activeTimerTaskIdRef, activeTimerEntryRef } = globalTimerState;
 
   // --- Notifications State (managed by custom hook) ---
   const notificationsState = useNotifications({
-    words, setWords, settings, setInboxMessages, handleCompleteWord: originalHandleCompleteWord, removeWord, isLoading
+    tasks, setTasks, settings, setInboxMessages, handleCompleteTask: originalHandleCompleteTask, removeTask, isLoading
   });
 
   // --- Editing State (managed by custom hook) ---
   const editingState = useEditingState({
-    words, setWords,
+    tasks, setTasks,
   });
 
   // --- Navigation State (managed by custom hook) ---
   const navigationState = useNavigation({
-    words, settings, setSettings,
+    tasks, settings, setSettings,
   });
 
   // --- Data Persistence Logic (managed by custom hook) ---
   const dataPersistenceState = useDataPersistence({
     isLoading, setIsLoading,
     isDirty, setIsDirty,
-    words, setWords,
-    completedWords, setCompletedWords,
-    wordsRef, 
-    completedWordsRef,
+    tasks, setTasks,
+    completedTasks, setCompletedTasks,
+    tasksRef, 
+    completedTasksRef,
     settings, settingsRef, setSettings,
     inboxMessages, setInboxMessages,
     archivedMessages, setArchivedMessages,
@@ -88,21 +88,21 @@ function App() {
     setLastSaveTime,
     setAutoSaveCountdown,
     showToast,
-    activeTimerWordId,
-    activeTimerWordIdRef,
+    activeTimerTaskId,
+    activeTimerTaskIdRef,
     activeTimerEntry,
     activeTimerEntryRef,
     handleGlobalToggleTimer,
-    setActiveTimerWordId,
+    setActiveTimerTaskId,
     setActiveTimerEntry,
     setActiveTimerLiveTime,
   });
 
   // --- Combined Handlers for Cross-Hook Logic ---
-  const handleCompleteWord = (wordToComplete: Word) => {
-    originalHandleCompleteWord(wordToComplete);
+  const handleCompleteTask = (taskToComplete: Task) => {
+    originalHandleCompleteTask(taskToComplete);
     // If autoplay is on and the completed task was in the session, move to the next one.    
-    if (settings.autoplayNextInSession && settings.workSessionQueue.includes(wordToComplete.id)) {
+    if (settings.autoplayNextInSession && settings.workSessionQueue.includes(taskToComplete.id)) {
       // A small timeout ensures the state updates from completion settle before starting the next task.
       setTimeout(() => globalTimerState.handleNextTask(), 100);
     }
@@ -138,9 +138,9 @@ function App() {
     // Pass remaining standalone props
     showToast,
     handleClearAll,
-    handleCompleteWord,
+    handleCompleteTask,
     handleCopyList,
-    handleWordUpdate,
+    handleTaskUpdate,
     handleAccordionToggle,
     focusAddTaskInput,
     handleChecklistCompletion,

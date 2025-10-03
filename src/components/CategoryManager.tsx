@@ -5,7 +5,7 @@ import { useAppContext } from '../contexts/AppContext';
 import { SimpleAccordion } from './SidebarComponents';
 
 export function CategoryManager() {
-  const { settings, setSettings, words, setWords } = useAppContext();
+  const { settings, setSettings, tasks, setTasks } = useAppContext();
   return (
     <SimpleAccordion className="accordion-category-manager" title="Category Manager">
       {(settings.categories || []).filter(c => !c.parentId).map((parentCat: Category) => (
@@ -35,7 +35,7 @@ export function CategoryManager() {
               const confirmationMessage = `Are you sure you want to delete the category "${parentCat.name}"? This will also delete its ${subCategoryCount} sub-categories.`;
               if (window.confirm(confirmationMessage)) {
                 const newCategories = (settings.categories || []).filter(c => c.id !== parentCat.id && c.parentId !== parentCat.id);
-                setWords(words.map(w => w.categoryId === parentCat.id ? { ...w, categoryId: undefined } : w));
+                setTasks(tasks.map(w => w.categoryId === parentCat.id ? { ...w, categoryId: undefined } : w));
                 setSettings(prev => ({ ...prev, categories: newCategories }));
               }
             }}><i className="fas fa-minus"></i></button>
@@ -70,8 +70,8 @@ export function CategoryManager() {
               <button className="remove-link-btn" onClick={() => {
                 if (window.confirm(`Are you sure you want to delete the sub-category "${subCat.name}"?`)) {
                   const newCategories = (settings.categories || []).filter(c => c.id !== subCat.id);
-                  // Also un-categorize any words that were in this sub-category by moving them to the parent
-                  setWords(words.map(w => w.categoryId === subCat.id ? { ...w, categoryId: parentCat.id } : w));
+                  // Also un-categorize any tasks that were in this sub-category by moving them to the parent
+                  setTasks(tasks.map(w => w.categoryId === subCat.id ? { ...w, categoryId: parentCat.id } : w));
                   setSettings(prev => ({ ...prev, categories: newCategories }));
                 }
               }}><i className="fas fa-minus"></i></button>

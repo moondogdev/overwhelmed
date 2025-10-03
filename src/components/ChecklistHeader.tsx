@@ -3,7 +3,7 @@ import { ChecklistSection, Settings } from '../types';
 import { formatChecklistForCopy } from '../utils';
 
 interface ChecklistHeaderProps {
-    wordId: number;
+    taskId: number;
     settings: Settings;
     history: ChecklistSection[][];
     historyIndex: number;
@@ -35,7 +35,7 @@ interface ChecklistHeaderProps {
 }
 
 export const ChecklistHeader: React.FC<ChecklistHeaderProps> = ({
-    wordId, settings, history, historyIndex, isEditable,
+    taskId, settings, history, historyIndex, isEditable,
     confirmingDeleteChecked, confirmingDeleteResponses, confirmingDeleteNotes,
     confirmingDeleteAllSections, confirmTimeoutRef, onDeleteChecked, onToggleAllSections,
     onSendAllItemsToTimer, onExpandAllSections, onCollapseAllSections, onAddResponses,
@@ -59,9 +59,9 @@ export const ChecklistHeader: React.FC<ChecklistHeaderProps> = ({
         <div className="checklist-main-header" onContextMenu={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            const isInEditMode = settings.activeTaskTabs?.[wordId] === 'edit';
+            const isInEditMode = settings.activeTaskTabs?.[taskId] === 'edit';
             window.electronAPI.showChecklistMainHeaderContextMenu({
-                wordId,
+                taskId,
                 sectionId: 0,
                 areAllComplete: false,
                 isSectionOpen: false,

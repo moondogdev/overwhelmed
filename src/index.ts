@@ -22,8 +22,20 @@ const store = new Store({
   // it will automatically move your data from the old file to the new one,
   // preventing this kind of data loss from ever happening again.
   migrations: {
-    '>=1.0.0': (store) => { /* This can be used for future data migrations */ }
-  }
+    '>=1.0.21': (store) => {
+      // This migration renames 'word' related keys to 'task' for clarity.
+      const words = store.get('overwhelmed-words');
+      if (words) {
+        store.set('overwhelmed-tasks', words);
+        store.delete('overwhelmed-words');
+      }
+      const completedWords = store.get('overwhelmed-completed-words');
+      if (completedWords) {
+        store.set('overwhelmed-completed-tasks', completedWords);
+        store.delete('overwhelmed-completed-words');
+      }
+    }
+  },
 });
 // Ensure attachments directory exists
 const attachmentsPath = path.join(app.getPath('userData'), 'attachments');
@@ -37,7 +49,7 @@ let isQuitting = false; // Flag to prevent reopening on quit
 let isDirty = false; // Flag to track if there are unsaved changes in the renderer
 async function handleFileSave(_event: IpcMainInvokeEvent, dataUrl: string) {
   const { canceled, filePath } = await dialog.showSaveDialog({
-    title: 'Save Word Cloud Image',
+    title: 'Save Task Cloud Image',
     defaultPath: `overwhelmed-image.png`,
     filters: [{ name: 'PNG Image', extensions: ['png'] }],
   });
@@ -93,7 +105,7 @@ function createBackup(data: any) {
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupFilePath = path.join(autoBackupsPath, `backup-${timestamp}.json`);
-    fs.writeFileSync(backupFilePath, JSON.stringify(data, null, 2));
+    fs.writeFileSync(backupFilePath, JSON.stringify({ tasks: data.tasks, completedTasks: data.completedTasks, settings: data.settings, inboxMessages: data.inboxMessages, archivedMessages: data.archivedMessages, trashedMessages: data.trashedMessages }, null, 2));
     console.log(`Backup created at: ${backupFilePath}`);
     
     // Prune old backups, keeping the number specified in settings (default to 10)
@@ -118,8 +130,8 @@ function createBackup(data: any) {
 ipcMain.handle('create-manual-backup', async (_event, backupName: string) => {
   try {
     const data = {
-      words: store.get('overwhelmed-words'),
-      completedWords: store.get('overwhelmed-completed-words'),
+      tasks: store.get('overwhelmed-tasks'),
+      completedTasks: store.get('overwhelmed-completed-tasks'),
       settings: store.get('overwhelmed-settings'),
       inboxMessages: store.get('overwhelmed-inbox-messages'),
     };
@@ -260,8 +272,8 @@ const createWindow = (): void => {
           const finalDuration = entryToSave.duration + (Date.now() - entryToSave.startTime);
           entryToSave = { ...entryToSave, duration: finalDuration, isRunning: true, startTime: Date.now() };
         }
-        store.set('active-timer-word-id', data.activeTimerWordIdRef.current);
-        store.set('active-timer-entry', entryToSave);
+        store.set('active-timer-taskId', data.activeTimerTaskIdRef.current);
+        store.set('active-timer-entry', entryToSave); // This key is generic, no change needed.
       };
 
       if (!isDirty) {
@@ -284,9 +296,9 @@ const createWindow = (): void => {
 
       if (response === 0) { // Save and Quit
         // Save EVERYTHING, which implicitly includes the timer state via the data object.
-        store.set('overwhelmed-words', data.words);
-        store.set('overwhelmed-completed-words', data.completedWords);
-        store.set('overwhelmed-settings', data.settings);
+        store.set('overwhelmed-tasks', data.tasks);
+        store.set('overwhelmed-completed-tasks', data.completedTasks);
+        store.set('overwhelmed-settings', data.settingsRef.current);
         store.set('overwhelmed-inbox-messages', data.inboxMessagesRef.current);
         store.set('overwhelmed-archived-messages', data.archivedMessagesRef.current);
         store.set('overwhelmed-trashed-messages', data.trashedMessagesRef.current);
@@ -340,11 +352,11 @@ app.whenReady().then(() => {
   ipcMain.handle('electron-store-set', (_event, key, val) => store.set(key, val));
   ipcMain.on('auto-save-data', (_event, data) => {
     // This is a background save, so we just write the data.
-    store.set('overwhelmed-words', data.words);
-    store.set('overwhelmed-completed-words', data.completedWords);
+    store.set('overwhelmed-tasks', data.tasks);
+    store.set('overwhelmed-completed-tasks', data.completedTasks);
     store.set('overwhelmed-settings', data.settings);
     store.set('overwhelmed-inbox-messages', data.inboxMessages);
-    store.set('active-timer-word-id', data.activeTimerWordId);
+    store.set('active-timer-taskId', data.activeTimerTaskId);
     store.set('active-timer-entry', data.activeTimerEntry);
     console.log('Auto-save complete.');
   });
@@ -359,7 +371,7 @@ app.whenReady().then(() => {
     isDirty = dirtyState;
   });
   ipcMain.on('show-task-context-menu', (event, payload) => {
-    const { wordId, x, y, hasCompletedTasks, isInEditMode } = payload;
+    const { taskId, x, y, hasCompletedTasks, isInEditMode } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];
 
@@ -367,12 +379,12 @@ app.whenReady().then(() => {
     if (isInEditMode) {
       template.push({
         label: 'View Task',
-        click: () => webContents.send('context-menu-command', { command: 'view', wordId }),
+        click: () => webContents.send('context-menu-command', { command: 'view', taskId }),
       });
     } else {
       template.push({
         label: 'Edit Task',
-        click: () => webContents.send('context-menu-command', { command: 'edit', wordId }),
+        click: () => webContents.send('context-menu-command', { command: 'edit', taskId }),
       });
     }
 
@@ -380,16 +392,16 @@ app.whenReady().then(() => {
       { type: 'separator' },
       {
         label: 'Add to Work Session',
-        click: () => webContents.send('context-menu-command', { command: 'add_to_session', wordId }),
+        click: () => webContents.send('context-menu-command', { command: 'add_to_session', taskId }),
       },
       { type: 'separator' },
       {
         label: 'Complete Task',
-        click: () => webContents.send('context-menu-command', { command: 'complete', wordId }),
+        click: () => webContents.send('context-menu-command', { command: 'complete', taskId }),
       },
       {
         label: 'Duplicate Task',
-        click: () => webContents.send('context-menu-command', { command: 'duplicate', wordId }),
+        click: () => webContents.send('context-menu-command', { command: 'duplicate', taskId }),
       },
       {
         label: 'Re-Open Last Task',
@@ -399,7 +411,7 @@ app.whenReady().then(() => {
       { type: 'separator' },
       {
         label: 'Trash Task',
-        click: () => webContents.send('context-menu-command', { command: 'trash', wordId }),
+        click: () => webContents.send('context-menu-command', { command: 'trash', taskId }),
         
       },
       { type: 'separator' },
@@ -451,26 +463,26 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
   ipcMain.on('show-toast-context-menu', (event, payload) => {
-    const { wordId, x, y, isInEditMode } = payload;
+    const { taskId, x, y, isInEditMode } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
       // Dynamically add 'View' or 'Edit' based on the current mode    
       {
           label: 'View Task',
-          click: () => webContents.send('toast-context-menu-command', { command: 'view', wordId }),
+          click: () => webContents.send('toast-context-menu-command', { command: 'view', taskId }),
       },
       {
           label: 'Edit Task',
-          click: () => webContents.send('toast-context-menu-command', { command: 'edit', wordId }),
+          click: () => webContents.send('toast-context-menu-command', { command: 'edit', taskId }),
       },    
       { type: 'separator' },
       {
         label: 'Snooze',
-        click: () => webContents.send('toast-context-menu-command', { command: 'snooze', wordId }),
+        click: () => webContents.send('toast-context-menu-command', { command: 'snooze', taskId }),
       },
       {
         label: 'Complete Task',
-        click: () => webContents.send('toast-context-menu-command', { command: 'complete', wordId }),
+        click: () => webContents.send('toast-context-menu-command', { command: 'complete', taskId }),
       },
       { type: 'separator' },
       {
@@ -494,22 +506,22 @@ app.whenReady().then(() => {
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];
 
-    if (message.wordId) {
+    if (message.taskId) {
       template.push({
         label: 'View Task',
-        click: () => webContents.send('inbox-context-menu-command', { command: 'view', wordId: message.wordId }),
+        click: () => webContents.send('inbox-context-menu-command', { command: 'view', taskId: message.taskId }),
       });
     }
 
-    if (message.type === 'overdue' && message.wordId) {
+    if (message.type === 'overdue' && message.taskId) {
       template.push({ type: 'separator' });
       template.push({
         label: 'Snooze',
-        click: () => webContents.send('inbox-context-menu-command', { command: 'snooze', wordId: message.wordId }),
+        click: () => webContents.send('inbox-context-menu-command', { command: 'snooze', taskId: message.taskId }),
       });
       template.push({
         label: 'Complete Task',
-        click: () => webContents.send('inbox-context-menu-command', { command: 'complete', wordId: message.wordId }),
+        click: () => webContents.send('inbox-context-menu-command', { command: 'complete', taskId: message.taskId }),
       });
     }
 
@@ -558,7 +570,7 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
   ipcMain.on('show-checklist-item-context-menu', (event, payload) => {
-    const { sectionId, itemId, isCompleted, hasNote, hasResponse, hasUrl, isInEditMode, wordId, x, y } = payload;
+    const { sectionId, itemId, isCompleted, hasNote, hasResponse, hasUrl, isInEditMode, taskId, x, y } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];  
 
@@ -671,12 +683,12 @@ app.whenReady().then(() => {
     if (isInEditMode) {
       template.push({
         label: 'View Task',
-        click: () => webContents.send('checklist-item-command', { command: 'view', wordId }),
+        click: () => webContents.send('checklist-item-command', { command: 'view', taskId }),
       });
     } else {
       template.push({
         label: 'Edit Task',
-        click: () => webContents.send('checklist-item-command', { command: 'edit', wordId }),
+        click: () => webContents.send('checklist-item-command', { command: 'edit', taskId }),
       });
     }
     template.push(     
@@ -698,7 +710,7 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
   ipcMain.on('show-checklist-section-context-menu', (event, payload) => {
-    const { wordId, sectionId, areAllComplete, isSectionOpen, isNotesHidden, isResponsesHidden, x, y, isInEditMode, isConfirmingDelete } = payload;
+    const { taskId, sectionId, areAllComplete, isSectionOpen, isNotesHidden, isResponsesHidden, x, y, isInEditMode, isConfirmingDelete } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];
     
@@ -808,12 +820,12 @@ app.whenReady().then(() => {
     if (isInEditMode) {
       template.push({
         label: 'View Task',
-        click: () => webContents.send('checklist-section-command', { command: 'view', wordId }),
+        click: () => webContents.send('checklist-section-command', { command: 'view', taskId }),
       });
     } else {
       template.push({
         label: 'Edit Task',
-        click: () => webContents.send('checklist-section-command', { command: 'edit', wordId }),
+        click: () => webContents.send('checklist-section-command', { command: 'edit', taskId }),
       });
     }
     template.push(
@@ -1017,7 +1029,7 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });
   });
   ipcMain.on('show-checklist-main-header', (event, payload) => {
-    const { wordId, sectionId, areAllComplete, isSectionOpen, isNotesHidden, isResponsesHidden, x, y, isInEditMode, isConfirmingDelete } = payload;
+    const { taskId, sectionId, areAllComplete, isSectionOpen, isNotesHidden, isResponsesHidden, x, y, isInEditMode, isConfirmingDelete } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];
     template.push(      
@@ -1086,12 +1098,12 @@ app.whenReady().then(() => {
     if (isInEditMode) {
       template.push({
         label: 'View Task',
-        click: () => webContents.send('checklist-main-header-command', { command: 'view', wordId }),
+        click: () => webContents.send('checklist-main-header-command', { command: 'view', taskId }),
       });
     } else {
       template.push({
         label: 'Edit Task',
-        click: () => webContents.send('checklist-main-header-command', { command: 'edit', wordId }),
+        click: () => webContents.send('checklist-main-header-command', { command: 'edit', taskId }),
       });
     }
     template.push(    

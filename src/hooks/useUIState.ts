@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { Word, Settings } from '../types';
+import { Task, Settings } from '../types';
 
 interface UseUIStateProps {
   setSettings: React.Dispatch<React.SetStateAction<Settings>>;
@@ -20,9 +20,9 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [editingViaContext, setEditingViaContext] = useState<number | null>(null);
-  const [copyStatus, setToastStatus] = useState('');
-  const copyStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [newTask, setNewTask] = useState<Partial<Word>>({
+  const [toastMessage, setToastMessage] = useState('');
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [newTask, setNewTask] = useState<Partial<Task>>({
     text: '',
     url: '',
     taskType: 'default',
@@ -61,13 +61,13 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
   }, [setIsAddTaskOpen, setSettings, newTaskTitleInputRef]);
 
   const showToast = useCallback((message: string, duration: number = 2000) => {
-    if (copyStatusTimeoutRef.current) {
-      clearTimeout(copyStatusTimeoutRef.current);
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
     }
-    setToastStatus(message);
-    copyStatusTimeoutRef.current = setTimeout(() => {
-      setToastStatus('');
-      copyStatusTimeoutRef.current = null;
+    setToastMessage(message);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage('');
+      toastTimeoutRef.current = null;
     }, duration);
   }, []);
 
@@ -78,7 +78,7 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
     isAddTaskOpen, setIsAddTaskOpen, editingViaContext, setEditingViaContext, newTask, setNewTask,
     isWorkSessionManagerOpen, setIsWorkSessionManagerOpen,
     focusAddTaskInput,
-    copyStatus,
+    toastMessage,
     showToast,
   };
 }

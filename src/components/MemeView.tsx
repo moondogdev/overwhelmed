@@ -1,37 +1,37 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { Word } from '../types';
-import { getFontSize, getNewWordPosition } from '../utils';
+import { Task } from '../types';
+import { getFontSize, getNewTaskPosition } from '../utils';
 import placeholderImage from "../assets/placeholder-image.jpg";
 
 export function MemeView() {
-  const { settings, words, setWords } = useAppContext();
+  const { settings, tasks, setTasks } = useAppContext();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wordsRef = useRef<Word[]>([]);
-  const [hoveredWordId, setHoveredWordId] = useState<number | null>(null);
+  const tasksRef = useRef<Task[]>([]);
+  const [hoveredTaskId, setHoveredTaskId] = useState<number | null>(null);
 
   useEffect(() => {
-    // This effect runs when `words` change. It's responsible for assigning
-    // initial positions to any new words added while in Meme View.
-    const wordsToPosition = words.filter(w => w.x === 0 && w.y === 0);
-    if (wordsToPosition.length > 0) {
+    // This effect runs when `tasks` change. It's responsible for assigning
+    // initial positions to any new tasks added while in Meme View.
+    const tasksToPosition = tasks.filter(t => t.x === 0 && t.y === 0);
+    if (tasksToPosition.length > 0) {
       const canvas = canvasRef.current;
       const context = canvas?.getContext('2d');
       if (!canvas || !context) return;
 
-      const updatedWords = words.map(word => {
-        if (word.x === 0 && word.y === 0) {
-          const fontSize = getFontSize(words.indexOf(word), words.length, settings);
+      const updatedTasks = tasks.map(task => {
+        if (task.x === 0 && task.y === 0) {
+          const fontSize = getFontSize(tasks.indexOf(task), tasks.length, settings);
           context.font = `${fontSize}px ${settings.fontFamily}`;
-          const metrics = context.measureText(word.text);
-          const newWordMetrics = { width: metrics.width, height: fontSize };
-          return { ...word, ...getNewWordPosition(canvas.width, canvas.height, newWordMetrics, wordsRef) };
+          const metrics = context.measureText(task.text);
+          const newTaskMetrics = { width: metrics.width, height: fontSize };
+          return { ...task, ...getNewTaskPosition(canvas.width, canvas.height, newTaskMetrics, tasksRef) };
         }
-        return word;
+        return task;
       });
-      setWords(updatedWords);
+      setTasks(updatedTasks);
     }
-  }, [words]);
+  }, [tasks]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -49,11 +49,11 @@ export function MemeView() {
         context.globalAlpha = 1.0;
       }
 
-      const updatedWords = words.map((word, index) => {
-        let fontSize = getFontSize(index, words.length, settings);
+      const updatedTasks = tasks.map((task, index) => {
+        let fontSize = getFontSize(index, tasks.length, settings);
         context.font = `${fontSize}px ${settings.fontFamily}`;
 
-        const metrics = context.measureText(word.text);
+        const metrics = context.measureText(task.text);
         const availableWidth = canvas.width - 100;
         if (metrics.width > availableWidth) {
           fontSize = Math.floor(fontSize * (availableWidth / metrics.width));
@@ -65,21 +65,21 @@ export function MemeView() {
         context.shadowOffsetX = settings.shadowOffsetX;
         context.shadowOffsetY = settings.shadowOffsetY;
 
-        context.fillStyle = word.id === hoveredWordId ? '#FFD700' : settings.fontColor;
+        context.fillStyle = task.id === hoveredTaskId ? '#FFD700' : settings.fontColor;
         context.textAlign = "center";
-        context.fillText(word.text, word.x, word.y);
+        context.fillText(task.text, task.x, task.y);
 
-        const finalMetrics = context.measureText(word.text);
+        const finalMetrics = context.measureText(task.text);
 
         if (settings.isDebugModeEnabled && settings.currentView === 'meme') {
           context.strokeStyle = 'red';
           context.lineWidth = 1;
-          context.strokeRect(word.x - finalMetrics.width / 2, word.y - fontSize, finalMetrics.width, fontSize);
+          context.strokeRect(task.x - finalMetrics.width / 2, task.y - fontSize, finalMetrics.width, fontSize);
         }
 
-        return { ...word, width: finalMetrics.width, height: fontSize };
+        return { ...task, width: finalMetrics.width, height: fontSize };
       });
-      wordsRef.current = updatedWords;
+      tasksRef.current = updatedTasks;
     };
 
     const image = new Image();
@@ -88,7 +88,7 @@ export function MemeView() {
     if (image.complete) {
       redrawCanvas(image);
     }
-  }, [words, settings, hoveredWordId]);
+  }, [tasks, settings, hoveredTaskId]);
 
   const handleSaveImage = () => {
     const canvas = canvasRef.current;
@@ -104,20 +104,20 @@ export function MemeView() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const newWords: Word[] = [];
-    const tempWordsRef = { current: newWords };
+    const newTasks: Task[] = [];
+    const tempTasksRef = { current: newTasks };
 
-    const originalWordsRefCurrent = wordsRef.current;
-    wordsRef.current = tempWordsRef.current;
+    const originalTasksRefCurrent = tasksRef.current;
+    tasksRef.current = tempTasksRef.current;
 
-    words.forEach(word => {
-      const { x, y } = getNewWordPosition(canvas.width, canvas.height, { width: word.width ?? 0, height: word.height ?? 0 }, wordsRef);
-      const newWord = { ...word, x, y };
-      newWords.push(newWord);
+    tasks.forEach(task => {
+      const { x, y } = getNewTaskPosition(canvas.width, canvas.height, { width: task.width ?? 0, height: task.height ?? 0 }, tasksRef);
+      const newTask = { ...task, x, y };
+      newTasks.push(newTask);
     });
 
-    wordsRef.current = originalWordsRefCurrent;
-    setWords(newWords);
+    tasksRef.current = originalTasksRefCurrent;
+    setTasks(newTasks);
   };
 
   const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -128,25 +128,25 @@ export function MemeView() {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
-    const foundWord = [...wordsRef.current].reverse().find(word => {
-      if (!word.width || !word.height) return false;
-      const wordLeft = word.x - word.width / 2;
-      const wordRight = word.x + word.width / 2;
-      const wordTop = word.y - word.height;
-      const wordBottom = word.y;
-      return x >= wordLeft && x <= wordRight && y >= wordTop && y <= wordBottom;
+    const foundTask = [...tasksRef.current].reverse().find(task => {
+      if (!task.width || !task.height) return false;
+      const taskLeft = task.x - task.width / 2;
+      const taskRight = task.x + task.width / 2;
+      const taskTop = task.y - task.height;
+      const taskBottom = task.y;
+      return x >= taskLeft && x <= taskRight && y >= taskTop && y <= taskBottom;
     });
 
-    setHoveredWordId(foundWord ? foundWord.id : null);
-    canvas.style.cursor = foundWord ? 'pointer' : 'default';
+    setHoveredTaskId(foundTask ? foundTask.id : null);
+    canvas.style.cursor = foundTask ? 'pointer' : 'default';
   };
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (hoveredWordId) {
-      const clickedWord = words.find(w => w.id === hoveredWordId);
-      if (clickedWord) {
+    if (hoveredTaskId) {
+      const clickedTask = tasks.find(t => t.id === hoveredTaskId);
+      if (clickedTask) {
         const activeBrowser = settings.browsers[settings.activeBrowserIndex];
-        const url = clickedWord.url || `https://www.google.com/search?q=${encodeURIComponent(clickedWord.text)}`;
+        const url = clickedTask.url || `https://www.google.com/search?q=${encodeURIComponent(clickedTask.text)}`;
         window.electronAPI.openExternalLink({ url, browserPath: activeBrowser?.path });
       }
     }
@@ -155,8 +155,8 @@ export function MemeView() {
   const handleContextMenu = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!settings.isDebugModeEnabled) return;
     event.preventDefault();
-    if (hoveredWordId) {
-      const clickedWord = words.find(w => w.id === hoveredWordId);      
+    if (hoveredTaskId) {
+      const clickedTask = tasks.find(t => t.id === hoveredTaskId);      
       window.electronAPI.showContextMenu();
     }
   };
@@ -178,7 +178,7 @@ export function MemeView() {
         onClick={handleCanvasClick}
         onContextMenu={handleContextMenu}
         onMouseMove={handleMouseMove}
-        title={hoveredWordId ? 'Open Link or Search Google' : ''} />
+        title={hoveredTaskId ? 'Open Link or Search Google' : ''} />
     </div>
   );
 }

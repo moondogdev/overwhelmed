@@ -1,11 +1,11 @@
 import React from 'react';
-import { ChecklistSection, Settings, Word, ChecklistItem, TimeLogEntry } from '../types';
+import { ChecklistSection, Settings, ChecklistItem } from '../types';
 import { formatChecklistForCopy } from '../utils';
 import { ChecklistItemComponent } from './ChecklistItemComponent';
 
 interface ChecklistSectionProps {
     section: ChecklistSection;
-    wordId: number;
+    taskId: number;
     isEditable: boolean;
     settings: Settings;
     history: ChecklistSection[][];
@@ -71,7 +71,7 @@ interface ChecklistSectionProps {
 }
 
 export const ChecklistSectionComponent: React.FC<ChecklistSectionProps> = ({
-    section, wordId, isEditable, settings, history, historyIndex, timeLogDurations,
+    section, taskId, isEditable, settings, history, historyIndex, timeLogDurations,
     editingItemId, editingItemText, editingResponseForItemId, editingNoteForItemId,
     editingSectionId, editingSectionTitle, hiddenNotesSections, hiddenResponsesSections,
     confirmingDeleteSectionId, confirmingDeleteChecked, confirmingDeleteSectionResponses,
@@ -96,10 +96,10 @@ export const ChecklistSectionComponent: React.FC<ChecklistSectionProps> = ({
     return (
         <div key={section.id} className="checklist-section" data-section-id={section.id} onContextMenu={(e) => {
             e.preventDefault();
-            e.stopPropagation(); // Stop the event from bubbling up to the parent TaskAccordion
-            const isInEditMode = settings.activeTaskTabs?.[wordId] === 'edit';
+            e.stopPropagation(); // Stop the event from bubbling up to the parent TaskAccordion            
+            const isInEditMode = settings.activeTaskTabs?.[taskId] === 'edit';
             window.electronAPI.showChecklistSectionContextMenu({
-                wordId,
+                taskId,
                 sectionId: section.id,
                 areAllComplete,
                 isSectionOpen,
@@ -179,7 +179,7 @@ export const ChecklistSectionComponent: React.FC<ChecklistSectionProps> = ({
                                 key={item.id}
                                 item={item}
                                 sectionId={section.id}
-                                wordId={wordId}
+                                taskId={taskId}
                                 isEditable={isEditable}
                                 settings={settings}
                                 timeLogDurations={timeLogDurations}

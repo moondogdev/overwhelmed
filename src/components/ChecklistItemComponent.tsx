@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChecklistItem, Settings, TimeLogEntry } from '../types';
+import { ChecklistItem, Settings } from '../types';
 import { formatDate, formatTime, extractUrlFromText } from '../utils';
 
 const ClickableText = ({ text, settings }: { text: string, settings: Settings }) => {
@@ -26,7 +26,7 @@ const ClickableText = ({ text, settings }: { text: string, settings: Settings })
 interface ChecklistItemProps {
     item: ChecklistItem;
     sectionId: number;
-    wordId: number;
+    taskId: number;
     isEditable: boolean;
     settings: Settings;
     timeLogDurations: Map<number, number>;
@@ -57,7 +57,7 @@ interface ChecklistItemProps {
 }
 
 export const ChecklistItemComponent: React.FC<ChecklistItemProps> = ({
-    item, sectionId, wordId, isEditable, settings, timeLogDurations,
+    item, sectionId, taskId, isEditable, settings, timeLogDurations,
     editingItemId, editingItemText, editingResponseForItemId, editingNoteForItemId,
     hiddenNotesSections, hiddenResponsesSections, editingItemInputRef, subInputRefs,
     onToggleItem, onUpdateItemText, onUpdateItemResponse, onUpdateItemNote,
@@ -74,9 +74,9 @@ export const ChecklistItemComponent: React.FC<ChecklistItemProps> = ({
                 e.preventDefault();
                 e.stopPropagation();
                 const url = extractUrlFromText(item.text);
-                const isInEditMode = settings.activeTaskTabs?.[wordId] === 'edit';
+                const isInEditMode = settings.activeTaskTabs?.[taskId] === 'edit';
                 window.electronAPI.showChecklistItemContextMenu({
-                    wordId: wordId,
+                    taskId: taskId,
                     sectionId: sectionId,
                     itemId: item.id,
                     isCompleted: item.isCompleted,

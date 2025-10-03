@@ -17,7 +17,7 @@ const formatBytes = (bytes: number, decimals = 2) => {
 export function BackupManager() {
     const { 
         showToast, settings, setSettings, isPromptOpen, setIsPromptOpen, 
-        setWords, setCompletedWords, setInboxMessages, words, completedWords 
+        setTasks, setCompletedTasks, setInboxMessages, tasks, completedTasks 
     } = useAppContext();
     
     const [backups, setBackups] = useState<{ name: string, path: string, time: number, size: number }[]>([]);
@@ -66,8 +66,8 @@ export function BackupManager() {
     };
 
     const onRestore = (data: any) => {
-        setWords(data.words || []);
-        setCompletedWords(data.completedWords || []);
+        setTasks(data.tasks || []);
+        setCompletedTasks(data.completedTasks || []);
         setSettings(prev => ({ ...defaultSettings, ...data.settings }));
         if (data.inboxMessages) setInboxMessages(data.inboxMessages);
         showToast('Backup restored successfully!');
@@ -81,17 +81,17 @@ export function BackupManager() {
 
     const handleMergeConfirm = () => {
         if (backupPreview && !backupPreview.error) {
-            const backupWords = backupPreview.words || [];
-            const backupCompletedWords = backupPreview.completedWords || [];
+            const backupTasks = backupPreview.tasks || [];
+            const backupCompletedTasks = backupPreview.completedTasks || [];
 
             // Combine and de-duplicate based on task ID
-            const mergedWords = [...words, ...backupWords];
-            const uniqueWords = Array.from(new Map(mergedWords.map(item => [item.id, item])).values());
+            const mergedTasks = [...tasks, ...backupTasks];
+            const uniqueTasks = Array.from(new Map(mergedTasks.map(item => [item.id, item])).values());
 
-            const mergedCompletedWords = [...completedWords, ...backupCompletedWords];
-            const uniqueCompletedWords = Array.from(new Map(mergedCompletedWords.map(item => [item.id, item])).values());
+            const mergedCompletedTasks = [...completedTasks, ...backupCompletedTasks];
+            const uniqueCompletedTasks = Array.from(new Map(mergedCompletedTasks.map(item => [item.id, item])).values());
 
-            onRestore({ words: uniqueWords, completedWords: uniqueCompletedWords, settings: settings }); // Keep current settings
+            onRestore({ tasks: uniqueTasks, completedTasks: uniqueCompletedTasks, settings: settings }); // Keep current settings
         }
     };
 
@@ -198,8 +198,8 @@ export function BackupManager() {
                                 <div className="backup-preview">
                                     <strong>Backup Details:</strong>
                                     <p>Name: {selectedBackup.name}</p>
-                                    <p>Open Tasks: {backupPreview.words?.length || 0}</p>
-                                    <p>Completed Tasks: {backupPreview.completedWords?.length || 0}</p>
+                                    <p>Open Tasks: {backupPreview.tasks?.length || 0}</p>
+                                    <p>Completed Tasks: {backupPreview.completedTasks?.length || 0}</p>
                                 </div>
                                 <div className="modal-actions">
                                     <button onClick={handleMergeConfirm}>Merge with Session</button>

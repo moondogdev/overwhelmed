@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Word, Settings, TaskType, AccordionProps } from '../types';
+import { Task, Settings, TaskType, AccordionProps } from '../types';
 import { useAppContext } from '../contexts/AppContext';
 import { PromptModal } from './Editors';
 import './styles/Accordion.css';
@@ -46,7 +46,7 @@ export function LiveClock() {
 
 export function TaskTypeManager() {
     const { settings, setSettings } = useAppContext();
-    const allPossibleFields: (keyof Word)[] = [
+    const allPossibleFields: (keyof Task)[] = [
         'text', 'url', 'priority', 'categoryId', 'openDate', 'completeBy', 'company', 'websiteUrl', 'imageLinks', 'payRate', 'isRecurring', 'isDailyRecurring', 'isWeeklyRecurring', 'isMonthlyRecurring', 'isYearlyRecurring', 'isAutocomplete', 'description', 'attachments', 'checklist', 'notes'
     ];
 
@@ -72,7 +72,7 @@ export function TaskTypeManager() {
         }
     };
 
-    const handleFieldToggle = (typeId: string, fieldName: keyof Word) => {
+    const handleFieldToggle = (typeId: string, fieldName: keyof Task) => {
         const taskType = (settings.taskTypes || []).find(t => t.id === typeId);
         if (!taskType) return;
 

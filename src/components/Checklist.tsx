@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Word, ChecklistItem, ChecklistSection, InboxMessage, Settings, TimeLogEntry, ChecklistTemplate } from '../types';
+import { Task, ChecklistItem, ChecklistSection, InboxMessage, Settings, TimeLogEntry, ChecklistTemplate } from '../types';
 import { PromptModal } from './Editors';
 import './styles/Checklist.css';
 import { ChecklistHeader } from './ChecklistHeader';
@@ -13,23 +13,23 @@ interface ChecklistProps {
   onUpdate: (newSections: ChecklistSection[]) => void;
   isEditable: boolean;
   onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
-  words: Word[];
+  tasks: Task[];
   setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>;
-  word: Word;
-  wordId: number;
-  onWordUpdate: (updatedWord: Word) => void;  
+  task: Task;
+  taskId: number;
+  onTaskUpdate: (updatedTask: Task) => void;  
   checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
   showToast: (message: string, duration?: number) => void;
   focusItemId: number | null;
   onFocusHandled: () => void;
   settings: Settings;
   onSettingsChange: (update: Partial<Settings> | ((prevSettings: Settings) => Partial<Settings>)) => void;
-  handleGlobalToggleTimer: (wordId: number, entryId: number, entry?: TimeLogEntry, newTimeLog?: TimeLogEntry[]) => void;
+  handleGlobalToggleTimer: (taskId: number, entryId: number, entry?: TimeLogEntry, newTimeLog?: TimeLogEntry[]) => void;
   handleClearActiveTimer: () => void;
-  handlePrimeTask: (wordId: number) => void;
+  handlePrimeTask: (taskId: number) => void;
   activeTimerEntry: TimeLogEntry | null; // Add for live time display
   activeTimerLiveTime: number; // Add for live time display
-  handlePrimeTaskWithNewLog: (wordId: number, newTimeLog: TimeLogEntry[], timeLogTitle?: string) => void;
+  handlePrimeTaskWithNewLog: (taskId: number, newTimeLog: TimeLogEntry[], timeLogTitle?: string) => void;
 }
 
 export function Checklist({ 
@@ -37,11 +37,11 @@ export function Checklist({
   onUpdate, 
   isEditable, 
   onComplete, 
-  words, 
+  tasks, 
   setInboxMessages, 
-  word, 
-  wordId, 
-  onWordUpdate, 
+  task, 
+  taskId, 
+  onTaskUpdate, 
   checklistRef, 
   showToast, 
   focusItemId, 
@@ -123,16 +123,14 @@ export function Checklist({
     handleGlobalChecklistCommand,
     updateHistory,
     setFocusSubInputKey,
-  } = useChecklist({
-    sections, onUpdate, isEditable, onComplete, words, setInboxMessages, word, wordId,
-    onWordUpdate, checklistRef, showToast, focusItemId, onFocusHandled, settings,
+  } = useChecklist({ sections, onUpdate, isEditable, onComplete, tasks, setInboxMessages, task, taskId,
+    onTaskUpdate, checklistRef, showToast, focusItemId, onFocusHandled, settings,
     onSettingsChange, handleGlobalToggleTimer, handleClearActiveTimer, handlePrimeTask,
     handlePrimeTaskWithNewLog, activeTimerEntry, activeTimerLiveTime
   });
 
   // Phase 2: Set up IPC command listeners by passing handlers to the dedicated IPC hook.
-  useChecklistIPC({
-    history, historyIndex, isEditable, settings, wordId, words,
+  useChecklistIPC({ history, historyIndex, isEditable, settings, taskId, tasks,
     onUpdate, onComplete, showToast, onSettingsChange, updateHistory,
     handleDuplicateChecklistItem, setEditingItemId, setEditingItemText,
     handleUpdateItemResponse, setEditingResponseForItemId, handleUpdateItemNote,
@@ -144,9 +142,8 @@ export function Checklist({
     setTemplateSectionsToSave: (sections) => {
       // This is a bit of a workaround because the state setter is in the main hook.
       // We find the state setter in the main hook's return value and call it.
-      const mainHook = useChecklist({
-        sections, onUpdate, isEditable, onComplete, words, setInboxMessages, word, wordId,
-        onWordUpdate, checklistRef, showToast, focusItemId, onFocusHandled, settings,
+      const mainHook = useChecklist({ sections, onUpdate, isEditable, onComplete, tasks, setInboxMessages, task, taskId,
+        onTaskUpdate, checklistRef, showToast, focusItemId, onFocusHandled, settings,
         onSettingsChange, handleGlobalToggleTimer, handleClearActiveTimer, handlePrimeTask,
         handlePrimeTaskWithNewLog, activeTimerEntry, activeTimerLiveTime
       });
@@ -169,7 +166,7 @@ export function Checklist({
         placeholder="Enter template name..."
       />
       <ChecklistHeader
-        wordId={wordId}
+        taskId={taskId}
         settings={settings}
         history={history}
         historyIndex={historyIndex}
@@ -201,7 +198,7 @@ export function Checklist({
         <ChecklistSectionComponent
           key={section.id}
           section={section}
-          wordId={wordId}
+          taskId={taskId}
           isEditable={isEditable}
           settings={settings}
           history={history}

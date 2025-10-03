@@ -6,6 +6,7 @@ A log of what was commited to git.
 
 ## Log of Changes
 
+- **[1.0.21] - 2025-09-28: Codebase Cleanup & Bug Fixes**: refactor(core): Standardize naming conventions (Word->Task) and fix data loading
 - **[1.0.19] - 2025-09-27: Full Refactor to Hook-Based Architecture**: refactor: Complete full refactor to hook-based architecture and MiniPlayer
 - **[1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls**: feat(time): Implement Time Log Sessions and advanced timer controls
 - **[1.0.17] - 2025-09-26: Time Tracker Log & Checklist Integration**: feat(time): Implement detailed time tracker log and checklist integration
@@ -26,6 +27,24 @@ A log of what was commited to git.
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.21] - 2025-09-28: Codebase Cleanup & Bug Fixes
+**refactor(core): Standardize naming conventions (Word->Task) and fix data loading**
+
+This commit completes a major codebase cleanup initiative, standardizing legacy naming conventions and fixing a critical data loading bug.
+
+#### Refactored
+-   **`Checklist.tsx` Component**: The monolithic `Checklist.tsx` component was refactored into a clean "Orchestrator" component. All state management and logic were extracted into a dedicated `useChecklist` custom hook, and all UI rendering was moved into smaller, single-responsibility presentational components (`ChecklistHeader`, `ChecklistSection`, `ChecklistItemComponent`). This dramatically improves maintainability and readability.
+-   **`Word` -> `Task`**: Completed a global refactor to rename the core data object from the legacy `Word` to the more accurate `Task`. This includes all related type definitions, state variables (`words` -> `tasks`), and handler functions (`handleWordUpdate` -> `handleTaskUpdate`) across the entire application. This significantly improves code clarity and maintainability.
+-   **`copyStatus` -> `toastMessage`**: Refactored the global `copyStatus` state to the more descriptive `toastMessage`. This accurately reflects its role as the application's central toast notification system.
+
+#### Fixed
+-   **Critical Data Loading Bug**: Fixed a critical bug where users' existing tasks would not load after the `Word` -> `Task` refactor. The data persistence logic in `useDataPersistence.ts` now implements a "smart loading" fallback, first checking for the new `overwhelmed-tasks` key and then checking for the old `overwhelmed-words` key. This ensures a seamless, non-destructive migration for all existing users.
+
+#### Summary
+This update finalizes the transition to a more modern and intuitive codebase. By refactoring the checklist system, standardizing naming conventions, and ensuring backward compatibility for data loading, the application is now more robust and easier for future development.
 
 ---
 

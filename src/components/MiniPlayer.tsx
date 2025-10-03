@@ -1,14 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { formatTime } from '../utils';
 import { useAppContext } from '../contexts/AppContext';
-import { ChecklistSection, ChecklistItem, TimeLogEntry, Word } from '../types';
+import { ChecklistSection, ChecklistItem, TimeLogEntry, Task } from '../types';
 import './styles/MiniPlayer.css';
 
 interface MiniPlayerProps {}
 
 export const MiniPlayer: React.FC<MiniPlayerProps> = () => { 
   const {
-    activeTimerWordId,
+    activeTimerTaskId,
     activeTimerEntry,
     activeTimerLiveTime,
     handleGlobalToggleTimer,
@@ -25,23 +25,23 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
     handlePostAndResetLog,
     handleResetAllLogEntries,
     handlePostAndComplete,
-    words, // Get all words to find the task title
+    tasks, // Get all tasks to find the task title
     setIsWorkSessionManagerOpen, // Get the handler to open the modal
     primedTaskId, // The ID of the task that is "on deck"
     handlePrimeTask, // We don't use this here, but it's part of the context
     settings,
     showToast,
-    handleWordUpdate, // Get the global word update handler
+    handleTaskUpdate, // Get the global task update handler
   } = useAppContext();
   
   const [isEntryListVisible, setIsEntryListVisible] = useState(false);
   const [isActionsListVisible, setIsActionsListVisible] = useState(false);
 
-  const isTimerActive = activeTimerWordId && activeTimerEntry;
+  const isTimerActive = activeTimerTaskId && activeTimerEntry;
 
   // Determine the task to display: the active one, or the primed one if no timer is active.
-  const taskForDisplayId = activeTimerWordId ?? primedTaskId;
-  const activeTask = taskForDisplayId ? words.find(w => w.id === taskForDisplayId) : null;
+  const taskForDisplayId = activeTimerTaskId ?? primedTaskId;
+  const activeTask = taskForDisplayId ? tasks.find(t => t.id === taskForDisplayId) : null;
 
   // If a timer is active, find the live entry. Otherwise, find the first playable entry of the primed task.
   const currentEntryForDisplay = isTimerActive 
@@ -144,9 +144,9 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
 
   const totalTime = useMemo(() => {
     if (!activeTask || !activeTask.timeLog) return 0;
-    const isThisEntryRunning = activeTimerWordId === activeTask.id && activeTimerEntry;
+    const isThisEntryRunning = activeTimerTaskId === activeTask.id && activeTimerEntry;
     return activeTask.timeLog.reduce((sum, entry) => sum + entry.duration, 0) + (isThisEntryRunning ? (activeTimerLiveTime - activeTimerEntry.duration) : 0);
-  }, [activeTask, activeTimerWordId, activeTimerEntry, activeTimerLiveTime]);
+  }, [activeTask, activeTimerTaskId, activeTimerEntry, activeTimerLiveTime]);
 
   return (
     <div className="mini-player">
@@ -249,7 +249,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
           title="Pause Timer" 
           onClick={() => {
             if (isTimerActive) {
-              handleGlobalToggleTimer(activeTimerWordId, activeTimerEntry.id);
+              handleGlobalToggleTimer(activeTimerTaskId, activeTimerEntry.id);
             } else if (taskForDisplayId && currentEntryForDisplay) {
               handleGlobalToggleTimer(taskForDisplayId, currentEntryForDisplay.id);
             }
@@ -281,7 +281,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
           className="icon-button" 
           title="Previous Task"
           onClick={handlePreviousTask}
-          disabled={(settings.workSessionQueue || []).indexOf(activeTimerWordId) <= 0}
+          disabled={(settings.workSessionQueue || []).indexOf(activeTimerTaskId) <= 0}
         >
           <i className="fas fa-fast-backward"></i>
         </button>
@@ -289,7 +289,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
           className="icon-button" 
           title="Next Task"
           onClick={handleNextTask}
-          disabled={(settings.workSessionQueue || []).indexOf(activeTimerWordId) < 0 || (settings.workSessionQueue || []).indexOf(activeTimerWordId) >= (settings.workSessionQueue || []).length - 1}
+          disabled={(settings.workSessionQueue || []).indexOf(activeTimerTaskId) < 0 || (settings.workSessionQueue || []).indexOf(activeTimerTaskId) >= (settings.workSessionQueue || []).length - 1}
         >
           <i className="fas fa-fast-forward"></i>
         </button>
@@ -309,7 +309,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
             <ul className="mini-player-entry-list">
               {currentEntryForDisplay?.checklistItemId && (
                 <>
-                  <li onClick={() => { handlePostAndComplete(taskForDisplayId, currentEntryForDisplay.id, handleWordUpdate); showToast('Time posted and item completed!'); }}>Post and Complete</li>
+                  <li onClick={() => { handlePostAndComplete(taskForDisplayId, currentEntryForDisplay.id, handleTaskUpdate); showToast('Time posted and item completed!'); }}>Post and Complete</li>
                   <li className="entry-list-divider"></li>
                 </>
               )}

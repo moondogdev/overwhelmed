@@ -61,52 +61,52 @@ export function useAppListeners({
       // This logic doesn't need the canvas, so it's safe here.
       // It sends the refs, which are guaranteed to have the latest state.
       window.electronAPI.send('data-for-quit', { 
-        words: taskState.wordsRef.current, 
-        completedWords: taskState.completedWordsRef.current, 
+        tasks: taskState.tasksRef.current, 
+        completedTasks: taskState.completedTasksRef.current, 
         settings: settingsState.settingsRef.current, 
         inboxMessagesRef: inboxState.inboxMessagesRef, 
         archivedMessagesRef: inboxState.archivedMessagesRef, 
         trashedMessagesRef: inboxState.trashedMessagesRef, 
-        activeTimerWordIdRef: globalTimerState.activeTimerWordIdRef, 
+        activeTimerTaskIdRef: globalTimerState.activeTimerTaskIdRef, 
         activeTimerEntryRef: globalTimerState.activeTimerEntryRef 
       });
     };
     const cleanup = window.electronAPI.on('get-data-for-quit', handleGetDataForQuit);
     return cleanup;
-  }, [taskState.wordsRef, taskState.completedWordsRef, settingsState.settings, inboxState.inboxMessagesRef, inboxState.archivedMessagesRef, inboxState.trashedMessagesRef, globalTimerState.activeTimerWordIdRef, globalTimerState.activeTimerEntryRef]);
+  }, [taskState.tasksRef, taskState.completedTasksRef, settingsState.settingsRef, inboxState.inboxMessagesRef, inboxState.archivedMessagesRef, inboxState.trashedMessagesRef, globalTimerState.activeTimerTaskIdRef, globalTimerState.activeTimerEntryRef]);
 
   // Effect to handle commands from the ticket context menu
   useEffect(() => {
-    const handleMenuCommand = (payload: { command: string, wordId: number }) => {
-      const { command, wordId } = payload;
-      const targetWord = [...taskState.words, ...taskState.completedWords].find(w => w.id === wordId);
-      if (!targetWord) return;
+    const handleMenuCommand = (payload: { command: string, taskId: number }) => {
+      const { command, taskId } = payload;
+      const targetTask = [...taskState.tasks, ...taskState.completedTasks].find(w => w.id === taskId);
+      if (!targetTask) return;
 
       switch (command) {
         case 'view':
-          settingsState.setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'ticket' } }));
-          if (!settingsState.settings.openAccordionIds.includes(wordId)) settingsState.handleAccordionToggle(wordId);
+          settingsState.setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [taskId]: 'ticket' } }));
+          if (!settingsState.settings.openAccordionIds.includes(taskId)) settingsState.handleAccordionToggle(taskId);
           break;
         case 'edit':
-          if (!targetWord.completedDuration) {
-            settingsState.setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'edit' }, openAccordionIds: [...new Set([...prev.openAccordionIds, wordId])] }));
+          if (!targetTask.completedDuration) {
+            settingsState.setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [taskId]: 'edit' }, openAccordionIds: [...new Set([...prev.openAccordionIds, taskId])] }));
           }
           break;
         case 'complete':
-          if (!targetWord.completedDuration) taskState.handleCompleteWord(targetWord);
+          if (!targetTask.completedDuration) taskState.handleCompleteTask(targetTask);
           break;
         case 'duplicate':
-          taskState.handleDuplicateTask(targetWord);
+          taskState.handleDuplicateTask(targetTask);
           break;
         case 'trash':
-          taskState.removeWord(wordId);
+          taskState.removeTask(taskId);
           break;
         case 'add_to_session':
           settingsState.setSettings(prev => ({
             ...prev,
-            workSessionQueue: [...(prev.workSessionQueue || []), wordId]
+            workSessionQueue: [...(prev.workSessionQueue || []), taskId]
           }));
-          uiState.showToast(`Added "${targetWord.text}" to work session.`);
+          uiState.showToast(`Added "${targetTask.text}" to work session.`);
           break;
       }
     };
@@ -116,25 +116,25 @@ export function useAppListeners({
 
   // Effect to handle commands from the toast context menu
   useEffect(() => {
-    const handleMenuCommand = (payload: { command: string, wordId?: number }) => {
-      const { command, wordId } = payload;
-      const targetWord = taskState.words.find(w => w.id === wordId);
-      if (!targetWord) return;
+    const handleMenuCommand = (payload: { command: string, taskId?: number }) => {
+      const { command, taskId } = payload;
+      const targetTask = taskState.tasks.find(w => w.id === taskId);
+      if (!targetTask) return;
 
       switch (command) {
         case 'view':
-          navigationState.navigateToTask(wordId);
-          settingsState.setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'ticket' } }));
+          navigationState.navigateToTask(taskId);
+          settingsState.setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [taskId]: 'ticket' } }));
           break;
         case 'edit':
-          navigationState.navigateToTask(wordId);
-          settingsState.setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [wordId]: 'edit' } }));
+          navigationState.navigateToTask(taskId);
+          settingsState.setSettings(prev => ({ ...prev, activeTaskTabs: { ...prev.activeTaskTabs, [taskId]: 'edit' } }));
           break;
         case 'snooze':
-          notificationsState.handleSnooze(targetWord);
+          notificationsState.handleSnooze(targetTask);
           break;
         case 'complete':
-          taskState.handleCompleteWord(targetWord);
+          taskState.handleCompleteTask(targetTask);
           break;
         case 'view-inbox':
           navigationState.navigateToView('inbox');
@@ -156,19 +156,19 @@ export function useAppListeners({
 
   // Effect to handle commands from the inbox context menu
   useEffect(() => {
-    const handleMenuCommand = (payload: { command: string, wordId?: number, messageId?: number }) => {
-      const { command, wordId, messageId } = payload;
-      const targetWord = taskState.words.find(w => w.id === wordId);
+    const handleMenuCommand = (payload: { command: string, taskId?: number, messageId?: number }) => {
+      const { command, taskId, messageId } = payload;
+      const targetTask = taskState.tasks.find(w => w.id === taskId);
 
       switch (command) {
         case 'view':
-          if (wordId) navigationState.handleInboxItemClick({ id: 0, type: 'overdue', text: '', timestamp: 0, wordId });
+          if (taskId) navigationState.handleInboxItemClick({ id: 0, type: 'overdue', text: '', timestamp: 0, taskId });
           break;
         case 'snooze':
-          if (targetWord) notificationsState.handleSnooze(targetWord);
+          if (targetTask) notificationsState.handleSnooze(targetTask);
           break;
         case 'complete':
-          if (targetWord) taskState.handleCompleteWord(targetWord);
+          if (targetTask) taskState.handleCompleteTask(targetTask);
           break;
         case 'dismiss':
           if (messageId) inboxState.setInboxMessages(prev => prev.filter(m => m.id !== messageId));

@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { ChecklistItem, ChecklistSection, Settings } from '../types';
+import { ChecklistItem, ChecklistSection, Settings, Task } from '../types';
 import { extractUrlFromText, formatChecklistForCopy } from '../utils';
 
 interface UseChecklistIPCHandlers {
@@ -7,7 +7,7 @@ interface UseChecklistIPCHandlers {
     historyIndex: number;
     isEditable: boolean;
     settings: Settings;
-    wordId: number;
+    taskId: number;
     onUpdate: (newSections: ChecklistSection[]) => void;
     onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
     showToast: (message: string) => void;
@@ -38,7 +38,7 @@ interface UseChecklistIPCHandlers {
     setTemplateSectionsToSave: (sections: ChecklistSection[] | null) => void;
     setIsSaveTemplatePromptOpen: (isOpen: boolean) => void;
     handleGlobalChecklistCommand: (payload: { command: string }) => void;
-    words: any[]; // Simplified for this hook, as it's only used for a lookup
+    tasks: any[]; // Simplified for this hook, as it's only used for a lookup
 }
 
 /**
@@ -48,7 +48,7 @@ interface UseChecklistIPCHandlers {
  */
 export const useChecklistIPC = (handlers: UseChecklistIPCHandlers) => {
     const {
-        history, historyIndex, isEditable, settings, wordId,
+        history, historyIndex, isEditable, settings, taskId,
         onUpdate, onComplete, showToast, onSettingsChange, updateHistory,
         handleDuplicateChecklistItem, setEditingItemId, setEditingItemText,
         handleUpdateItemResponse, setEditingResponseForItemId, handleUpdateItemNote,
@@ -56,8 +56,8 @@ export const useChecklistIPC = (handlers: UseChecklistIPCHandlers) => {
         setEditingSectionId, setEditingSectionTitle, handleCompleteAllInSection,
         handleToggleSectionCollapse, handleAddNotes, handleAddResponses,
         handleToggleSectionNotes, handleToggleSectionResponses, handleDuplicateSection,
-        handleDeleteSection, handleSendSectionToTimer, setTemplateSectionsToSave,
-        setIsSaveTemplatePromptOpen, handleGlobalChecklistCommand, words
+        handleDeleteSection, handleSendSectionToTimer, setTemplateSectionsToSave, setIsSaveTemplatePromptOpen,
+        handleGlobalChecklistCommand, tasks
     } = handlers;
 
     useEffect(() => {
@@ -214,9 +214,9 @@ export const useChecklistIPC = (handlers: UseChecklistIPCHandlers) => {
             } else if (command === 'send_to_timer_and_start') {
                 const item = section.items.find(i => i.id === itemId);
                 if (item) handleSendToTimer(item, true);
-            } else if (command === 'view' && wordId) {
-                onSettingsChange({ activeTaskTabs: { ...settings.activeTaskTabs, [wordId]: 'ticket' } });
-                if (!settings.openAccordionIds.includes(wordId)) onSettingsChange({ openAccordionIds: [...new Set([...settings.openAccordionIds, wordId])] });
+            } else if (command === 'view' && taskId) {
+                onSettingsChange({ activeTaskTabs: { ...settings.activeTaskTabs, [taskId]: 'ticket' } });
+                if (!settings.openAccordionIds.includes(taskId)) onSettingsChange({ openAccordionIds: [...new Set([...settings.openAccordionIds, taskId])] });
             }
         };
         const handleSectionCommand = (payload: { command: string, sectionId?: number }) => {
@@ -261,13 +261,13 @@ export const useChecklistIPC = (handlers: UseChecklistIPCHandlers) => {
             }
         };
 
-        const handleMainHeaderCommand = (payload: { command: string, wordId?: number }) => {
-            if (payload.command === 'view' && payload.wordId) {
-                onSettingsChange({ activeTaskTabs: { ...settings.activeTaskTabs, [payload.wordId]: 'ticket' } });
-                if (!settings.openAccordionIds.includes(payload.wordId)) { onSettingsChange({ openAccordionIds: [...new Set([...settings.openAccordionIds, payload.wordId])] }); }
-            } else if (payload.command === 'edit' && payload.wordId) {
-                const targetWord = words.find(w => w.id === payload.wordId);
-                if (targetWord && !targetWord.completedDuration) { onSettingsChange({ activeTaskTabs: { ...settings.activeTaskTabs, [payload.wordId]: 'edit' }, openAccordionIds: [...new Set([...settings.openAccordionIds, payload.wordId])] }); }
+        const handleMainHeaderCommand = (payload: { command: string, taskId?: number }) => {
+            if (payload.command === 'view' && payload.taskId) {
+                onSettingsChange({ activeTaskTabs: { ...settings.activeTaskTabs, [payload.taskId]: 'ticket' } });
+                if (!settings.openAccordionIds.includes(payload.taskId)) { onSettingsChange({ openAccordionIds: [...new Set([...settings.openAccordionIds, payload.taskId])] }); }
+            } else if (payload.command === 'edit' && payload.taskId) {
+                const targetTask = tasks.find(w => w.id === payload.taskId);
+                if (targetTask && !targetTask.completedDuration) { onSettingsChange({ activeTaskTabs: { ...settings.activeTaskTabs, [payload.taskId]: 'edit' }, openAccordionIds: [...new Set([...settings.openAccordionIds, payload.taskId])] }); }
             } else {
                 handleGlobalChecklistCommand(payload);
             }
@@ -282,5 +282,5 @@ export const useChecklistIPC = (handlers: UseChecklistIPCHandlers) => {
             cleanupSection?.();
             cleanupMainHeader?.();
         };
-    }, [history, historyIndex, onUpdate, onComplete, words, settings, onSettingsChange, showToast, handleAddNotes, handleAddResponses, handleToggleSectionCollapse, handleDeleteSection, handleDuplicateSection, handleUndo, handleRedo, handleGlobalChecklistCommand, handleSendToTimer, handleSendSectionToTimer, handleCompleteAllInSection, handleUpdateItemResponse, handleUpdateItemNote, handleDuplicateChecklistItem, setEditingItemId, setEditingItemText, setEditingResponseForItemId, setEditingNoteForItemId, setEditingSectionId, setEditingSectionTitle, moveSection, isEditable]);
+    }, [history, historyIndex, onUpdate, onComplete, tasks, settings, onSettingsChange, showToast, handleAddNotes, handleAddResponses, handleToggleSectionCollapse, handleDeleteSection, handleDuplicateSection, handleUndo, handleRedo, handleGlobalChecklistCommand, handleSendToTimer, handleSendSectionToTimer, handleCompleteAllInSection, handleUpdateItemResponse, handleUpdateItemNote, handleDuplicateChecklistItem, setEditingItemId, setEditingItemText, setEditingResponseForItemId, setEditingNoteForItemId, setEditingSectionId, setEditingSectionTitle, moveSection, isEditable]);
 };

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { Word, ChecklistSection, ChecklistItem } from '../types';
+import { Task, ChecklistSection, ChecklistItem } from '../types';
 import './styles/Modal.css';
 import './styles/WorkSessionManager.css';
 
@@ -8,10 +8,10 @@ export function WorkSessionManager() {
   const { 
     isWorkSessionManagerOpen,
     setIsWorkSessionManagerOpen,
-    words,
+    tasks,
     settings,
     setSettings,
-    activeTimerWordId,
+    activeTimerTaskId,
     handleStartSession,
     handleNextTask,
     handlePreviousTask,
@@ -23,32 +23,32 @@ export function WorkSessionManager() {
 
   const searchResults = useMemo(() => {
     if (!searchQuery) return [];
-    return words.filter(word => 
-      word.text.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !(settings.workSessionQueue || []).includes(word.id) // Don't show tasks already in the queue
+    return tasks.filter(task => 
+      task.text.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      !(settings.workSessionQueue || []).includes(task.id) // Don't show tasks already in the queue
     );
-  }, [searchQuery, words, settings.workSessionQueue]);
+  }, [searchQuery, tasks, settings.workSessionQueue]);
 
   if (!isWorkSessionManagerOpen) {
     return null;
   }
 
   const workSessionQueue = settings.workSessionQueue || [];
-  const currentIndex = activeTimerWordId !== null ? workSessionQueue.indexOf(activeTimerWordId) : -1;
+  const currentIndex = activeTimerTaskId !== null ? workSessionQueue.indexOf(activeTimerTaskId) : -1;
   const canGoNext = workSessionQueue.length > 0 && currentIndex < workSessionQueue.length - 1;
   const canGoPrevious = currentIndex > 0;
 
-  const handleAddTask = (wordId: number) => {
+  const handleAddTask = (taskId: number) => {
     setSettings(prev => ({
       ...prev,
-      workSessionQueue: [...(prev.workSessionQueue || []), wordId]
+      workSessionQueue: [...(prev.workSessionQueue || []), taskId]
     }));
     setSearchQuery('');
     searchInputRef.current?.focus();
   };
 
-  const handleRemoveTask = (wordId: number) => {
-    setSettings(prev => ({ ...prev, workSessionQueue: (prev.workSessionQueue || []).filter(id => id !== wordId) }));
+  const handleRemoveTask = (taskId: number) => {
+    setSettings(prev => ({ ...prev, workSessionQueue: (prev.workSessionQueue || []).filter(id => id !== taskId) }));
   };
 
   return (
@@ -135,10 +135,10 @@ export function WorkSessionManager() {
               <h5>Current Queue ({workSessionQueue.length})</h5>
               {workSessionQueue.length > 0 ? (
                 <ul className="work-session-list">
-                  {workSessionQueue.map(wordId => {
-                    const task = words.find(w => w.id === wordId);
+                  {workSessionQueue.map(taskId => {
+                    const task = tasks.find(t => t.id === taskId);
                     if (!task) return null;
-                    const isActive = wordId === activeTimerWordId;
+                    const isActive = taskId === activeTimerTaskId;
                     let checklistProgress: string | null = null;
                     if (task.checklist && task.checklist.length > 0) {
                       let totalItems = 0;
@@ -158,16 +158,16 @@ export function WorkSessionManager() {
                     }
                     return (
                       <li 
-                        key={wordId} 
+                        key={taskId} 
                         className={`work-session-item ${isActive ? 'active-session-item' : ''}`}
-                        onDoubleClick={() => handleStartTaskFromSession(wordId)}
+                        onDoubleClick={() => handleStartTaskFromSession(taskId)}
                       >
                         <div className="work-session-item-text-container">
                           <span className="work-session-item-title">{task.text}</span>
                           {task.timeLogTitle && <span className="work-session-item-subtitle">{task.timeLogTitle}</span>}
                           {checklistProgress && <span className="work-session-item-subtitle">{checklistProgress}</span>}
                         </div>
-                        <button className="icon-button remove-btn" onClick={() => handleRemoveTask(wordId)} title="Remove from session">
+                        <button className="icon-button remove-btn" onClick={() => handleRemoveTask(taskId)} title="Remove from session">
                           <i className="fas fa-times"></i>
                         </button>
                       </li>

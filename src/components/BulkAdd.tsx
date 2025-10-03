@@ -7,12 +7,12 @@ export function BulkAdd() {
   return (
     <SimpleAccordion title="Bulk Add">
       <textarea
-        placeholder="Paste comma-separated words here..."
+        placeholder="Paste comma-separated tasks here..."
         value={bulkAddText}
         onChange={(e) => setBulkAddText(e.target.value)}
         rows={3}
       />
-      <button onClick={handleBulkAdd}>Add Words</button>
+      <button onClick={handleBulkAdd}>Add Tasks</button>
     </SimpleAccordion>
   );
 }

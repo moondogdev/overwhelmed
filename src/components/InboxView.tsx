@@ -70,7 +70,7 @@ export function InboxView() {
                 <SimpleAccordion key={`${type}-${messages[0]?.id || 0}`} title={`${type.charAt(0).toUpperCase() + type.slice(1)} (${messages.length})`} startOpen={(settings.openInboxGroupTypes || []).includes(type)} onToggle={(isOpen) => { const newOpenTypes = isOpen ? [...(settings.openInboxGroupTypes || []), type] : (settings.openInboxGroupTypes || []).filter(t => t !== type); setSettings(prev => ({ ...prev, openInboxGroupTypes: newOpenTypes })); }}>
                   <div className="inbox-group">
                     {messages.map(message => (
-                      <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)} onContextMenu={(e) => { if (message.type !== 'created' && message.type !== 'deleted' && message.type !== 'updated' && message.type !== 'completed') { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); } else { e.preventDefault(); } }}>
+                      <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.taskId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)} onContextMenu={(e) => { if (message.type !== 'created' && message.type !== 'deleted' && message.type !== 'updated' && message.type !== 'completed') { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); } else { e.preventDefault(); } }}>
                         <span className="inbox-item-icon"><i className={`fas ${message.type === 'overdue' ? 'fa-exclamation-triangle' : message.type === 'timer-alert' ? 'fa-bell' : message.type === 'created' ? 'fa-magic' : message.type === 'completed' ? 'fa-check-circle' : message.type === 'deleted' ? 'fa-trash-alt' : 'fa-pencil-alt'}`}></i></span>
                         <span className="inbox-item-text">{message.text}</span><span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
                         <div className="inbox-message-actions">
@@ -96,7 +96,7 @@ export function InboxView() {
         return (
           <div className="inbox-list">
             {sortedMessages.map(message => (
-              <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)} onContextMenu={(e) => { if (message.type !== 'created' && message.type !== 'deleted' && message.type !== 'updated' && message.type !== 'completed') { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); } else { e.preventDefault(); } }}>
+              <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.taskId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)} onContextMenu={(e) => { if (message.type !== 'created' && message.type !== 'deleted' && message.type !== 'updated' && message.type !== 'completed') { e.preventDefault(); window.electronAPI.showInboxItemContextMenu({ message, x: e.clientX, y: e.clientY }); } else { e.preventDefault(); } }}>
                 <span className="inbox-item-icon"><i className={`fas ${message.type === 'overdue' ? 'fa-exclamation-triangle' : message.type === 'timer-alert' ? 'fa-bell' : message.type === 'created' ? 'fa-magic' : message.type === 'completed' ? 'fa-check-circle' : message.type === 'deleted' ? 'fa-trash-alt' : 'fa-pencil-alt'}`}></i></span>
                 <span className="inbox-item-text">{message.text}</span><span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
                 <div className="inbox-message-actions">
@@ -123,7 +123,7 @@ export function InboxView() {
           <div className="inbox-list">
             {archiveHeader}
             {sortedArchived.map(message => (
-              <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)}>
+              <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.taskId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)}>
                 <span className="inbox-item-icon"><i className={`fas ${message.type === 'overdue' ? 'fa-exclamation-triangle' : message.type === 'timer-alert' ? 'fa-bell' : 'fa-info-circle'}`}></i></span>
                 <span className="inbox-item-text">{message.text}</span>
                 <span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>
@@ -150,7 +150,7 @@ export function InboxView() {
           <div className="inbox-list">
             {trashHeader}
             {sortedTrashed.map(message => (
-              <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.wordId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)}>
+              <div key={message.id} className={`inbox-item inbox-item-${message.type} ${message.taskId ? 'clickable' : ''}`} onClick={() => handleInboxItemClick(message)}>
                 <span className="inbox-item-icon"><i className={`fas ${message.type === 'overdue' ? 'fa-exclamation-triangle' : message.type === 'timer-alert' ? 'fa-bell' : 'fa-info-circle'}`}></i></span>
                 <span className="inbox-item-text">{message.text}</span>
                 <span className="inbox-item-timestamp">{formatTimestamp(message.timestamp)}</span>

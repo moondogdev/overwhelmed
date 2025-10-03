@@ -1,13 +1,13 @@
 import { useState, useCallback } from 'react';
-import { Word, Settings, InboxMessage } from '../types';
+import { Task, Settings, InboxMessage } from '../types';
 
 interface UseNavigationProps {
-  words: Word[];
+  tasks: Task[];
   settings: Settings;
   setSettings: React.Dispatch<React.SetStateAction<Settings>>;
 }
 
-export function useNavigation({ words, settings, setSettings }: UseNavigationProps) {
+export function useNavigation({ tasks, settings, setSettings }: UseNavigationProps) {
   const [viewHistory, setViewHistory] = useState(['meme']);
   const [historyIndex, setHistoryIndex] = useState(0);
 
@@ -19,11 +19,11 @@ export function useNavigation({ words, settings, setSettings }: UseNavigationPro
     setSettings(prev => ({ ...prev, currentView: view }));
   }, [viewHistory, historyIndex, setSettings]);
 
-  const navigateToTask = useCallback((wordId: number, sectionId?: number) => {
-    const word = words.find(w => w.id === wordId);
-    if (!word) return;
+  const navigateToTask = useCallback((taskId: number, sectionId?: number) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
 
-    const category = settings.categories.find(c => c.id === word.categoryId);
+    const category = settings.categories.find(c => c.id === task.categoryId);
     const parentId = category ? (category.parentId || category.id) : 'all';
     const subId = category?.parentId ? category.id : 'all';
 
@@ -32,11 +32,11 @@ export function useNavigation({ words, settings, setSettings }: UseNavigationPro
       currentView: 'list',
       activeCategoryId: parentId,
       activeSubCategoryId: subId,
-      openAccordionIds: [...new Set([...prev.openAccordionIds, wordId])]
+      openAccordionIds: [...new Set([...prev.openAccordionIds, taskId])]
     }));
 
     setTimeout(() => {
-      const element = document.querySelector(`[data-word-id='${wordId}']`);
+      const element = document.querySelector(`[data-task-id='${taskId}']`);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         if (sectionId) {
@@ -51,11 +51,11 @@ export function useNavigation({ words, settings, setSettings }: UseNavigationPro
         }
       }
     }, 100);
-  }, [words, settings.categories, setSettings]);
+  }, [tasks, settings.categories, setSettings]);
 
   const handleInboxItemClick = useCallback((message: InboxMessage) => {
-    if (!message || !message.wordId) return;
-    navigateToTask(message.wordId, message.sectionId);
+    if (!message || !message.taskId) return;
+    navigateToTask(message.taskId, message.sectionId);
   }, [navigateToTask]);
 
   const goBack = useCallback(() => {

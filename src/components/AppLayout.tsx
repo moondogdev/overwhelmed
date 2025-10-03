@@ -24,12 +24,12 @@ import { WorkSessionManager } from './WorkSessionManager';
 import './styles/Sidebar.css';
 
 export function AppLayout() {
-    const { settings, setSettings, fullTaskViewId, setFullTaskViewId, words, completedWords, handleWordUpdate } = useAppContext();
+    const { settings, setSettings, fullTaskViewId, setFullTaskViewId, tasks, completedTasks, handleTaskUpdate } = useAppContext();
 
     if (fullTaskViewId) {
-        const taskToShow = words.find(w => w.id === fullTaskViewId) || completedWords.find(w => w.id === fullTaskViewId);
+        const taskToShow = tasks.find(t => t.id === fullTaskViewId) || completedTasks.find(t => t.id === fullTaskViewId);
         if (taskToShow) {
-            return <ActiveFullTaskView fullTaskViewId={fullTaskViewId} words={words} completedWords={completedWords} onClose={() => setFullTaskViewId(null)} onUpdate={handleWordUpdate} onSettingsChange={setSettings} />
+            return <ActiveFullTaskView fullTaskViewId={fullTaskViewId} tasks={tasks} completedTasks={completedTasks} onClose={() => setFullTaskViewId(null)} onUpdate={handleTaskUpdate} onSettingsChange={setSettings} />
         }
     }
 

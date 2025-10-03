@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
-import { Word, Category } from '../types';
+import { Task, Category } from '../types';
 import { formatTime, formatTimestamp } from '../utils';
 import './styles/ReportsView.css';
 import { useAppContext } from '../contexts/AppContext';
@@ -23,7 +23,7 @@ const renderCustomizedLabel = (props: any) => {
 };
 
 // --- Sub-Components ---
-function ReportFilters({ startDate, setStartDate, endDate, setEndDate, onExportCsv, exportDisabled = false, categories, activeCategoryId, setActiveCategoryId, activeSubCategoryId, setActiveSubCategoryId, dateFilteredWords }: {
+function ReportFilters({ startDate, setStartDate, endDate, setEndDate, onExportCsv, exportDisabled = false, categories, activeCategoryId, setActiveCategoryId, activeSubCategoryId, setActiveSubCategoryId, dateFilteredTasks }: {
   startDate: string;
   setStartDate: (val: string) => void;
   endDate: string;
@@ -35,7 +35,7 @@ function ReportFilters({ startDate, setStartDate, endDate, setEndDate, onExportC
   setActiveCategoryId: (id: number | 'all') => void;
   activeSubCategoryId: number | 'all';
   setActiveSubCategoryId: (id: number | 'all') => void;
-  dateFilteredWords: Word[];
+  dateFilteredTasks: Task[];
 }) {
   const parentCategories = categories.filter(c => !c.parentId);
   const subCategoriesForActive = activeCategoryId !== 'all' ? categories.filter(c => c.parentId === activeCategoryId) : [];
@@ -60,11 +60,11 @@ function ReportFilters({ startDate, setStartDate, endDate, setEndDate, onExportC
       </div>
       <div className="category-tabs">
         <button onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); }} className={activeCategoryId === 'all' ? 'active' : ''}>
-          All ({dateFilteredWords.length})
+          All ({dateFilteredTasks.length})
         </button>
         {parentCategories.map((cat: Category) => {
           const subCatIds = categories.filter(sc => sc.parentId === cat.id).map(sc => sc.id);
-          const count = dateFilteredWords.filter(w => w.categoryId === cat.id || (w.categoryId && subCatIds.includes(w.categoryId))).length;
+          const count = dateFilteredTasks.filter(t => t.categoryId === cat.id || (t.categoryId && subCatIds.includes(t.categoryId))).length;
           return (
             <button key={cat.id} onClick={() => { setActiveCategoryId(cat.id); setActiveSubCategoryId('all'); }} className={activeCategoryId === cat.id ? 'active' : ''}>
               {cat.name} ({count})
@@ -77,13 +77,13 @@ function ReportFilters({ startDate, setStartDate, endDate, setEndDate, onExportC
           {(() => {
             const parentCategory = categories.find(c => c.id === activeCategoryId);
             const subCatIds = categories.filter(sc => sc.parentId === parentCategory?.id).map(sc => sc.id);
-            const totalCount = dateFilteredWords.filter(w => w.categoryId === parentCategory?.id || (w.categoryId && subCatIds.includes(w.categoryId))).length;
+            const totalCount = dateFilteredTasks.filter(t => t.categoryId === parentCategory?.id || (t.categoryId && subCatIds.includes(t.categoryId))).length;
             return (
               <button onClick={() => setActiveSubCategoryId('all')} className={activeSubCategoryId === 'all' ? 'active' : ''}>All ({totalCount})</button>
             );
           })()}
           {subCategoriesForActive.map(subCat => {
-            const count = dateFilteredWords.filter(w => w.categoryId === subCat.id).length;
+            const count = dateFilteredTasks.filter(t => t.categoryId === subCat.id).length;
             return <button key={subCat.id} onClick={() => setActiveSubCategoryId(subCat.id)} className={activeSubCategoryId === subCat.id ? 'active' : ''}>
               {subCat.name} ({count})
             </button>
@@ -96,7 +96,7 @@ function ReportFilters({ startDate, setStartDate, endDate, setEndDate, onExportC
 
 // --- Main Exported Component ---
 export function ReportsView() {
-  const { completedWords, settings, showToast } = useAppContext();
+  const { completedTasks, settings, showToast } = useAppContext();
   const { categories } = settings;
 
   const [startDate, setStartDate] = useState<string>('');
@@ -104,14 +104,14 @@ export function ReportsView() {
   const [activeTab, setActiveTab] = useState('summary');
   const [activeCategoryId, setActiveCategoryId] = useState<number | 'all'>('all');
   const [activeSubCategoryId, setActiveSubCategoryId] = useState<number | 'all'>('all');
-  const [sortConfig, setSortConfig] = useState<{ key: keyof Word | 'earnings' | 'categoryName' | 'completionDate', direction: 'ascending' | 'descending' } | null>({ key: 'completionDate', direction: 'descending' });
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Task | 'earnings' | 'categoryName' | 'completionDate', direction: 'ascending' | 'descending' } | null>({ key: 'completionDate', direction: 'descending' });
 
   const [historyCount, setHistoryCount] = useState<number>(20);
 
   // First, filter by date range
-  const dateFilteredWords = completedWords.filter(word => {
-    if (!word.completedDuration) return false;
-    const completionTime = word.createdAt + word.completedDuration;
+  const dateFilteredTasks = completedTasks.filter(task => {
+    if (!task.completedDuration) return false;
+    const completionTime = task.createdAt + task.completedDuration;
     const start = startDate ? new Date(startDate).getTime() : 0;
     // Set end date to the end of the selected day
     const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
@@ -119,22 +119,22 @@ export function ReportsView() {
   });
 
   // Then, filter by the selected category
-  const filteredCompletedWords = dateFilteredWords.filter(word => {
+  const filteredCompletedTasks = dateFilteredTasks.filter(task => {
     if (activeCategoryId === 'all') return true;
 
     const activeCategory = categories.find(c => c.id === activeCategoryId);
     const parentId = activeCategory?.parentId || activeCategoryId;
     const subCategoriesForActive = categories.filter(c => c.parentId === parentId);
 
-    if (activeSubCategoryId !== 'all') return word.categoryId === activeSubCategoryId;
+    if (activeSubCategoryId !== 'all') return task.categoryId === activeSubCategoryId;
 
     const categoryIdsToShow = [parentId, ...subCategoriesForActive.map(sc => sc.id)];
-    return categoryIdsToShow.includes(word.categoryId);
+    return categoryIdsToShow.includes(task.categoryId);
   });
 
   // Then, sort the data for the table
-  const sortedFilteredWords = useMemo(() => {
-    let sortableItems = [...filteredCompletedWords];
+  const sortedFilteredTasks = useMemo(() => {
+    let sortableItems = [...filteredCompletedTasks];
     if (sortConfig !== null) {
       sortableItems.sort((a, b) => {
         let aValue: any;
@@ -150,8 +150,8 @@ export function ReportsView() {
           aValue = a.createdAt + (a.completedDuration || 0);
           bValue = b.createdAt + (b.completedDuration || 0);
         } else {
-          aValue = a[sortConfig.key as keyof Word];
-          bValue = b[sortConfig.key as keyof Word];
+          aValue = a[sortConfig.key as keyof Task];
+          bValue = b[sortConfig.key as keyof Task];
         }
 
         if (aValue < bValue) {
@@ -164,21 +164,21 @@ export function ReportsView() {
       });
     }
     return sortableItems;
-  }, [filteredCompletedWords, sortConfig, categories]);
+  }, [filteredCompletedTasks, sortConfig, categories]);
 
-  // Calculate grand total earnings from ALL completed words, ignoring filters
-  const grandTotalEarnings = completedWords.reduce((sum, word) => {
-    const hours = (word.manualTime || 0) / (1000 * 60 * 60);
-    return sum + (hours * (word.payRate || 0));
+  // Calculate grand total earnings from ALL completed tasks, ignoring filters
+  const grandTotalEarnings = completedTasks.reduce((sum, task) => {
+    const hours = (task.manualTime || 0) / (1000 * 60 * 60);
+    return sum + (hours * (task.payRate || 0));
   }, 0);
 
-  // Calculate grand total tasks from ALL completed words, ignoring filters
-  const grandTotalTasks = completedWords.length;
+  // Calculate grand total tasks from ALL completed tasks, ignoring filters
+  const grandTotalTasks = completedTasks.length;
 
-  // Calculate grand total time tracked from ALL completed words, ignoring filters
-  const grandTotalTimeTracked = completedWords.reduce((sum, word) => sum + (word.manualTime || 0), 0);
+  // Calculate grand total time tracked from ALL completed tasks, ignoring filters
+  const grandTotalTimeTracked = completedTasks.reduce((sum, task) => sum + (task.manualTime || 0), 0);
 
-  if (filteredCompletedWords.length === 0) {
+  if (filteredCompletedTasks.length === 0) {
     return (
       <div className="reports-view">
         <h2>Reports</h2>
@@ -189,7 +189,7 @@ export function ReportsView() {
           <p><strong>Grand Total Earnings (All Time):</strong> ${grandTotalEarnings.toFixed(2)}</p></div>
         <hr />
         {/* Keep filters visible even when there's no data */}
-        <ReportFilters startDate={startDate} setStartDate={setStartDate} endDate={endDate} setEndDate={setEndDate} onExportCsv={() => {}} exportDisabled={true} categories={categories} activeCategoryId={activeCategoryId} setActiveCategoryId={setActiveCategoryId} activeSubCategoryId={activeSubCategoryId} setActiveSubCategoryId={setActiveSubCategoryId} dateFilteredWords={dateFilteredWords} />
+        <ReportFilters startDate={startDate} setStartDate={setStartDate} endDate={endDate} setEndDate={setEndDate} onExportCsv={() => {}} exportDisabled={true} categories={categories} activeCategoryId={activeCategoryId} setActiveCategoryId={setActiveCategoryId} activeSubCategoryId={activeSubCategoryId} setActiveSubCategoryId={setActiveSubCategoryId} dateFilteredTasks={dateFilteredTasks} />
         <p>No completed tasks in the selected date range to generate a report from.</p>
       </div>
     );
@@ -198,21 +198,21 @@ export function ReportsView() {
   // --- Data Processing ---
 
   // 1. Tasks completed per day
-  const completionsByDay = filteredCompletedWords.reduce((acc, word) => {
-    const completionDate = new Date(word.createdAt + (word.completedDuration || 0)).toLocaleDateString();
+  const completionsByDay = filteredCompletedTasks.reduce((acc, task) => {
+    const completionDate = new Date(task.createdAt + (task.completedDuration || 0)).toLocaleDateString();
     acc[completionDate] = (acc[completionDate] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
   // 2. Task completion frequency by name
-  const completionsByName = filteredCompletedWords.reduce((acc, word) => {
-    acc[word.text] = (acc[word.text] || 0) + 1;
+  const completionsByName = filteredCompletedTasks.reduce((acc, task) => {
+    acc[task.text] = (acc[task.text] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
   // 3. Task completion by category
-  const completionsByCategory = filteredCompletedWords.reduce((acc, word) => {
-    const category = categories.find(c => c.id === word.categoryId);
+  const completionsByCategory = filteredCompletedTasks.reduce((acc, task) => {
+    const category = categories.find(c => c.id === task.categoryId);
     const categoryName = category?.name || 'Uncategorized';
     acc[categoryName] = (acc[categoryName] || 0) + 1;
     return acc;
@@ -222,37 +222,37 @@ export function ReportsView() {
   const maxCompletionsByDay = Math.max(...Object.values(completionsByDay), 1);
 
   // 4. Aggregate stats
-  const totalTasksCompleted = filteredCompletedWords.length;
-  const totalTimeTracked = filteredCompletedWords.reduce((sum, word) => sum + (word.manualTime || 0), 0);
-  const totalEarnings = filteredCompletedWords.reduce((sum, word) => {
-    const hours = (word.manualTime || 0) / (1000 * 60 * 60);
-    return sum + (hours * (word.payRate || 0));
+  const totalTasksCompleted = filteredCompletedTasks.length;
+  const totalTimeTracked = filteredCompletedTasks.reduce((sum, task) => sum + (task.manualTime || 0), 0);
+  const totalEarnings = filteredCompletedTasks.reduce((sum, task) => {
+    const hours = (task.manualTime || 0) / (1000 * 60 * 60);
+    return sum + (hours * (task.payRate || 0));
   }, 0);
 
   // 5. Earnings by category
-  const earningsByCategory = filteredCompletedWords.reduce((acc, word) => {
-    const category = categories.find(c => c.id === word.categoryId);
+  const earningsByCategory = filteredCompletedTasks.reduce((acc, task) => {
+    const category = categories.find(c => c.id === task.categoryId);
     const categoryName = category?.name || 'Uncategorized';
-    const hours = (word.manualTime || 0) / (1000 * 60 * 60);
-    const earnings = hours * (word.payRate || 0);
+    const hours = (task.manualTime || 0) / (1000 * 60 * 60);
+    const earnings = hours * (task.payRate || 0);
     acc[categoryName] = (acc[categoryName] || 0) + earnings;
     return acc;
   }, {} as Record<string, number>);
 
   // 6. Earnings over time
-  const earningsOverTime = filteredCompletedWords.reduce((acc, word) => {
-    const completionDate = new Date(word.createdAt + (word.completedDuration || 0)).toLocaleDateString();
-    const hours = (word.manualTime || 0) / (1000 * 60 * 60);
-    const earnings = hours * (word.payRate || 0);
+  const earningsOverTime = filteredCompletedTasks.reduce((acc, task) => {
+    const completionDate = new Date(task.createdAt + (task.completedDuration || 0)).toLocaleDateString();
+    const hours = (task.manualTime || 0) / (1000 * 60 * 60);
+    const earnings = hours * (task.payRate || 0);
     acc[completionDate] = (acc[completionDate] || 0) + earnings;
     return acc;
   }, {} as Record<string, number>);
   const chartDataEarnings = Object.entries(earningsOverTime).map(([date, earnings]) => ({ date, earnings })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   // 7. Data for the activity bar chart based on the filtered date range
-  const activityByDay = filteredCompletedWords.reduce((acc, word) => {
-    if (word.completedDuration) {
-      const completionDate = new Date(word.createdAt + word.completedDuration).toLocaleDateString();
+  const activityByDay = filteredCompletedTasks.reduce((acc, task) => {
+    if (task.completedDuration) {
+      const completionDate = new Date(task.createdAt + task.completedDuration).toLocaleDateString();
       acc[completionDate] = (acc[completionDate] || 0) + 1;
     }
     return acc;
@@ -279,31 +279,31 @@ export function ReportsView() {
       "Pay Rate ($/hr)", "Earnings ($)"
     ];
 
-    const rows = filteredCompletedWords.map(word => {
-      const category = categories.find(c => c.id === word.categoryId);
+    const rows = filteredCompletedTasks.map(task => {
+      const category = categories.find(c => c.id === task.categoryId);
       const categoryName = category?.name || 'Uncategorized';
-      const completionTime = word.createdAt + (word.completedDuration || 0);
-      const earnings = (((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0)).toFixed(2);
+      const completionTime = task.createdAt + (task.completedDuration || 0);
+      const earnings = (((task.manualTime || 0) / (1000 * 60 * 60)) * (task.payRate || 0)).toFixed(2);
 
       // Escape commas in text fields to prevent CSV corruption
       const escapeCsv = (str: string | undefined) => `"${(str || '').replace(/"/g, '""')}"`;
 
       return [
-        word.id,
-        escapeCsv(word.text),
+        task.id,
+        escapeCsv(task.text),
         escapeCsv(categoryName),
-        escapeCsv(word.company),
-        formatTimestamp(word.openDate),
+        escapeCsv(task.company),
+        formatTimestamp(task.openDate),
         formatTimestamp(completionTime),
-        formatTime(word.manualTime || 0),
-        word.payRate || 0,
+        formatTime(task.manualTime || 0),
+        task.payRate || 0,
         earnings
       ].join(',');
     });
     window.electronAPI.saveCsv([header.join(','), ...rows].join('\n'));
   };
 
-  const requestSort = (key: keyof Word | 'earnings' | 'categoryName' | 'completionDate') => {
+  const requestSort = (key: keyof Task | 'earnings' | 'categoryName' | 'completionDate') => {
     let direction: 'ascending' | 'descending' = 'ascending';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
       direction = 'descending';
@@ -311,7 +311,7 @@ export function ReportsView() {
     setSortConfig({ key, direction });
   };
 
-  const getSortIndicator = (key: keyof Word | 'earnings' | 'categoryName' | 'completionDate') => {
+  const getSortIndicator = (key: keyof Task | 'earnings' | 'categoryName' | 'completionDate') => {
     if (!sortConfig || sortConfig.key !== key) return null;
     return sortConfig.direction === 'ascending' ? ' ▲' : ' ▼';
   };
@@ -335,7 +335,7 @@ export function ReportsView() {
       <ReportFilters 
         startDate={startDate} setStartDate={setStartDate} endDate={endDate} setEndDate={setEndDate} 
         onExportCsv={handleExportCsv} categories={categories} activeCategoryId={activeCategoryId} 
-        setActiveCategoryId={setActiveCategoryId} activeSubCategoryId={activeSubCategoryId} setActiveSubCategoryId={setActiveSubCategoryId} dateFilteredWords={dateFilteredWords} 
+        setActiveCategoryId={setActiveCategoryId} activeSubCategoryId={activeSubCategoryId} setActiveSubCategoryId={setActiveSubCategoryId} dateFilteredTasks={dateFilteredTasks} 
       />       
       {activeTab === 'summary' && (
         <>
@@ -465,18 +465,18 @@ export function ReportsView() {
               </tr>
             </thead>
             <tbody>
-              {sortedFilteredWords.slice(0, 20).map(word => {
-                const category = categories.find(c => c.id === word.categoryId);
+              {sortedFilteredTasks.slice(0, 20).map(task => {
+                const category = categories.find(c => c.id === task.categoryId);
                 const categoryName = category?.name || 'Uncategorized';                
-                const completionTime = word.createdAt + (word.completedDuration || 0);
-                const earnings = (((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0));
+                const completionTime = task.createdAt + (task.completedDuration || 0);
+                const earnings = (((task.manualTime || 0) / (1000 * 60 * 60)) * (task.payRate || 0));
                 return (
-                  <tr key={word.id}>
+                  <tr key={task.id}>
                     <td>
                       <span className="link-with-copy">
-                        {word.text}
+                        {task.text}
                         <button className="copy-btn" title="Copy Row Data" onClick={() => {
-                          const rowData = [word.text, categoryName, formatTimestamp(completionTime), formatTime(word.manualTime || 0), `$${earnings.toFixed(2)}`].join('\t');
+                          const rowData = [task.text, categoryName, formatTimestamp(completionTime), formatTime(task.manualTime || 0), `$${earnings.toFixed(2)}`].join('\t');
                           navigator.clipboard.writeText(rowData).then(() => 
                             showToast('Row data copied!'));
                         }}>
@@ -486,7 +486,7 @@ export function ReportsView() {
                     </td>
                     <td>{categoryName}</td>
                     <td>{formatTimestamp(completionTime)}</td>
-                    <td>{formatTime(word.manualTime || 0)}</td>
+                    <td>{formatTime(task.manualTime || 0)}</td>
                     <td>${earnings.toFixed(2)}</td>
                   </tr>
                 );
@@ -541,12 +541,12 @@ export function ReportsView() {
             <div className="report-section-actions">
               <button onClick={() => {
                 const header = ["Task Name", "Category", "Completion Date", "Time Tracked (HH:MM:SS)", "Earnings ($)"].join('\t');
-                const rows = sortedFilteredWords.map(word => {
-                  const category = categories.find(c => c.id === word.categoryId)?.name || 'Uncategorized';
-                  const completionTime = formatTimestamp(word.createdAt + (word.completedDuration || 0));
-                  const timeTracked = formatTime(word.manualTime || 0);
-                  const earnings = (((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0)).toFixed(2);
-                  return [word.text, category, completionTime, timeTracked, earnings].join('\t');
+                const rows = sortedFilteredTasks.map(task => {
+                  const category = categories.find(c => c.id === task.categoryId)?.name || 'Uncategorized';
+                  const completionTime = formatTimestamp(task.createdAt + (task.completedDuration || 0));
+                  const timeTracked = formatTime(task.manualTime || 0);
+                  const earnings = (((task.manualTime || 0) / (1000 * 60 * 60)) * (task.payRate || 0)).toFixed(2);
+                  return [task.text, category, completionTime, timeTracked, earnings].join('\t');
                 });
                 const tableText = [header, ...rows].join('\n');
                 navigator.clipboard.writeText(tableText).then(() => {
@@ -566,22 +566,22 @@ export function ReportsView() {
                 </tr>
               </thead>
               <tbody>
-                {sortedFilteredWords.map(word => {
-                  const category = categories.find(c => c.id === word.categoryId);
+                {sortedFilteredTasks.map(task => {
+                  const category = categories.find(c => c.id === task.categoryId);
                   const categoryName = category?.name || 'Uncategorized';
-                  const completionTime = word.createdAt + (word.completedDuration || 0);
-                  const earnings = (((word.manualTime || 0) / (1000 * 60 * 60)) * (word.payRate || 0));
+                  const completionTime = task.createdAt + (task.completedDuration || 0);
+                  const earnings = (((task.manualTime || 0) / (1000 * 60 * 60)) * (task.payRate || 0));
 
                   return (
-                    <tr key={word.id}>
-                      <td>{word.text}</td>
+                    <tr key={task.id}>
+                      <td>{task.text}</td>
                       <td>{categoryName}</td>
                       <td>{formatTimestamp(completionTime)}</td>
-                      <td>{formatTime(word.manualTime || 0)}</td>
+                      <td>{formatTime(task.manualTime || 0)}</td>
                       <td>${earnings.toFixed(2)}</td>
                       <td>
                         <button className="copy-btn" title="Copy Row" onClick={() => {
-                          const rowData = [word.text, categoryName, formatTimestamp(completionTime), formatTime(word.manualTime || 0), `$${earnings.toFixed(2)}`].join('\t');;
+                          const rowData = [task.text, categoryName, formatTimestamp(completionTime), formatTime(task.manualTime || 0), `$${earnings.toFixed(2)}`].join('\t');;
                           navigator.clipboard.writeText(rowData);;
                           showToast('Row copied!');                          
                         }}>

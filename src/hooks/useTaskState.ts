@@ -1,22 +1,22 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Word, InboxMessage, ChecklistItem, Settings } from '../types';
+import { Task, InboxMessage, ChecklistItem, Settings } from '../types';
 import { formatTime, formatTimestamp } from '../utils';
 
 interface UseTaskStateProps {
-  initialWords?: Word[];
-  initialCompletedWords?: Word[];
+  initialTasks?: Task[];
+  initialCompletedTasks?: Task[];
   setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>;
   showToast: (message: string, duration?: number) => void;
-  newTask: Partial<Word>;
-  setNewTask: React.Dispatch<React.SetStateAction<Partial<Word>>>;
+  newTask: Partial<Task>;
+  setNewTask: React.Dispatch<React.SetStateAction<Partial<Task>>>;
   bulkAddText: string;
   setBulkAddText: React.Dispatch<React.SetStateAction<string>>;
   settings: Settings;
 }
 
 export function useTaskState({
-  initialWords = [],
-  initialCompletedWords = [],
+  initialTasks = [],
+  initialCompletedTasks = [],
   setInboxMessages,
   showToast,
   newTask,
@@ -25,131 +25,131 @@ export function useTaskState({
   setBulkAddText,
   settings,
 }: UseTaskStateProps) {
-  const [words, setWords] = useState<Word[]>(initialWords);
-  const [completedWords, setCompletedWords] = useState<Word[]>(initialCompletedWords);
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [completedTasks, setCompletedTasks] = useState<Task[]>(initialCompletedTasks);
   const [confirmingClearCompleted, setConfirmingClearCompleted] = useState(false);
   const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [updateTimers, setUpdateTimers] = useState<{ [key: number]: NodeJS.Timeout }>({});
-  const wordsRefForDebounce = useRef(words);
+  const tasksRefForDebounce = useRef(tasks);
 
   // New refs to hold the latest state for background processes like auto-save
-  const wordsRef = useRef(words);
-  const completedWordsRef = useRef(completedWords);
+  const tasksRef = useRef(tasks);
+  const completedTasksRef = useRef(completedTasks);
 
-  wordsRefForDebounce.current = words;
+  tasksRefForDebounce.current = tasks;
 
-  const handleCompleteWord = useCallback((wordToComplete: Word) => {
-    const finalDuration = wordToComplete.isPaused
-      ? wordToComplete.pausedDuration
-      : (wordToComplete.pausedDuration || 0) + (Date.now() - wordToComplete.createdAt);
+  const handleCompleteTask = useCallback((taskToComplete: Task) => {
+    const finalDuration = taskToComplete.isPaused
+      ? taskToComplete.pausedDuration
+      : (taskToComplete.pausedDuration || 0) + (Date.now() - taskToComplete.createdAt);
 
-    const completedWord = { ...wordToComplete, completedDuration: finalDuration };
+    const completedTask = { ...taskToComplete, completedDuration: finalDuration };
 
-    setCompletedWords(prev => [completedWord, ...prev]);
-    setWords(prev => prev.filter(word => word.id !== wordToComplete.id));
+    setCompletedTasks(prev => [completedTask, ...prev]);
+    setTasks(prev => prev.filter(task => task.id !== taskToComplete.id));
     setInboxMessages(prev => [{ 
       id: Date.now() + Math.random(),
       type: 'completed',
-      text: `Task completed: "${completedWord.text}"`,
+      text: `Task completed: "${completedTask.text}"`,
       timestamp: Date.now(),
-      wordId: completedWord.id,
+      taskId: completedTask.id,
     }, ...prev]);
     showToast('Task completed!');
 
-    let newRecurringTask: Word | null = null;
+    let newRecurringTask: Task | null = null;
 
-    if (wordToComplete.isRecurring || wordToComplete.isDailyRecurring || wordToComplete.isWeeklyRecurring || wordToComplete.isMonthlyRecurring || wordToComplete.isYearlyRecurring) {
+    if (taskToComplete.isRecurring || taskToComplete.isDailyRecurring || taskToComplete.isWeeklyRecurring || taskToComplete.isMonthlyRecurring || taskToComplete.isYearlyRecurring) {
       let newOpenDate = Date.now();
       let newCompleteBy: number | undefined = undefined;
 
-      if (wordToComplete.isDailyRecurring) {
+      if (taskToComplete.isDailyRecurring) {
         newOpenDate += 24 * 60 * 60 * 1000;
-        if (wordToComplete.completeBy) newCompleteBy = wordToComplete.completeBy + 24 * 60 * 60 * 1000;
-      } else if (wordToComplete.isWeeklyRecurring) {
+        if (taskToComplete.completeBy) newCompleteBy = taskToComplete.completeBy + 24 * 60 * 60 * 1000;
+      } else if (taskToComplete.isWeeklyRecurring) {
         newOpenDate += 7 * 24 * 60 * 60 * 1000;
-        if (wordToComplete.completeBy) newCompleteBy = wordToComplete.completeBy + 7 * 24 * 60 * 60 * 1000;
-      } else if (wordToComplete.isMonthlyRecurring) {
+        if (taskToComplete.completeBy) newCompleteBy = taskToComplete.completeBy + 7 * 24 * 60 * 60 * 1000;
+      } else if (taskToComplete.isMonthlyRecurring) {
         const d = new Date(newOpenDate);
         d.setMonth(d.getMonth() + 1);
         newOpenDate = d.getTime();
-        if (wordToComplete.completeBy) {
-          const cbd = new Date(wordToComplete.completeBy);
+        if (taskToComplete.completeBy) {
+          const cbd = new Date(taskToComplete.completeBy);
           cbd.setMonth(cbd.getMonth() + 1);
           newCompleteBy = cbd.getTime();
         }
-      } else if (wordToComplete.isYearlyRecurring) {
+      } else if (taskToComplete.isYearlyRecurring) {
         const d = new Date(newOpenDate);
         d.setFullYear(d.getFullYear() + 1);
         newOpenDate = d.getTime();
-        if (wordToComplete.completeBy) {
-          const cbd = new Date(wordToComplete.completeBy);
+        if (taskToComplete.completeBy) {
+          const cbd = new Date(taskToComplete.completeBy);
           cbd.setFullYear(cbd.getFullYear() + 1);
           newCompleteBy = cbd.getTime();
         }
-      } else if (wordToComplete.isRecurring && wordToComplete.completeBy && wordToComplete.createdAt) {
-        const originalDuration = wordToComplete.completeBy - wordToComplete.createdAt;
+      } else if (taskToComplete.isRecurring && taskToComplete.completeBy && taskToComplete.createdAt) {
+        const originalDuration = taskToComplete.completeBy - taskToComplete.createdAt;
         newCompleteBy = Date.now() + originalDuration;
       }
 
       newRecurringTask = {
-        ...wordToComplete,
+        ...taskToComplete,
         id: Date.now() + Math.random(),
         createdAt: newOpenDate,
         openDate: newOpenDate,
         completedDuration: undefined,
         completeBy: newCompleteBy,
-        startsTaskIdOnComplete: wordToComplete.startsTaskIdOnComplete,
+        startsTaskIdOnComplete: taskToComplete.startsTaskIdOnComplete,
       };
     }
 
-    if (wordToComplete.startsTaskIdOnComplete) {
-      const successorTaskId = wordToComplete.startsTaskIdOnComplete;
-      setWords(prevWords => {
-        let newWords = prevWords.map(w => {
-          if (w.id !== successorTaskId) return w;
-          const updatedSuccessor = { ...w, openDate: Date.now(), completeBy: Date.now() };
-          if (w.startsTaskIdOnComplete === wordToComplete.id && newRecurringTask) {
+    if (taskToComplete.startsTaskIdOnComplete) {
+      const successorTaskId = taskToComplete.startsTaskIdOnComplete;
+      setTasks(prevTasks => {
+        let newTasks = prevTasks.map(t => {
+          if (t.id !== successorTaskId) return t;
+          const updatedSuccessor = { ...t, openDate: Date.now(), completeBy: Date.now() };
+          if (t.startsTaskIdOnComplete === taskToComplete.id && newRecurringTask) {
             updatedSuccessor.startsTaskIdOnComplete = newRecurringTask.id;
           }
           return updatedSuccessor;
         });
         if (newRecurringTask) {
-          newWords = [newRecurringTask, ...newWords];
+          newTasks = [newRecurringTask, ...newTasks];
         }
-        return newWords;
+        return newTasks;
       });
     } else if (newRecurringTask) {
-      setWords(prev => [newRecurringTask, ...prev]);
+      setTasks(prev => [newRecurringTask, ...prev]);
     }
   }, [setInboxMessages, showToast]);
 
-  const removeWord = useCallback((idToRemove: number) => {
-    const wordToRemove = words.find(w => w.id === idToRemove) || completedWords.find(w => w.id === idToRemove);
-    setWords(prev => prev.filter(word => word.id !== idToRemove));
-    setCompletedWords(prev => prev.filter(word => word.id !== idToRemove));
-    if (wordToRemove) {
-      setInboxMessages(prev => [{ id: Date.now() + Math.random(), type: 'deleted', text: `Task deleted: "${wordToRemove.text}"`, timestamp: Date.now() }, ...prev]);
+  const removeTask = useCallback((idToRemove: number) => {
+    const taskToRemove = tasks.find(t => t.id === idToRemove) || completedTasks.find(t => t.id === idToRemove);
+    setTasks(prev => prev.filter(task => task.id !== idToRemove));
+    setCompletedTasks(prev => prev.filter(task => task.id !== idToRemove));
+    if (taskToRemove) {
+      setInboxMessages(prev => [{ id: Date.now() + Math.random(), type: 'deleted', text: `Task deleted: "${taskToRemove.text}"`, timestamp: Date.now() }, ...prev]);
     }
     showToast('Task removed.');
-  }, [words, completedWords, setInboxMessages, showToast]);
+  }, [tasks, completedTasks, setInboxMessages, showToast]);
 
-  const handleDuplicateTask = useCallback((taskToCopy: Word) => {
-    const newTask: Word = { ...taskToCopy, id: Date.now() + Math.random(), openDate: Date.now(), createdAt: Date.now(), completedDuration: undefined };
-    setWords(prevWords => [newTask, ...prevWords]);
-    setInboxMessages(prev => [{ id: Date.now() + Math.random(), type: 'created', text: `Task duplicated: "${newTask.text}"`, timestamp: Date.now(), wordId: newTask.id }, ...prev]);
+  const handleDuplicateTask = useCallback((taskToCopy: Task) => {
+    const newTask: Task = { ...taskToCopy, id: Date.now() + Math.random(), openDate: Date.now(), createdAt: Date.now(), completedDuration: undefined };
+    setTasks(prevTasks => [newTask, ...prevTasks]);
+    setInboxMessages(prev => [{ id: Date.now() + Math.random(), type: 'created', text: `Task duplicated: "${newTask.text}"`, timestamp: Date.now(), taskId: newTask.id }, ...prev]);
     showToast('Task duplicated!');
   }, [setInboxMessages, showToast]);
 
-  const handleReopenTask = useCallback((taskToReopen: Word) => {
-    setCompletedWords(prev => prev.filter(w => w.id !== taskToReopen.id));
-    const reopenedTask: Word = { ...taskToReopen, completedDuration: undefined };
-    setWords(prev => [reopenedTask, ...prev]);
+  const handleReopenTask = useCallback((taskToReopen: Task) => {
+    setCompletedTasks(prev => prev.filter(t => t.id !== taskToReopen.id));
+    const reopenedTask: Task = { ...taskToReopen, completedDuration: undefined };
+    setTasks(prev => [reopenedTask, ...prev]);
     showToast('Task reopened!');
   }, []);
 
   const handleClearCompleted = useCallback(() => {
     if (confirmingClearCompleted) {
-      setCompletedWords([]);
+      setCompletedTasks([]);
       showToast('Completed list cleared!');
       setConfirmingClearCompleted(false);
       if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
@@ -163,7 +163,7 @@ export function useTaskState({
   const handleCreateNewTask = useCallback(() => {
     if (newTask.text.trim() === "") return;
 
-    const newWord: Word = {
+    const newTaskObject: Task = {
       ...newTask,
       id: Date.now() + Math.random(),
       text: newTask.text.trim(),
@@ -182,12 +182,12 @@ export function useTaskState({
     setInboxMessages(prev => [{
       id: Date.now() + Math.random(),
       type: 'created',
-      text: `Task created: "${newWord.text}"`,
+      text: `Task created: "${newTaskObject.text}"`,
       timestamp: Date.now(),
-      wordId: newWord.id,
+      taskId: newTaskObject.id,
     }, ...prev]);
     showToast('Task added!');
-    setWords((prevWords) => [...prevWords, newWord]);
+    setTasks((prevTasks) => [...prevTasks, newTaskObject]);
 
     // Reset the new task form, preserving the selected category and task type
     setNewTask({
@@ -218,59 +218,58 @@ export function useTaskState({
       lastNotified: undefined,
       snoozedAt: undefined,
     });
-  }, [newTask, setInboxMessages, showToast, setWords, setNewTask]);
+  }, [newTask, setInboxMessages, showToast, setTasks, setNewTask]);
 
-  const handleWordUpdate = useCallback((updatedWord: Word) => {
-    // Clear any existing timer for this word to debounce
-    if (updateTimers[updatedWord.id]) {
-      clearTimeout(updateTimers[updatedWord.id]);
+  const handleTaskUpdate = useCallback((updatedTask: Task) => {
+    // Clear any existing timer for this task to debounce
+    if (updateTimers[updatedTask.id]) {
+      clearTimeout(updateTimers[updatedTask.id]);
     }
 
     // Set a new timer
     const newTimer = setTimeout(() => {
-      // Check if the word still exists before adding to inbox
-      if (wordsRefForDebounce.current.some(w => w.id === updatedWord.id)) {
+      // Check if the task still exists before adding to inbox
+      if (tasksRefForDebounce.current.some(t => t.id === updatedTask.id)) {
         setInboxMessages(prev => [{
           id: Date.now() + Math.random(),
           type: 'updated',
-          text: `Task updated: "${updatedWord.text}"`,
+          text: `Task updated: "${updatedTask.text}"`,
           timestamp: Date.now(),
-          wordId: updatedWord.id,
+          taskId: updatedTask.id,
         }, ...prev]);
       }
       // Clean up the timer from state
-      setUpdateTimers(prev => { const newTimers = { ...prev }; delete newTimers[updatedWord.id]; return newTimers; });
+      setUpdateTimers(prev => { const newTimers = { ...prev }; delete newTimers[updatedTask.id]; return newTimers; });
     }, 5000); // 5-second debounce window
 
-    setUpdateTimers(prev => ({ ...prev, [updatedWord.id]: newTimer }));
-    setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w));
-  }, [words, updateTimers, wordsRefForDebounce, setInboxMessages]);
+    setUpdateTimers(prev => ({ ...prev, [updatedTask.id]: newTimer }));
+    setTasks(tasks.map(t => t.id === updatedTask.id ? updatedTask : t));
+  }, [tasks, updateTimers, tasksRefForDebounce, setInboxMessages]);
 
   const handleChecklistCompletion = useCallback((item: ChecklistItem, sectionId: number) => {
     // This handler is now ONLY for individual item completions.
-    const parentWord = words.find(w => w.checklist?.some(s => 'items' in s && s.id === sectionId));
-    if (parentWord) {
+    const parentTask = tasks.find(t => t.checklist?.some(s => 'items' in s && s.id === sectionId));
+    if (parentTask) {
       setInboxMessages(prev => [{
-        id: Date.now() + Math.random(), type: 'completed', text: `Checklist item completed: "${item.text}" in task "${parentWord.text}"`,
-        timestamp: Date.now(), wordId: parentWord.id, sectionId: sectionId
+        id: Date.now() + Math.random(), type: 'completed', text: `Checklist item completed: "${item.text}" in task "${parentTask.text}"`,
+        timestamp: Date.now(), taskId: parentTask.id, sectionId: sectionId
       }, ...prev]);
     }
-  }, [words, setInboxMessages]); // Dependency on `words` ensures it has the latest task list
+  }, [tasks, setInboxMessages]); // Dependency on `tasks` ensures it has the latest task list
 
   const handleClearAll = useCallback(() => {
-    setWords([]);
+    setTasks([]);
     showToast('All open tasks cleared!');
-    // wordPlacementIndex is no longer used, so we don't need to reset it.
   }, [showToast]);
 
   const handleBulkAdd = useCallback(() => {
     if (bulkAddText.trim() === "") return;
 
-    const wordsToAdd = bulkAddText.split(/[\n,]+/).map(w => w.trim()).filter(w => w);
-    if (wordsToAdd.length === 0) return;
+    const tasksToAdd = bulkAddText.split(/[\n,]+/).map(t => t.trim()).filter(t => t);
+    if (tasksToAdd.length === 0) return;
 
-    const newWords = wordsToAdd.map(text => {
-      const newWord: Word = {
+    const newTasks = tasksToAdd.map(text => {
+      const newTaskObject: Task = {
         id: Date.now() + Math.random(),
         text,
         x: 0, y: 0,
@@ -285,100 +284,100 @@ export function useTaskState({
         pausedDuration: 0,
         checklist: [],
       };
-      return newWord;
+      return newTaskObject;
     });
 
     setInboxMessages(prev => [{
       id: Date.now() + Math.random(),
       type: 'created',
-      text: `Bulk added ${wordsToAdd.length} tasks.`,
+      text: `Bulk added ${tasksToAdd.length} tasks.`,
       timestamp: Date.now(),
     }, ...prev]);
 
-    setWords(prev => [...prev, ...newWords]);
+    setTasks(prev => [...prev, ...newTasks]);
     setBulkAddText(""); // Clear the textarea
-  }, [bulkAddText, setBulkAddText, settings.activeCategoryId, settings.categories, setInboxMessages, setWords]);
+  }, [bulkAddText, setBulkAddText, settings.activeCategoryId, settings.categories, setInboxMessages, setTasks]);
 
   const handleCopyList = useCallback(() => {
     const reportHeader = "Open Tasks Report\n===================\n";
-    const reportBody = words.map(word => {
+    const reportBody = tasks.map(task => {
       const now = Date.now();
-      const currentDuration = word.isPaused
-        ? (word.pausedDuration || 0)
-        : (word.pausedDuration || 0) + (now - word.createdAt);
-      return `- ${word.text}\n    - Date Opened: ${formatTimestamp(word.createdAt)}\n    - Current Timer: ${formatTime(currentDuration)}`;
+      const currentDuration = task.isPaused
+        ? (task.pausedDuration || 0)
+        : (task.pausedDuration || 0) + (now - task.createdAt);
+      return `- ${task.text}\n    - Date Opened: ${formatTimestamp(task.createdAt)}\n    - Current Timer: ${formatTime(currentDuration)}`;
     }).join('\n\n');
 
-    const wordList = reportHeader + reportBody;
-    navigator.clipboard.writeText(wordList).then(() => {
+    const taskList = reportHeader + reportBody;
+    navigator.clipboard.writeText(taskList).then(() => {
       showToast('Open tasks copied!');
     }).catch(err => {
       console.error('Failed to copy list: ', err);
     });
-  }, [words, showToast]);
+  }, [tasks, showToast]);
 
-  const handleTogglePause = useCallback((wordId: number) => {
-    setWords(prevWords => prevWords.map(word => {
-      if (word.id === wordId) {
-        if (word.isPaused) {
+  const handleTogglePause = useCallback((taskId: number) => {
+    setTasks(prevTasks => prevTasks.map(task => {
+      if (task.id === taskId) {
+        if (task.isPaused) {
           // Resuming: adjust createdAt to account for the time it was paused
           const now = Date.now();
-          const newCreatedAt = now - (word.pausedDuration || 0);
-          return { ...word, isPaused: false, createdAt: newCreatedAt, pausedDuration: 0 };
+          const newCreatedAt = now - (task.pausedDuration || 0);
+          return { ...task, isPaused: false, createdAt: newCreatedAt, pausedDuration: 0 };
         } else {
           // Pausing: calculate and store the elapsed duration
-          const elapsed = (word.pausedDuration || 0) + (Date.now() - word.createdAt);
-          return { ...word, isPaused: true, pausedDuration: elapsed };
+          const elapsed = (task.pausedDuration || 0) + (Date.now() - task.createdAt);
+          return { ...task, isPaused: true, pausedDuration: elapsed };
         }
       }
-      return word;
+      return task;
     }));
-  }, [setWords]);
+  }, [setTasks]);
 
-  const moveWord = useCallback((wordIdToMove: number, targetWordId: number) => {
-    setWords(prevWords => {
-      const newWords = [...prevWords];
-      const indexToMove = newWords.findIndex(w => w.id === wordIdToMove);
-      const indexToSwap = newWords.findIndex(w => w.id === targetWordId);
+  const moveTask = useCallback((taskIdToMove: number, targetTaskId: number) => {
+    setTasks(prevTasks => {
+      const newTasks = [...prevTasks];
+      const indexToMove = newTasks.findIndex(t => t.id === taskIdToMove);
+      const indexToSwap = newTasks.findIndex(t => t.id === targetTaskId);
 
       if (indexToMove === -1 || indexToSwap === -1) {
-        console.error("Could not find one or both words to swap.");
-        return prevWords; // Return original state if words not found
+        console.error("Could not find one or both tasks to swap.");
+        return prevTasks; // Return original state if tasks not found
       }
 
-      const temp = newWords[indexToMove];
-      newWords[indexToMove] = newWords[indexToSwap];
-      newWords[indexToSwap] = temp;
-      return newWords;
+      const temp = newTasks[indexToMove];
+      newTasks[indexToMove] = newTasks[indexToSwap];
+      newTasks[indexToSwap] = temp;
+      return newTasks;
     });
-  }, [setWords]);
+  }, [setTasks]);
 
   // Keep refs updated with the latest state
   useEffect(() => {
-    wordsRef.current = words;
-  }, [words]);
+    tasksRef.current = tasks;
+  }, [tasks]);
   useEffect(() => {
-    completedWordsRef.current = completedWords;
-  }, [completedWords]);
+    completedTasksRef.current = completedTasks;
+  }, [completedTasks]);
 
   return {
-    words, setWords,
-    completedWords, setCompletedWords,
+    tasks, setTasks,
+    completedTasks, setCompletedTasks,
     confirmingClearCompleted,
-    handleCompleteWord,
-    removeWord,
+    handleCompleteTask,
+    removeTask,
     handleDuplicateTask,
     handleReopenTask,
     handleClearCompleted,
-    handleWordUpdate,
+    handleTaskUpdate,
     handleCreateNewTask,
     handleChecklistCompletion,
     handleClearAll,
     handleBulkAdd,
     handleCopyList,
     handleTogglePause,
-    moveWord,
-    wordsRef, // Expose the ref
-    completedWordsRef, // Expose the ref
+    moveTask,
+    tasksRef, // Expose the ref
+    completedTasksRef, // Expose the ref
   };
 }

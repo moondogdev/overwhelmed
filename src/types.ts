@@ -47,7 +47,7 @@ export interface ChecklistSection {
   items: ChecklistItem[];
 }
 
-export interface Word {
+export interface Task {
   id: number;
   text: string;
   x: number; // Add x coordinate
@@ -68,7 +68,7 @@ export interface Word {
   width?: number;
   height?: number;
   openDate: number; // Use a separate field for the editable open date
-  createdAt: number; // Timestamp of when the word was created
+  createdAt: number; // Timestamp of when the Task was created
   isPaused?: boolean;
   pausedDuration?: number;
   completedDuration?: number; // The final duration when completed
@@ -97,7 +97,7 @@ export interface InboxMessage {
   type: 'overdue' | 'timer-alert' | 'created' | 'completed' | 'deleted' | 'updated';
   text: string;
   timestamp: number;
-  wordId?: number; // Optional: link back to the task
+  taskId?: number; // Optional: link back to the task
   sectionId?: number; // Optional: for checklist items
   isImportant?: boolean;
   isArchived?: boolean;
@@ -118,7 +118,7 @@ export interface Category {
 export interface TaskType {
   id: string; // e.g., 'billing', 'research'
   name: string; // e.g., 'Billing', 'Research'
-  fields: (keyof Word)[]; // Array of field names to show for this type
+  fields: (keyof Task)[]; // Array of field names to show for this type
 }
 
 export interface ExternalLink {
@@ -128,7 +128,7 @@ export interface ExternalLink {
 }
 
 export interface PrioritySortConfig {
-  [key: string]: { key: keyof Word | 'timeOpen', direction: 'ascending' | 'descending' } | null;
+  [key: string]: { key: keyof Task | 'timeOpen', direction: 'ascending' | 'descending' } | null;
 }
 
 export interface Settings {

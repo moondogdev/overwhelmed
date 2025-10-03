@@ -1,4 +1,4 @@
-import { Settings } from './types';
+import { Settings, Task } from './types';
 
 export const defaultSettings: Settings = {
   fontFamily: "Arial",
@@ -40,9 +40,9 @@ export const defaultSettings: Settings = {
   inboxSort: 'date-desc', // Default inbox sort  
   openInboxGroupTypes: [], // Default to no groups open
   taskTypes: [ // Default task types
-    { id: 'default', name: 'Default', fields: ['text', 'url', 'priority', 'categoryId', 'openDate', 'completeBy', 'company', 'websiteUrl', 'imageLinks', 'payRate', 'isRecurring', 'isDailyRecurring', 'isWeeklyRecurring', 'isMonthlyRecurring', 'isYearlyRecurring', 'isAutocomplete', 'description', 'attachments', 'checklist', 'notes'] },
-    { id: 'billing', name: 'Billing', fields: ['text', 'payRate', 'manualTime', 'company', 'openDate', 'completeBy'] },
-    { id: 'research', name: 'Research', fields: ['text', 'url', 'notes', 'description', 'attachments'] },
+    { id: 'default', name: 'Default', fields: ['text', 'url', 'priority', 'categoryId', 'openDate', 'completeBy', 'company', 'websiteUrl', 'imageLinks', 'payRate', 'isRecurring', 'isDailyRecurring', 'isWeeklyRecurring', 'isMonthlyRecurring', 'isYearlyRecurring', 'isAutocomplete', 'description', 'attachments', 'checklist', 'notes'] as (keyof Task)[] },
+    { id: 'billing', name: 'Billing', fields: ['text', 'payRate', 'manualTime', 'company', 'openDate', 'completeBy'] as (keyof Task)[] },
+    { id: 'research', name: 'Research', fields: ['text', 'url', 'notes', 'description', 'attachments'] as (keyof Task)[] },
   ],
   showChecklistNotes: true, // Default to showing notes
   autoplayNextInSession: false, // Default to off

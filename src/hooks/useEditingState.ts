@@ -1,40 +1,40 @@
 import React, { useState, useCallback } from 'react';
-import { Word } from '../types';
+import { Task } from '../types';
 
 interface UseEditingStateProps {
-  words: Word[];
-  setWords: React.Dispatch<React.SetStateAction<Word[]>>;
+  tasks: Task[];
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
 }
 
-export function useEditingState({ words, setWords }: UseEditingStateProps) {
-  const [editingWordId, setEditingWordId] = useState<number | null>(null);
+export function useEditingState({ tasks, setTasks }: UseEditingStateProps) {
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [editingText, setEditingText] = useState<string>('');
 
-  const handleEdit = useCallback((word: Word) => {
-    setEditingWordId(word.id);
-    setEditingText(word.text);
+  const handleEdit = useCallback((task: Task) => {
+    setEditingTaskId(task.id);
+    setEditingText(task.text);
   }, []);
 
   const handleEditChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     setEditingText(event.target.value);
   }, []);
 
-  const handleEditKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>, wordId: number) => {
+  const handleEditKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>, taskId: number) => {
     if (event.key === 'Enter') {
-      const newWords = words.map(word =>
-        word.id === wordId ? { ...word, text: editingText.trim() } : word
+      const newTasks = tasks.map(task =>
+        task.id === taskId ? { ...task, text: editingText.trim() } : task
       );
-      setWords(newWords);
-      setEditingWordId(null);
+      setTasks(newTasks);
+      setEditingTaskId(null);
       setEditingText('');
     } else if (event.key === 'Escape') {
-      setEditingWordId(null);
+      setEditingTaskId(null);
       setEditingText('');
     }
-  }, [words, setWords, editingText]);
+  }, [tasks, setTasks, editingText]);
 
   return {
-    editingWordId, setEditingWordId,
+    editingTaskId, setEditingTaskId,
     editingText, setEditingText,
     handleEdit, handleEditChange, handleEditKeyDown,
   };
