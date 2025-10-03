@@ -5,13 +5,10 @@ All notable changes to this project will be documented in this file. See `## Log
 ---
 
 ## Future Features
-- ### Overdue Toast Additions: 
-    - Overdue Toast: Long Snooze? 1hr?
-    - Overdue Toast: Reveal Snoozes, Dismisses/Silenced?: Would this be a good way to handle undoing a silent 
-    - Overdue Toast: Maybe in the Overdue: {} count section as it expands this will be where we add the Reveal Snooze/Dismiss could be revealed when clicked on a button within this container
-
--   ### **Copy to Sheets**: 
-    Explore how we could copy a task to sheets possibly or what we'd use this for
+-   ### **Table View**: 
+    -   Implement a new "Table View" for tasks, similar to a spreadsheet.
+    -   Allow for inline editing of task properties (title, due date, priority, etc.) directly from the table cells.
+    -   Include features like column sorting, filtering, and resizing.
 
 -   ### **Inbox Expansion**:
     The Inbox will need further expansion to support options, context menus, and sorting
@@ -49,7 +46,8 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
-- **[1.0.23] - 2025-10-04: Bulk Task Management**: feat(tasks): Implement bulk task actions and enhanced bulk add.
+- **[1.0.24] - 2025-10-03: Data Export & Advanced Notification Controls**: feat(core): Implement comprehensive data export and advanced notification management.
+- **[1.0.23] - 2025-10-03: Bulk Task Management**: feat(tasks): Implement bulk task actions and enhanced bulk add.
 - **[1.0.22] - 2025-10-03: Workflow Features & UI Overhaul**: feat(core): Enhance task workflows, stabilize editor, and overhaul UI.
 - **[1.0.21] - 2025-10-02: Codebase Cleanup & Bug Fixes**: refactor(core): Standardize naming conventions (Word->Task) and Checklist.tsx refactor fix data loading
 - **[1.0.20] - 2025-10-02: MiniPlayer V2: Work Session Manager**: feat(player): Implement Work Session Manager and MiniPlayer V2
@@ -76,7 +74,43 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
-## [1.0.23] - 2025-10-04: Bulk Task Management
+## [1.0.24] - 2025-10-03: Data Export & Advanced Notification Controls
+**feat(core): Implement comprehensive data export and advanced notification management.**
+
+This is a major feature update that rolls up two key areas of development: a powerful new data export system and a complete overhaul of the overdue notification controls.
+
+#### Features & UI Improvements:
+-   **Advanced Data Export ("Copy to Sheets")**:
+    -   **Bulk Export**: The `BulkActionBar` now includes a "Copy to Sheet" button (`fa-file-excel`) to copy selected tasks as TSV and a "Download as CSV" button (`fa-file-csv`) for file downloads.
+    -   **Single Task Export**: A "Copy as Row" option has been added to the individual task context menu.
+    -   **Comprehensive Data Columns**: The export is highly detailed, including:
+        -   Basic Info (ID, Name, URL, Priority, Dates)
+        -   Categorization (Parent and Sub-Category)
+        -   Financials (Time Tracked, Pay Rate, Earnings)
+        -   Details (Company, Website, Image Links, Attachments)
+        -   Automation (All recurring and autocomplete flags as TRUE/FALSE)
+        -   Linked Tasks (Successor ID, Name, and Offset)
+        -   Full Content (Description, Notes, Responses, Checklist Content, and Time Log Sessions)
+-   **Advanced Notification Controls**:
+-   **Long Snooze Option**: Added a "Snooze 1hr" option to individual overdue toasts and a corresponding "Snooze All 1hr" button to the summary actions. This is now also a configurable default in the Time Management settings.
+-   **Icon-Based Actions**: Replaced all text-based buttons in the overdue notification toasts with a cleaner, icon-based design, using tooltips to maintain clarity. The order of the bulk action icons now matches the order on individual toasts.
+-   **Dismiss & Reveal Silenced**:
+    -   Added a "Dismiss" action (`fa-eye-slash`) to individual toasts, which silences the alert for the current session without completing the task.
+    -   A new "Dismissed: X" button appears in the summary area, which can be clicked to reveal a list of all silenced tasks.
+    -   Users can "Un-silence" a task from this list to make its overdue alert reappear.
+-   **Reveal Snoozed**:
+    -   A "Snoozed: X" button now appears in the summary area, allowing users to see a list of all currently snoozed tasks and their remaining snooze time.
+    -   Users can "Un-snooze" a task individually or "Un-snooze All" tasks at once to bring their alerts back immediately.
+-   **Bulk Skip & Dismiss**: Added "Skip All" and "Dismiss All" icon buttons to the summary actions for more efficient bulk management of overdue tasks.
+-   **UI/UX Fixes**:
+    -   The "Overdue" summary bar now remains visible even when all alerts are snoozed or dismissed, ensuring the "Reveal" buttons are always accessible.
+    -   The main "Overdue" counter now accurately reflects the total number of overdue tasks, including those that are actively showing, snoozed, or dismissed.
+
+#### Summary
+This update provides a robust bridge between Overwhelmed and other data analysis tools with a comprehensive export system. It also delivers a complete set of tools for managing notifications, giving users full visibility and control over tasks that have been temporarily snoozed or dismissed.
+
+---
+## [1.0.23] - 2025-10-03: Bulk Task Management
 **feat(tasks): Implement bulk task actions and enhanced bulk add.**
 
 This update introduces a powerful set of features for managing multiple tasks at once, significantly improving workflow efficiency.

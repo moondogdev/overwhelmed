@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Task, InboxMessage, ChecklistItem, Settings } from '../types';
+import { Task, InboxMessage, ChecklistItem, ChecklistSection, Settings, TimeLogSession, TimeLogEntry } from '../types';
 import { formatTime, formatTimestamp } from '../utils';
 
 interface UseTaskStateProps {
@@ -391,6 +391,205 @@ export function useTaskState({
     showToast(`${taskIds.length} tasks moved to "${categoryName}".`);
   }, [setTasks, showToast, settings.categories]);
 
+  const formatChecklistForCsv = (checklist: (ChecklistSection | ChecklistItem)[] | undefined): string => {
+    if (!checklist || checklist.length === 0) return '';
+
+    // Handle legacy format
+    if ('isCompleted' in checklist[0]) {
+      return (checklist as ChecklistItem[])
+        .map(item => `${item.isCompleted ? '[x]' : '[ ]'} ${item.text}`)
+        .join('\n');
+    }
+
+    return (checklist as ChecklistSection[]).map(section => {
+      const header = `### ${section.title}`;
+      const items = section.items.map(item => `${item.isCompleted ? '[x]' : '[ ]'} ${item.text}`).join('\n');
+      return `${header}\n${items}\n`;
+    }).join('\n');
+  };
+
+  const formatTimeLogSessionsForCsv = (sessions: TimeLogSession[] | undefined): string => {
+    if (!sessions || sessions.length === 0) return '';
+    return sessions.map((session: TimeLogSession) => {
+      const totalDuration = session.entries.reduce((acc: number, entry: TimeLogEntry) => acc + entry.duration, 0);
+      const header = `Session: ${session.title} (Total: ${formatTime(totalDuration)})`;
+      const entries = session.entries.map((entry: TimeLogEntry) => `  - ${entry.description}: ${formatTime(entry.duration)}`).join('\n');
+      return `${header}\n${entries}`;
+    }).join('\n\n');
+  };
+
+  const handleCopyTaskAsCsv = useCallback((taskId: number) => {
+    const taskToCopy = tasks.find(task => task.id === taskId);
+    if (!taskToCopy) {
+      showToast('Task not found.');
+      return;
+    }
+
+    const category = settings.categories.find(c => c.id === taskToCopy.categoryId);
+    let parentCategoryName = 'N/A';
+    let subCategoryName = '';
+
+    if (category) {
+      if (category.parentId) {
+        const parentCategory = settings.categories.find(c => c.id === category.parentId);
+        parentCategoryName = parentCategory?.name || 'N/A';
+        subCategoryName = category.name;
+      } else {
+        parentCategoryName = category.name;
+      }
+    }
+    const linkedTask = taskToCopy.startsTaskIdOnComplete ? tasks.find(t => t.id === taskToCopy.startsTaskIdOnComplete) : null;
+    const linkedTaskName = linkedTask ? linkedTask.text : '';
+    const linkedTaskOffsetMinutes = taskToCopy.linkedTaskOffset ? taskToCopy.linkedTaskOffset / 60000 : 0;
+    const earnings = (((taskToCopy.manualTime || 0) / (1000 * 60 * 60)) * (taskToCopy.payRate || 0)).toFixed(2);
+
+    // Escape tabs, newlines, and quotes within fields to not break the format
+    const escape = (str: string | undefined) => `"${(str || '').replace(/"/g, '""')}"`;
+
+    const rowData = [
+      taskToCopy.id, escape(taskToCopy.text), escape(taskToCopy.url), 
+      escape(parentCategoryName), escape(subCategoryName), 
+      taskToCopy.priority || 'Medium',
+      formatTimestamp(taskToCopy.openDate), taskToCopy.completeBy ? formatTimestamp(taskToCopy.completeBy) : 'N/A',
+      formatTime(taskToCopy.manualTime || 0), taskToCopy.payRate || 0, earnings,
+      escape(taskToCopy.company), escape(taskToCopy.websiteUrl), 
+      escape(taskToCopy.imageLinks?.join('; ')),
+      escape(taskToCopy.attachments?.map(a => a.name).join('; ')),
+      taskToCopy.isRecurring || false, taskToCopy.isDailyRecurring || false, 
+      taskToCopy.isWeeklyRecurring || false,
+      taskToCopy.isMonthlyRecurring || false, taskToCopy.isYearlyRecurring || false, taskToCopy.isAutocomplete || false,
+      taskToCopy.startsTaskIdOnComplete || '', escape(linkedTaskName), linkedTaskOffsetMinutes,
+      escape(taskToCopy.description), 
+      escape(formatChecklistForCsv(taskToCopy.checklist)),
+      escape(taskToCopy.notes), escape(taskToCopy.responses),
+      escape(formatTimeLogSessionsForCsv(taskToCopy.timeLogSessions))
+    ].join('\t'); // Use tabs as the separator
+
+    // For a single row, we typically don't include the header.
+    navigator.clipboard.writeText(rowData);
+    showToast('Task row copied to clipboard!');
+  }, [tasks, settings.categories, showToast]);
+
+  const handleBulkDownloadAsCsv = useCallback((taskIds: number[]) => {
+    if (taskIds.length === 0) {
+      showToast('No tasks selected to download.');
+      return;
+    }
+
+    const tasksToDownload = tasks.filter(task => taskIds.includes(task.id));
+    if (tasksToDownload.length === 0) {
+      showToast('No matching open tasks found to download.');
+      return;
+    }
+
+    const headers = [
+      "ID", "Task", "Task URL", "Parent Category", "Sub-Category", "Priority", "Open Date", "Due Date",
+      "Time Tracked (HH:MM:SS)", "Pay Rate ($/hr)", "Earnings ($)", "Company", "Website URL", "Image Links", "Attachments",
+      "Is Recurring", "Repeat Daily", "Repeat Weekly", "Repeat Monthly", "Repeat Yearly", "Autocomplete on Deadline",
+      "Links to Task ID", "Linked Task Name", "Linked Task Offset (minutes)",
+      "Description", "Checklist Content", "Notes", "Responses", "Time Log Sessions"
+    ];
+
+    const rows = tasksToDownload.map(task => {
+      const category = settings.categories.find(c => c.id === task.categoryId);
+      let parentCategoryName = 'N/A';
+      let subCategoryName = '';
+      if (category) {
+        if (category.parentId) {
+          const parentCategory = settings.categories.find(c => c.id === category.parentId);
+          parentCategoryName = parentCategory?.name || 'N/A';
+          subCategoryName = category.name;
+        } else {
+          parentCategoryName = category.name;
+        }
+      }
+      const linkedTask = task.startsTaskIdOnComplete ? tasks.find(t => t.id === task.startsTaskIdOnComplete) : null;
+      const linkedTaskName = linkedTask ? linkedTask.text : '';
+      const linkedTaskOffsetMinutes = task.linkedTaskOffset ? task.linkedTaskOffset / 60000 : 0;
+      const earnings = (((task.manualTime || 0) / (1000 * 60 * 60)) * (task.payRate || 0)).toFixed(2);
+      
+      const escapeCsv = (str: string | undefined) => `"${(str || '').replace(/"/g, '""')}"`;
+
+      return [
+        task.id, escapeCsv(task.text), escapeCsv(task.url), 
+        escapeCsv(parentCategoryName), escapeCsv(subCategoryName), 
+        task.priority || 'Medium',
+        formatTimestamp(task.openDate), task.completeBy ? formatTimestamp(task.completeBy) : 'N/A',
+        formatTime(task.manualTime || 0), task.payRate || 0, earnings, escapeCsv(task.company), escapeCsv(task.websiteUrl),
+        escapeCsv(task.imageLinks?.join('; ')), escapeCsv(task.attachments?.map(a => a.name).join('; ')),
+        task.isRecurring || false, task.isDailyRecurring || false, task.isWeeklyRecurring || false,
+        task.isMonthlyRecurring || false, task.isYearlyRecurring || false, task.isAutocomplete || false,
+        task.startsTaskIdOnComplete || '', escapeCsv(linkedTaskName), linkedTaskOffsetMinutes,
+        escapeCsv(task.description), escapeCsv(formatChecklistForCsv(task.checklist)),
+        escapeCsv(task.notes), escapeCsv(task.responses),
+        escapeCsv(formatTimeLogSessionsForCsv(task.timeLogSessions))
+      ].join(',');
+    });
+    window.electronAPI.saveCsv([headers.join(','), ...rows].join('\n'));
+  }, [tasks, settings.categories, showToast]);
+
+  const handleBulkCopyAsCsv = useCallback((taskIds: number[]) => {
+    if (taskIds.length === 0) {
+      showToast('No tasks selected to copy.');
+      return;
+    }
+
+    const tasksToCopy = tasks.filter(task => taskIds.includes(task.id));
+    if (tasksToCopy.length === 0) {
+      showToast('No matching open tasks found to copy.');
+      return;
+    }
+
+    const headers = [
+      "ID", "Task", "Task URL", "Parent Category", "Sub-Category", "Priority", "Open Date", "Due Date",
+      "Time Tracked (HH:MM:SS)", "Pay Rate ($/hr)", "Earnings ($)", "Company", "Website URL", "Image Links", "Attachments",
+      "Is Recurring", "Repeat Daily", "Repeat Weekly", "Repeat Monthly", "Repeat Yearly", "Autocomplete on Deadline",
+      "Links to Task ID", "Linked Task Name", "Linked Task Offset (minutes)",
+      "Description", "Checklist Content", "Notes", "Responses", "Time Log Sessions"
+    ];
+
+    const rows = tasksToCopy.map(task => {
+      const category = settings.categories.find(c => c.id === task.categoryId);
+      let parentCategoryName = 'N/A';
+      let subCategoryName = '';
+      if (category) {
+        if (category.parentId) {
+          const parentCategory = settings.categories.find(c => c.id === category.parentId);
+          parentCategoryName = parentCategory?.name || 'N/A';
+          subCategoryName = category.name;
+        } else {
+          parentCategoryName = category.name;
+        }
+      }
+      const linkedTask = task.startsTaskIdOnComplete ? tasks.find(t => t.id === task.startsTaskIdOnComplete) : null;
+      const linkedTaskName = linkedTask ? linkedTask.text : '';
+      const linkedTaskOffsetMinutes = task.linkedTaskOffset ? task.linkedTaskOffset / 60000 : 0;
+      const earnings = (((task.manualTime || 0) / (1000 * 60 * 60)) * (task.payRate || 0)).toFixed(2);
+      
+      // Escape tabs, newlines, and quotes within fields to not break the format
+      const escape = (str: string | undefined) => `"${(str || '').replace(/"/g, '""')}"`;
+
+      return [
+        task.id, escape(task.text), escape(task.url), 
+        escape(parentCategoryName), escape(subCategoryName), 
+        task.priority || 'Medium',
+        formatTimestamp(task.openDate), task.completeBy ? formatTimestamp(task.completeBy) : 'N/A',
+        formatTime(task.manualTime || 0), task.payRate || 0, earnings, escape(task.company), escape(task.websiteUrl),
+        escape(task.imageLinks?.join('; ')), escape(task.attachments?.map(a => a.name).join('; ')),
+        task.isRecurring || false, task.isDailyRecurring || false, task.isWeeklyRecurring || false,
+        task.isMonthlyRecurring || false, task.isYearlyRecurring || false, task.isAutocomplete || false,
+        task.startsTaskIdOnComplete || '', escape(linkedTaskName), linkedTaskOffsetMinutes,
+        escape(task.description),
+        escape(formatChecklistForCsv(task.checklist)),
+        escape(task.notes), escape(task.responses),
+        escape(formatTimeLogSessionsForCsv(task.timeLogSessions))
+      ].join('\t'); // Use tabs as the separator
+    });
+
+    navigator.clipboard.writeText([headers.join('\t'), ...rows].join('\n'));
+    showToast(`${tasksToCopy.length} task(s) copied to clipboard!`);
+  }, [tasks, settings.categories, showToast]);
+
   const handleCopyList = useCallback(() => {
     const reportHeader = "Open Tasks Report\n===================\n";
     const reportBody = tasks.map(task => {
@@ -473,6 +672,9 @@ export function useTaskState({
     handleBulkSetPriority,
     handleBulkSetDueDate,
     handleBulkSetCategory,
+    handleBulkDownloadAsCsv,
+    handleCopyTaskAsCsv,
+    handleBulkCopyAsCsv,
     handleCopyList,
     handleTogglePause,
     moveTask,

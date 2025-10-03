@@ -5,8 +5,8 @@ interface UseNotificationsProps {
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   settings: Settings;
-  setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>;
-  handleCompleteTask: (task: Task) => void;
+  setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>;  
+  handleCompleteTask: (task: Task, status?: 'completed' | 'skipped') => void;
   removeTask: (id: number) => void;
   isLoading: boolean;
 }
@@ -45,17 +45,17 @@ export function useNotifications({
     }, 8000);
   }, []);
 
-  const handleSnooze = useCallback((taskToSnooze: Task, duration?: 'low' | 'medium' | 'high') => {
-    const snoozeDurations = { low: 1 * 60 * 1000, medium: 5 * 60 * 1000, high: 10 * 60 * 1000 };
+  const handleSnooze = useCallback((taskToSnooze: Task, duration?: 'low' | 'medium' | 'high' | 'long') => {
+    const snoozeDurations = { low: 1 * 60 * 1000, medium: 5 * 60 * 1000, high: 10 * 60 * 1000, long: 60 * 60 * 1000 };
     const snoozeDurationMs = snoozeDurations[duration || settings.snoozeTime];
     const snoozedUntil = Date.now() + snoozeDurationMs;
     setTasks(prevTasks => prevTasks.map(t => t.id === taskToSnooze.id ? { ...t, lastNotified: snoozedUntil, snoozeCount: (t.snoozeCount || 0) + 1, snoozedAt: Date.now() } : t));
     setOverdueNotifications(prev => { const newSet = new Set(prev); newSet.delete(taskToSnooze.id); return newSet; });
   }, [settings.snoozeTime, setTasks]);
 
-  const handleSnoozeAll = useCallback((duration?: 'low' | 'medium' | 'high') => {
+  const handleSnoozeAll = useCallback((duration?: 'low' | 'medium' | 'high' | 'long') => {
     const now = Date.now();
-    const snoozeDurations = { low: 1 * 60 * 1000, medium: 5 * 60 * 1000, high: 10 * 60 * 1000 };
+    const snoozeDurations = { low: 1 * 60 * 1000, medium: 5 * 60 * 1000, high: 10 * 60 * 1000, long: 60 * 60 * 1000 };
     const snoozeDurationMs = snoozeDurations[duration || settings.snoozeTime];
     const snoozedUntil = now + snoozeDurationMs;
     const overdueIds = Array.from(overdueNotifications);
@@ -65,6 +65,39 @@ export function useNotifications({
     setOverdueNotifications(new Set());
   }, [overdueNotifications, settings.snoozeTime, setTasks]);
 
+  const handleUnSnooze = useCallback((taskId: number) => {
+    setTasks(prevTasks => prevTasks.map(t => 
+        t.id === taskId 
+            ? { ...t, lastNotified: 0 } // Reset lastNotified to trigger overdue on next tick
+            : t
+    ));
+  }, [setTasks]);
+
+  const handleUnSnoozeAll = useCallback(() => {
+    const now = Date.now();
+    setTasks(prevTasks => prevTasks.map(t => {
+      // Find tasks that are currently snoozed (lastNotified is in the future)
+      if (t.lastNotified && t.lastNotified > now) {
+        return { ...t, lastNotified: 0 }; // Reset their snooze timer
+      }
+      return t;
+    }));
+  }, [setTasks]);
+
+  const handleSilenceTask = useCallback((taskId: number) => {
+    setTasks(prevTasks => prevTasks.map(t => 
+        t.id === taskId ? { ...t, isSilenced: true } : t
+    ));
+    setOverdueNotifications(prev => { const newSet = new Set(prev); newSet.delete(taskId); return newSet; });
+  }, [setTasks]);
+
+  const handleUnsilenceTask = useCallback((taskId: number) => {
+    setTasks(prevTasks => prevTasks.map(t => 
+        t.id === taskId ? { ...t, isSilenced: false } : t
+    ));
+    // The main notification interval will pick it up as overdue on the next tick.
+  }, [setTasks]);
+
   const handleCompleteAllOverdue = useCallback(() => {
     const overdueIds = Array.from(overdueNotifications);
     overdueIds.forEach(id => {
@@ -72,6 +105,22 @@ export function useNotifications({
       if (taskToComplete) handleCompleteTask(taskToComplete);
     });
   }, [overdueNotifications, tasks, handleCompleteTask]);
+
+  const handleSkipAllOverdue = useCallback(() => {
+    const overdueIds = Array.from(overdueNotifications);
+    overdueIds.forEach(id => {
+      const taskToSkip = tasks.find(t => t.id === id);
+      if (taskToSkip) handleCompleteTask(taskToSkip, 'skipped');
+    });
+  }, [overdueNotifications, tasks, handleCompleteTask]);
+
+  const handleDismissAllOverdue = useCallback(() => {
+    const overdueIds = Array.from(overdueNotifications);
+    setTasks(prevTasks => prevTasks.map(t => 
+        overdueIds.includes(t.id) ? { ...t, isSilenced: true } : t
+    ));
+    setOverdueNotifications(new Set());
+  }, [overdueNotifications, setTasks]);
 
   const handleDeleteAllOverdue = useCallback(() => {
     const overdueIds = Array.from(overdueNotifications);
@@ -135,6 +184,7 @@ export function useNotifications({
 
   return {
     timerNotifications, overdueNotifications, handleTaskOverdue, handleTimerNotify,
-    handleSnooze, handleSnoozeAll, handleCompleteAllOverdue, handleDeleteAllOverdue,
+    handleSnooze, handleSnoozeAll, handleUnSnooze, handleUnSnoozeAll, handleSilenceTask, handleUnsilenceTask, 
+    handleCompleteAllOverdue, handleSkipAllOverdue, handleDismissAllOverdue, handleDeleteAllOverdue,
   };
 }

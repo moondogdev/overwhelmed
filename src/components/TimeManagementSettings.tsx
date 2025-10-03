@@ -37,6 +37,7 @@ export function TimeManagementSettings() {
           <option value="low">Low (1 minute)</option>
           <option value="medium">Medium (5 minutes)</option>
           <option value="high">High (10 minutes)</option>
+          <option value="long">Long (1 hour)</option>
         </select>
         <p style={{ fontSize: '12px', margin: '0' }}>How long to hide an overdue alert when you click "Snooze".</p>
       </label>

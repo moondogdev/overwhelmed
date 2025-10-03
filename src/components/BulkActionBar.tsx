@@ -6,7 +6,7 @@ import { Dropdown } from './TaskComponents';
 export function BulkActionBar() {
   const { 
     selectedTaskIds, setSelectedTaskIds, handleBulkDelete, handleBulkSetCategory, 
-    handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen, 
+    handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen, handleBulkCopyAsCsv, handleBulkDownloadAsCsv,
     settings, tasks, completedTasks 
   } = useAppContext();
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -134,6 +134,18 @@ export function BulkActionBar() {
           <button onClick={() => handlePriorityChange('Medium')}>Medium</button>
           <button onClick={() => handlePriorityChange('Low')}>Low</button>
         </Dropdown>
+        <button
+          className="icon-button"
+          title="Copy Selected to Sheet"
+          onClick={() => handleBulkCopyAsCsv(selectedTaskIds)}>
+          <i className="fas fa-file-excel"></i>
+        </button>
+        <button
+          className="icon-button"
+          title="Download Selected as CSV"
+          onClick={() => handleBulkDownloadAsCsv(selectedTaskIds)}>
+          <i className="fas fa-file-csv"></i>
+        </button>
         {selectionType === 'active' && (
           <button
             className="icon-button"

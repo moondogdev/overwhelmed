@@ -101,6 +101,9 @@ export function useAppListeners({
         case 'duplicate':
           taskState.handleDuplicateTask(targetTask);
           break;
+        case 'copy_as_row':
+          taskState.handleCopyTaskAsCsv(taskId);
+          break;
         case 'trash':
           taskState.removeTask(taskId);
           break;

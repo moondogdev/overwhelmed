@@ -430,6 +430,10 @@ app.whenReady().then(() => {
       },
       { type: 'separator' },
       {
+        label: 'Copy as Row',
+        click: () => webContents.send('context-menu-command', { command: 'copy_as_row', taskId }),
+      },
+      {
         label: 'Complete Task',
         click: () => webContents.send('context-menu-command', { command: 'complete', taskId }),
       },

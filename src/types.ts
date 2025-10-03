@@ -85,6 +85,7 @@ export interface Task {
   lastNotified?: number; // Timestamp of the last notification sent for this task
   snoozeCount?: number; // How many times the task has been snoozed
   snoozedAt?: number; // Timestamp of when the last snooze was initiated
+  isSilenced?: boolean; // To hide overdue toast without snoozing
   manualTimeRunning?: boolean;
   taskType?: string; // New property for task types
   startsTaskIdOnComplete?: number; // ID of the task to start when this one is completed
@@ -162,7 +163,7 @@ export interface Settings {
   timerNotificationLevel: 'silent' | 'low' | 'medium' | 'high';
   prioritySortConfig?: PrioritySortConfig;
   autoBackupLimit?: number;
-  snoozeTime: 'low' | 'medium' | 'high'; // New setting for snooze duration
+  snoozeTime: 'low' | 'medium' | 'high' | 'long'; // New setting for snooze duration
   editorHeights?: { [key: string]: string };
   useDefaultBrowserForSearch?: boolean; // New global setting
   inboxSort?: 'date-desc' | 'date-asc' | 'type';

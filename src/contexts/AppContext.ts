@@ -81,6 +81,7 @@ export interface AppContextType {
   handleReopenTask: (task: Task) => void;
   handleDuplicateTask: (task: Task) => void;
   handleTogglePause: (id: number) => void;
+  handleCopyTaskAsCsv: (taskId: number) => void;
   handleEditChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   handleEditKeyDown: (event: React.KeyboardEvent<HTMLInputElement>, taskId: number) => void;
   setActiveCategoryId: (id: number | 'all') => void;
@@ -107,10 +108,16 @@ export interface AppContextType {
   handleStartTaskFromSession: (taskId: number) => void;
   handlePreviousEntry: () => void;
   handleTimerNotify: (task: Task) => void;
-  handleSnooze: (task: Task, duration?: 'low' | 'medium' | 'high') => void;
-  handleSnoozeAll: (duration?: 'low' | 'medium' | 'high') => void;
+  handleSnooze: (task: Task, duration?: 'low' | 'medium' | 'high' | 'long') => void;
+  handleSnoozeAll: (duration?: 'low' | 'medium' | 'high' | 'long') => void;
+  handleUnSnooze: (taskId: number) => void;
+  handleUnSnoozeAll: () => void;
+  handleSilenceTask: (taskId: number) => void;
+  handleUnsilenceTask: (taskId: number) => void;
   handleCompleteAllOverdue: () => void;
+  handleSkipAllOverdue: () => void;
   handleDeleteAllOverdue: () => void;
+  handleDismissAllOverdue: () => void;
   handleCreateNewTask: () => void;
   handleGoToPreviousTask: (currentTaskId: number) => void;
   handleGoToNextTask: (currentTaskId: number) => void;
@@ -123,6 +130,8 @@ export interface AppContextType {
   handleBulkComplete: (taskIds: number[]) => void;
   handleBulkSetPriority: (taskIds: number[], priority: 'High' | 'Medium' | 'Low') => void;
   handleBulkSetDueDate: (taskIds: number[], completeBy: number) => void;
+  handleBulkDownloadAsCsv: (taskIds: number[]) => void;
+  handleBulkCopyAsCsv: (taskIds: number[]) => void;
   handleBulkSetCategory: (taskIds: number[], categoryId: number) => void;
   handleExport: () => void;
   handleImport: () => void;

@@ -47,7 +47,7 @@ function App() {
   const taskState = useTaskState({
     setInboxMessages, showToast, newTask, setNewTask, bulkAddText, setBulkAddText, settings,
   });
-  const { tasks, setTasks, completedTasks, setCompletedTasks, handleCompleteTask: originalHandleCompleteTask, removeTask, handleTaskUpdate, handleChecklistCompletion, handleClearAll, handleCopyList, handleTogglePause, tasksRef, completedTasksRef, handleBulkAdd, handleBulkDelete, handleBulkSetCategory, handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen } = taskState;
+  const { tasks, setTasks, completedTasks, setCompletedTasks, handleCompleteTask: originalHandleCompleteTask, removeTask, handleTaskUpdate, handleChecklistCompletion, handleClearAll, handleCopyList, handleTogglePause, tasksRef, completedTasksRef, handleBulkAdd, handleBulkDelete, handleBulkSetCategory, handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen, handleCopyTaskAsCsv, handleBulkCopyAsCsv, handleBulkDownloadAsCsv } = taskState;
 
   // --- Global Timer State (managed by custom hook) ---
   const globalTimerState = useGlobalTimer({
@@ -59,6 +59,7 @@ function App() {
   const notificationsState = useNotifications({
     tasks, setTasks, settings, setInboxMessages, handleCompleteTask: originalHandleCompleteTask, removeTask, isLoading
   });
+  const { handleUnSnooze, handleUnSnoozeAll, handleSilenceTask, handleUnsilenceTask, handleSkipAllOverdue, handleDismissAllOverdue } = notificationsState;
 
   // --- Editing State (managed by custom hook) ---
   const editingState = useEditingState({
@@ -167,6 +168,9 @@ function App() {
     handleBulkComplete,
     handleBulkSetPriority,
     handleBulkSetDueDate,
+    handleBulkDownloadAsCsv,
+    handleCopyTaskAsCsv,
+    handleBulkCopyAsCsv,
     handleBulkSetCategory,
     handleBulkDelete,
     handleAccordionToggle,
@@ -175,6 +179,12 @@ function App() {
     handleChecklistCompletion,
     handleGlobalToggleTimer,
     handleTogglePause,
+    handleSilenceTask,
+    handleUnsilenceTask,
+    handleSkipAllOverdue,
+    handleUnSnoozeAll,
+    handleDismissAllOverdue,
+    handleUnSnooze,
     handleGlobalResetTimer,
     handleNextEntry,
     handleClearActiveTimer,
