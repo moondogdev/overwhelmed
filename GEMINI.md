@@ -574,6 +574,7 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 72.0: The Perils of `contentEditable`
   - Rule 73.0: Safe Conditional Rendering in JSX
   - Rule 74.0: Keyboard Interactivity with `onKeyDown` and `tabIndex`
+  - Rule 75.0: Decoupling Actions from Editing State with Hover Menus
 
 ---
 
@@ -3511,3 +3512,98 @@ To prevent this, you must ensure your conditional expression always evaluates to
 **Incorrect (Unsafe):**
 ```jsx
 {task.payRate && task.payRate > 0 && <MyComponent />}
+
+```
+---
+### Developer Guide - Rule 74.0: Keyboard Interactivity with `onKeyDown` and `tabIndex`
+
+This guide explains how to make non-interactive elements like `<div>`s respond to keyboard events, which is essential for implementing custom keyboard shortcuts like `Tab` for indentation.
+
+#### The Problem: Non-Interactive Elements Don't Get Focus
+
+By default, only interactive elements like `<input>`, `<button>`, and `<a>` can receive keyboard focus. This means that if you attach an `onKeyDown` handler to a `<div>` or a `<span>`, it will never fire because the user can't "focus" on it with their keyboard.
+
+We encountered this when trying to implement the `Tab` and `Shift+Tab` shortcuts for indenting and outdenting our `ChecklistItemComponent`, which is rendered as a `<div>`.
+
+#### The Solution: The `tabIndex` Attribute
+
+The `tabIndex` attribute is the standard HTML solution to this problem. It controls whether an element can be focused and how it participates in the page's tab order.
+
+-   **`tabIndex={-1}`**: The element can be focused programmatically (e.g., with `element.focus()`), but it is **not** included in the natural tab order. This is useful for elements that should be focusable but not reachable by tabbing through the page.
+-   **`tabIndex={0}`**: The element can be focused, and it is included in the natural tab order of the page, based on its position in the DOM. This is the value we use.
+-   **`tabIndex` > 0**: The element can be focused, but it creates a separate, priority-based tab order, which is generally discouraged as it can be confusing for accessibility.
+
+By adding `tabIndex={0}` to our `div`, we make it a focusable element that can receive keyboard events.
+
+#### Implementation: Capturing the `Tab` Key
+
+Once the element is focusable, we can add an `onKeyDown` handler. To capture the `Tab` key specifically, we check `e.key === 'Tab'`.
+
+It is **critical** to call `e.preventDefault()` inside this handler. If we don't, the browser will perform its default action for the `Tab` key, which is to move focus to the next focusable element on the page, and our custom indent/outdent logic will not work as expected.
+
+This pattern is essential for creating accessible, keyboard-navigable custom components in React.
+
+```tsx
+// File: src/components/ChecklistItemComponent.tsx
+
+export const ChecklistItemComponent: React.FC<ChecklistItemProps> = ({ onTab, ... }) => {
+    return (
+        <div
+            // ... other props
+            
+            // 1. Make the div focusable so it can receive keyboard events.
+            tabIndex={0} 
+
+            // 2. Add the onKeyDown handler.
+            onKeyDown={(e) => {
+                if (e.key === 'Tab') {
+                    // 3. Prevent the browser's default focus-switching behavior.
+                    e.preventDefault();
+                    
+                    // 4. Call our custom handler for indent/outdent.
+                    onTab(e.shiftKey);
+                }
+            }}
+        >
+            {/* ... component content ... */}
+        </div>
+    );
+};
+
+```
+
+---
+
+### Developer Guide - Rule 75.0: Decoupling Actions from Editing State with Hover Menus
+
+This guide explains a robust UI pattern for providing actions on an item (like "Move" or "Delete") without conflicting with its in-place editing state.
+
+#### The Problem: `onBlur` vs. `onClick` Race Condition
+
+We encountered a bug where clicking an action button (like "Move Up") inside an active editor component would cause the editor to immediately close before the action could be registered. This happens because:
+1.  The user clicks the "Move Up" button.
+2.  The editor's main container fires its `onBlur` event because focus is leaving it.
+3.  The `onBlur` handler immediately sets the editing state to `null`, causing the component to re-render in its read-only view.
+4.  The "Move Up" button is unmounted from the DOM before its `onClick` event has a chance to fire.
+
+While using `onMouseDown` instead of `onClick` can sometimes fix this for a single button, it's a fragile solution that doesn't scale well.
+
+#### The Solution: Decouple Actions from the Edit State
+
+The best practice is to completely decouple organizational actions (Move, Copy, Delete) from the editing state. We achieve this by moving those action buttons out of the "editing" view and into a **hover-activated menu** on the "read-only" view.
+
+This pattern provides several benefits:
+-   **No Race Condition**: Since the "Move" and "Delete" buttons are part of the read-only view, they exist outside the `onBlur` context of the editor, completely avoiding the event conflict.
+-   **Improved UX**: The user can organize, copy, and delete items without first having to enter an edit mode, which is a much faster and more intuitive workflow.
+-   **Clear Separation of Concerns**: "Editing" is for changing the content of an item. "Actions" are for managing the item's position and existence within the list. This pattern enforces that separation in the UI.
+
+```jsx
+// The hover menu is part of the read-only view, completely separate from the editor's onBlur.
+<div className="rich-text-block-view-wrapper">
+  <div className="rich-text-block-view" onDoubleClick={() => onSetEditing(true)} />
+  <div className="rich-text-block-quick-actions">
+    <button onClick={onMove}>Move</button>
+    <button onClick={onDelete}>Delete</button>
+  </div>
+</div>
+```

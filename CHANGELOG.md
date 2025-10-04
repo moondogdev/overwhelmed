@@ -32,11 +32,13 @@ All notable changes to this project will be documented in this file. See `## Log
 -   Implement "Import Tasks" and "Export Tasks" to allow for merging task data from different project files without overwriting settings.
 
 -   ### **Calendar**: 
+    -   Task view in Calendar form. Can start new task on a specific due date by using the calendar
+
 -   ### **System Integration & Quick Actions**:
     -   **Launch Program Buttons**: Add the ability to create custom buttons or links within the app that can launch external programs on the user's system.
     -   **Open File Path Buttons**: Add a feature to create buttons or links that open a specific folder path in the system's file explorer.
 
-    -   Task view in Calendar form. Can start new task on a specific due date by using the calendar
+    
 
 -   ### **Response to Ticket**: 
     -   Maybe expand this section to include some details from the task and likely where we could tie in the "scripted responses" from the next request so we can use a dropdown to input a variety of responses which we can edit in the response field to either leave there or copy for use externally. like hello these tasks were completed on xxx. please blah blah blah. 
@@ -53,6 +55,7 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
+- **[1.0.27] - 2025-10-04: Checklist Hook Refactor**: refactor(checklist): Decompose monolithic `useChecklist` hook into smaller, single-responsibility hooks.
 - **[1.0.26] - 2025-10-04: Advanced Checklist Structuring & Organization**: feat(checklist): Implement content blocks, hierarchical sorting, nesting, bulk actions, and named hyperlinks.
 - **[1.0.25] - 2025-10-03: Inbox Expansion & Auto-Save Logic**: feat(core): Complete Inbox expansion and fix auto-save logic.
 - **[1.0.24] - 2025-10-03: Data Export & Advanced Notification Controls**: feat(core): Implement comprehensive data export and advanced notification management.
@@ -80,6 +83,29 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.27] - 2025-10-04: Checklist Hook Refactor
+**refactor(checklist): Decompose monolithic `useChecklist` hook into smaller, single-responsibility hooks.**
+
+This update completes a major architectural refactor of the checklist system, significantly improving its maintainability, readability, and testability.
+
+#### Refactored
+-   **Decomposed `useChecklist.ts`**: The monolithic `useChecklist.ts` hook, which previously contained all checklist-related logic, has been broken down into a suite of smaller, single-responsibility custom hooks.
+    -   **`useChecklistState.ts`**: Manages all core state variables for the checklist, including history, editing states, and confirmation dialogs.
+    -   **`useChecklistItemManagement.ts`**: Handles all item-level CRUD (Create, Read, Update, Delete) operations and property updates (e.g., `handleUpdateItemText`, `handleDeleteItem`).
+    -   **`useChecklistSectionManagement.ts`**: Manages all section-level actions, such as adding, deleting, duplicating, and toggling section properties (notes, responses, collapse state).
+    -   **`useChecklistHierarchy.ts`**: Contains all logic related to the structural organization of the checklist, including item nesting (indent/outdent), reordering (move up/down), and promoting items to section headers.
+    -   **`useChecklistBlockManagement.ts`**: Manages all interactions with `RichTextBlock`s, including their creation, deletion, and association with checklist sections.
+    -   **`useChecklistTimer.ts`**: Encapsulates all logic for sending checklist items or sections to the Work Timer.
+    -   **`useChecklistHistory.ts`**: Manages the undo/redo history stack for all checklist actions.
+    -   **`useChecklistGlobalActions.ts`**: Contains handlers for global checklist commands that affect the entire checklist, such as bulk adding, template management, and clearing all highlights.
+    -   **`useChecklistIPC.ts`**: Consolidates all Inter-Process Communication (IPC) listeners, acting as the single entry point for commands coming from native context menus.
+-   **Orchestrator Pattern**: The main `useChecklist.ts` hook now acts as a clean "orchestrator." Its only job is to initialize these new hooks and wire them together, passing state and handlers between them as needed.
+
+#### Summary
+This refactor was a critical step in managing the complexity of the checklist feature. By separating concerns into dedicated hooks, the codebase is now significantly more organized and easier to navigate. This modular architecture will make it much simpler to add new features and fix bugs in the checklist system in the future.
 
 ---
 

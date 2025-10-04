@@ -51,6 +51,12 @@ This application follows an **Orchestrator Component** pattern (see Rule 69.0). 
 -   **Exposed State**: `activeTimerWordId`, `activeTimerEntry`, `activeTimerLiveTime`.
 -   **Exposed Handlers**: `handleGlobalToggleTimer`, `handleGlobalStopTimer`, `handleAddNewTimeLogEntryAndStart`.
 
+### `useChecklist`
+-   **File**: `src/hooks/useChecklist.ts`
+-   **Responsibility**: Manages all state and logic for an individual checklist, including item management, section management, content blocks, undo/redo history, and IPC command handling.
+-   **Exposed State**: `history`, `historyIndex`, `editingItemId`, `editingSectionId`, `editingContentBlockId`, etc.
+-   **Exposed Handlers**: `handleAddItem`, `handleUpdateItemText`, `handleAddSection`, `handleMoveBlock`, `handleAssociateBlock`, `handleDetachFromBlock`, `handleUndo`, `handleRedo`, etc.
+
 ### `useEditingState`
 -   **File**: `src/hooks/useEditingState.ts`
 -   **Responsibility**: Manages the state for in-place editing of a task's title in the main list view.

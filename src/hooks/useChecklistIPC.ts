@@ -1,31 +1,32 @@
 import { useEffect, useCallback } from 'react';
-import { ChecklistItem, ChecklistSection, Settings, Task } from '../types';
-import { extractUrlFromText, formatChecklistForCopy, moveChecklistItemAndChildren, indentChecklistItem, outdentChecklistItem, formatChecklistItemsForRawCopy } from '../utils';
+import { ChecklistItem, ChecklistSection, RichTextBlock, Settings, Task } from '../types';
+import { formatChecklistForCopy, moveChecklistItemAndChildren, indentChecklistItem, outdentChecklistItem, formatChecklistItemsForRawCopy } from '../utils';
 
 interface UseChecklistIPCHandlers {
-    history: ChecklistSection[][];
+    history: (ChecklistSection | RichTextBlock)[][];
     historyIndex: number;
-    isEditable: boolean;
+    tasks: Task[];
     settings: Settings;
     taskId: number;
-    onUpdate: (newSections: ChecklistSection[]) => void;
-    onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
-    showToast: (message: string) => void;
+    onUpdate: (newSections: (ChecklistSection | RichTextBlock)[]) => void;
     onSettingsChange: (update: Partial<Settings> | ((prevSettings: Settings) => Partial<Settings>)) => void;
-    updateHistory: (newSections: ChecklistSection[]) => void;
+    showToast: (message: string) => void;
+    updateHistory: (newSections: (ChecklistSection | RichTextBlock)[]) => void;
+    // Item Handlers
+    handleToggleItem: (sectionId: number, itemId: number) => void;
+    handleDeleteItem: (sectionId: number, itemId: number) => void;
     handleDuplicateChecklistItem: (sectionId: number, itemId: number) => void;
-    setEditingItemId: (id: number | null) => void;
-    setEditingItemText: (text: string) => void;
     handleUpdateItemResponse: (sectionId: number, itemId: number, newResponse: string) => void;
-    setEditingResponseForItemId: (id: number | null) => void;
     handleUpdateItemNote: (sectionId: number, itemId: number, newNote: string) => void;
-    setEditingNoteForItemId: (id: number | null) => void;
+    handleDeleteItemNote: (sectionId: number, itemId: number) => void;
+    handleDeleteItemResponse: (sectionId: number, itemId: number) => void;
     handleSendToTimer: (item: ChecklistItem, startImmediately: boolean) => void;
-    moveSection: (sections: ChecklistSection[], sectionId: number, direction: 'up' | 'down') => ChecklistSection[];
+    // Hierarchy Handlers
+    handlePromoteItemToHeader: (sectionId: number, itemId: number) => void;
+    // Section Handlers
+    moveSection: (sections: (ChecklistSection | RichTextBlock)[], sectionId: number, direction: 'up' | 'down') => (ChecklistSection | RichTextBlock)[];
     handleUndo: () => void;
     handleRedo: () => void;
-    setEditingSectionId: (id: number | null) => void;
-    setEditingSectionTitle: (title: string) => void;
     handleCompleteAllInSection: (sectionId: number) => void;
     handleToggleSectionCollapse: (sectionId: number) => void;
     handleAddNotes: (sectionId?: number) => void;
@@ -35,18 +36,126 @@ interface UseChecklistIPCHandlers {
     handleDuplicateSection: (sectionId: number) => void;
     handleDeleteSection: (sectionId: number) => void;
     handleSendSectionToTimer: (section: ChecklistSection, startImmediately: boolean) => void;
+    // Block Handlers
+    handleAssociateBlock: (sectionId: number, blockId: number) => void;
+    handleDetachFromBlock: (sectionId: number) => void;
+    // Global Handlers
+    handleGlobalChecklistCommand: (payload: { command: string }) => void;
+    // State Setters for Editing
+    setEditingItemId: (id: number | null) => void;
+    setEditingItemText: (text: string) => void;
+    setEditingResponseForItemId: (id: number | null) => void;
+    setEditingNoteForItemId: (id: number | null) => void;
+    setEditingSectionId: (id: number | null) => void;
+    setEditingSectionTitle: (title: string) => void;
     setTemplateSectionsToSave: (sections: ChecklistSection[] | null) => void;
     setIsSaveTemplatePromptOpen: (isOpen: boolean) => void;
-    handleGlobalChecklistCommand: (payload: { command: string }) => void;
-    tasks: any[]; // Simplified for this hook, as it's only used for a lookup
 }
 
-/**
- * This hook is responsible for setting up all Inter-Process Communication (IPC) listeners
- * for the checklist feature. It translates commands from the main process (e.g., from
- * context menus) into calls to the core handler functions.
- */
-export const useChecklistIPC = (handlers: UseChecklistIPCHandlers) => {
-    // This hook is now empty. Its logic has been moved into useChecklist.ts
-    // to prevent stale closure issues with IPC command handling.
+export const useChecklistIPC = (props: UseChecklistIPCHandlers) => {
+    const { history, historyIndex, tasks, settings, taskId, onUpdate, onSettingsChange, showToast, updateHistory, ...handlers } = props;
+
+    useEffect(() => {
+        const handleChecklistCommand = (payload: { command: string, sectionId: number, itemId: number, color?: string }) => {
+            const { command, sectionId, itemId, color } = payload;
+            const currentSections = history[historyIndex];
+            const section = currentSections.find(s => 'items' in s && s.id === sectionId) as (ChecklistSection | undefined);
+            if (!section) return;
+
+            const itemIndex = section.items.findIndex(item => item.id === itemId);
+            if (itemIndex === -1 && !['edit', 'edit_response', 'edit_note'].includes(command)) return;
+
+            let newItems = [...section.items];
+            let newSections = [...currentSections];
+
+            switch (command) {
+                case 'toggle_complete': handlers.handleToggleItem(sectionId, itemId); return;
+                case 'delete': handlers.handleDeleteItem(sectionId, itemId); return;
+                case 'copy': navigator.clipboard.writeText(section.items.find(i => i.id === itemId)?.text || ''); showToast('Checklist item copied!'); return;
+                case 'duplicate': handlers.handleDuplicateChecklistItem(sectionId, itemId); return;
+                case 'add_before': newItems.splice(itemIndex, 0, { id: Date.now() + Math.random(), text: 'New Item', isCompleted: false, level: section.items[itemIndex].level, parentId: section.items[itemIndex].parentId }); break;
+                case 'add_after': newItems.splice(itemIndex + 1, 0, { id: Date.now() + Math.random(), text: 'New Item', isCompleted: false, level: section.items[itemIndex].level, parentId: section.items[itemIndex].parentId }); break;
+                case 'indent': newSections = indentChecklistItem(currentSections, sectionId, itemId); break;
+                case 'outdent': newSections = outdentChecklistItem(currentSections, sectionId, itemId); break;
+                case 'move_up': newSections = moveChecklistItemAndChildren(currentSections, sectionId, itemId, 'up'); break;
+                case 'move_down': newSections = moveChecklistItemAndChildren(currentSections, sectionId, itemId, 'down'); break;
+                case 'highlight': newSections = newSections.map(s => 'items' in s && s.id === sectionId ? { ...s, items: s.items.map(i => i.id === itemId ? { ...i, highlightColor: color } : i) } : s); break;
+                case 'delete_note': handlers.handleDeleteItemNote(sectionId, itemId); return;
+                case 'delete_response': handlers.handleDeleteItemResponse(sectionId, itemId); return;
+                case 'promote_to_header': handlers.handlePromoteItemToHeader(sectionId, itemId); return;
+            }
+
+            if (command === 'open_link') { return; }
+
+            if (!['highlight', 'move_up', 'move_down', 'indent', 'outdent'].includes(command)) {
+                newSections = newSections.map(s => 'items' in s && s.id === sectionId ? { ...s, items: newItems } : s);
+            }
+
+            updateHistory(newSections);
+            onUpdate(newSections);
+
+            if (payload.command === 'edit') {
+                const item = section?.items.find(i => i.id === payload.itemId);
+                if (item) { handlers.setEditingItemId(item.id); handlers.setEditingItemText(item.text); }
+            } else if (payload.command === 'edit_response') {
+                const item = section?.items.find(i => i.id === payload.itemId);
+                if (item) { if (item.response === undefined) handlers.handleUpdateItemResponse(payload.sectionId, payload.itemId, ''); handlers.setEditingResponseForItemId(payload.itemId); }
+            } else if (payload.command === 'edit_note') {
+                const item = section?.items.find(i => i.id === payload.itemId);
+                if (item) { if (item.note === undefined) handlers.handleUpdateItemNote(payload.sectionId, payload.itemId, ''); handlers.setEditingNoteForItemId(payload.itemId); }
+            } else if (command === 'send_to_timer') {
+                const item = section.items.find(i => i.id === itemId);
+                if (item) handlers.handleSendToTimer(item, false);
+            } else if (command === 'send_to_timer_and_start') {
+                const item = section.items.find(i => i.id === itemId);
+                if (item) handlers.handleSendToTimer(item, true);
+            } else if (command === 'view' && taskId) {
+                onSettingsChange({ activeTaskTabs: { ...settings.activeTaskTabs, [taskId]: 'ticket' } });
+                if (!settings.openAccordionIds.includes(taskId)) onSettingsChange({ openAccordionIds: [...new Set([...settings.openAccordionIds, taskId])] });
+            }
+        };
+
+        const handleSectionCommand = (payload: { command: string, sectionId?: number, blockId?: number }) => {
+            const { command, sectionId } = payload;
+            if (!sectionId) {
+                handlers.handleGlobalChecklistCommand(payload);
+                return;
+            }
+            switch (command) {
+                case 'move_section_up': onUpdate(handlers.moveSection(history[historyIndex], sectionId, 'up')); break;
+                case 'move_section_down': onUpdate(handlers.moveSection(history[historyIndex], sectionId, 'down')); break;
+                case 'undo_checklist': handlers.handleUndo(); break;
+                case 'redo_checklist': handlers.handleRedo(); break;
+                case 'edit_title': { const section = history[historyIndex].find(s => 'items' in s && s.id === sectionId) as (ChecklistSection | undefined); if (section) { handlers.setEditingSectionId(section.id); handlers.setEditingSectionTitle(section.title); } break; }
+                case 'toggle_all_in_section': handlers.handleCompleteAllInSection(sectionId); break;
+                case 'toggle_collapse': handlers.handleToggleSectionCollapse(sectionId); break;
+                case 'add_note_to_section': handlers.handleAddNotes(sectionId); break;
+                case 'add_response_to_section': handlers.handleAddResponses(sectionId); break;
+                case 'toggle_section_notes': handlers.handleToggleSectionNotes(sectionId); break;
+                case 'toggle_section_responses': handlers.handleToggleSectionResponses(sectionId); break;
+                case 'copy_section': { const sectionToCopy = history[historyIndex].find(s => s.id === sectionId); if (sectionToCopy && 'items' in sectionToCopy) { const textToCopy = formatChecklistForCopy([sectionToCopy as ChecklistSection]); navigator.clipboard.writeText(textToCopy); showToast('Section copied to clipboard!'); } break; }
+                case 'copy_section_raw': { const sectionToCopy = history[historyIndex].find(s => 'items' in s && s.id === sectionId) as (ChecklistSection | undefined); if (sectionToCopy) { const header = `### ${sectionToCopy.title}`; const itemsText = formatChecklistItemsForRawCopy(sectionToCopy.items); const textToCopy = `${header}\n${itemsText}`; navigator.clipboard.writeText(textToCopy); showToast('Section raw content copied!'); } break; }
+                case 'clear_all_highlights': { const newSections = history[historyIndex].map(sec => 'items' in sec && sec.id === sectionId ? { ...sec, items: sec.items.map(item => ({ ...item, highlightColor: undefined } as ChecklistItem)) } : sec); updateHistory(newSections); onUpdate(newSections); showToast('Highlights cleared for section.'); break; }
+                case 'duplicate_section': handlers.handleDuplicateSection(sectionId); break;
+                case 'delete_section': handlers.handleDeleteSection(sectionId); break;
+                case 'send_section_to_timer': { const section = history[historyIndex].find(s => 'items' in s && s.id === sectionId) as (ChecklistSection | undefined); if (section) handlers.handleSendSectionToTimer(section, false); break; }
+                case 'send_section_to_timer_and_start': { const section = history[historyIndex].find(s => 'items' in s && s.id === sectionId) as (ChecklistSection | undefined); if (section) handlers.handleSendSectionToTimer(section, true); break; }
+                case 'associate_with_block': handlers.handleAssociateBlock(payload.sectionId, payload.blockId); break;
+                case 'detach_from_block': handlers.handleDetachFromBlock(sectionId); break;
+                case 'save_section_as_template': { const sectionToSave = history[historyIndex].find(s => 'items' in s && s.id === sectionId) as (ChecklistSection | undefined); if (sectionToSave) { handlers.setTemplateSectionsToSave([sectionToSave]); handlers.setIsSaveTemplatePromptOpen(true); } break; }
+            }
+        };
+
+        const handleMainHeaderCommand = (payload: { command: string, taskId?: number }) => {
+            if (payload.command === 'view' && payload.taskId) { onSettingsChange({ activeTaskTabs: { ...settings.activeTaskTabs, [payload.taskId]: 'ticket' } }); if (!settings.openAccordionIds.includes(payload.taskId)) { onSettingsChange({ openAccordionIds: [...new Set([...settings.openAccordionIds, payload.taskId])] }); } }
+            else if (payload.command === 'edit' && payload.taskId) { const targetTask = tasks.find(w => w.id === payload.taskId); if (targetTask && !targetTask.completedDuration) { onSettingsChange({ activeTaskTabs: { ...settings.activeTaskTabs, [payload.taskId]: 'edit' }, openAccordionIds: [...new Set([...settings.openAccordionIds, payload.taskId])] }); } }
+            else { handlers.handleGlobalChecklistCommand(payload); }
+        };
+
+        const cleanupItem = window.electronAPI.on('checklist-item-command', handleChecklistCommand);
+        const cleanupSection = window.electronAPI.on('checklist-section-command', (payload) => payload.sectionId ? handleSectionCommand(payload) : handlers.handleGlobalChecklistCommand(payload));
+        const cleanupMainHeader = window.electronAPI.on('checklist-main-header-command', handleMainHeaderCommand);
+
+        return () => { cleanupItem?.(); cleanupSection?.(); cleanupMainHeader?.(); };
+    }, [history, historyIndex, onUpdate, tasks, settings, onSettingsChange, showToast, handlers, updateHistory, taskId]);
 };
