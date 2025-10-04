@@ -320,16 +320,7 @@ export function TabbedView({
                                 const url = target.getAttribute('href');
                                 if (url) window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
                             }
-                        }}>
-                            <div className="description-header" onContextMenu={handleTaskContextMenu}>
-                                <strong>Description:</strong>
-                                <button className="icon-button copy-btn" title="Copy Description Text" onClick={handleCopyDescription}><i className="fas fa-copy"></i></button>
-                                <button className="icon-button copy-btn" title="Copy Description HTML" onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigator.clipboard.writeText(task.description || ''); showToast('Description HTML copied!');
-                                }}><i className="fas fa-code"></i></button>
-                                <button className="icon-button copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}><i className="fas fa-copy"></i> All</button>
-                            </div>
+                        }}>                            
                             <Checklist
                                 sections={task.checklist || []}
                                 onUpdate={(newSections) => handleFieldChange('checklist', newSections)}
@@ -353,12 +344,22 @@ export function TabbedView({
                                 handleClearActiveTimer={handleClearActiveTimer}                                                                                   
                                 onSettingsChange={onSettingsChange || setSettings}
                             />
+                            <div className="description-header" onContextMenu={handleTaskContextMenu}>
+                                <strong>Description:</strong>
+                                <button className="icon-button copy-btn" title="Copy Description Text" onClick={handleCopyDescription}><i className="fas fa-copy"></i></button>
+                                <button className="icon-button copy-btn" title="Copy Description HTML" onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(task.description || ''); showToast('Description HTML copied!');
+                                }}><i className="fas fa-code"></i></button>
+                                <button className="icon-button copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}><i className="fas fa-copy"></i> All</button>
+                            </div>
                             <DescriptionEditor
                                 description={task.description || ''}
                                 onDescriptionChange={(html) => handleFieldChange('description', html)}
                                 settings={settings}                                
                                 onSettingsChange={onSettingsChange || setSettings}
-                                editorKey={`task-description-${task.id}`} />
+                                editorKey={`task-description-${task.id}`} 
+                            />
                         </div>
                         <div className="description-container" ref={notesRef}>
                             <div className="description-header">
@@ -374,7 +375,8 @@ export function TabbedView({
                                 onDescriptionChange={(html) => handleFieldChange('notes', html)}
                                 settings={settings}                                
                                 onSettingsChange={onSettingsChange || setSettings}
-                                editorKey={`task-notes-${task.id}`} />
+                                editorKey={`task-notes-${task.id}`} 
+                            />
                         </div>
                         <div className="description-container" ref={responsesRef}>
                             <div className="description-header">
@@ -390,7 +392,8 @@ export function TabbedView({
                                 onDescriptionChange={(html) => handleFieldChange('responses', html)}
                                 settings={settings}
                                 onSettingsChange={onSettingsChange || setSettings}
-                                editorKey={`task-responses-${task.id}`} />
+                                editorKey={`task-responses-${task.id}`} 
+                            />
                         </div>
                     </div>
                 )}
@@ -534,7 +537,8 @@ export function TabbedView({
                             onDescriptionChange={(html) => handleFieldChange('description', html)}
                             settings={settings}                            
                             onSettingsChange={onSettingsChange || setSettings}
-                            editorKey={`edit-description-${task.id}`} />
+                            editorKey={`edit-description-${task.id}`} 
+                        />
                         <div className="description-container">
                             <strong>Notes:</strong>
                             <DescriptionEditor
@@ -542,7 +546,8 @@ export function TabbedView({
                                 onDescriptionChange={(html) => handleFieldChange('notes', html)}
                                 settings={settings}                                
                                 onSettingsChange={onSettingsChange || setSettings}
-                                editorKey={`edit-notes-${task.id}`} />
+                                editorKey={`edit-notes-${task.id}`} 
+                            />
                         </div>
                         <div className="description-container">
                             <strong>Responses:</strong>
@@ -551,7 +556,8 @@ export function TabbedView({
                                 onDescriptionChange={(html) => handleFieldChange('responses', html)}
                                 settings={settings}
                                 onSettingsChange={onSettingsChange || setSettings}
-                                editorKey={`edit-responses-${task.id}`} />
+                                editorKey={`edit-responses-${task.id}`} 
+                            />
                         </div>
                         <label className="checkbox-label flexed-column">
                             <input type="checkbox" checked={task.isRecurring || false} onChange={(e) => handleFieldChange('isRecurring', e.target.checked)} />
@@ -600,6 +606,10 @@ export function TabbedView({
                         </label>
                     </div>
                 )}
+            </div>
+            <div className="shortcut-key" style={{ marginTop: '15px', textAlign: 'center', fontSize: '0.8em', color: '#aaa' }}>
+                <span>Shortcuts: </span>
+                <span><b>Ctrl+B</b>: Bold, <i>Ctrl+I</i>: Italic, <u>Ctrl+U</u>: Underline</span>
             </div>
         </div>
     );

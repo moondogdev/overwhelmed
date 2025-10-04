@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { formatTimestamp } from '../utils';
+import { formatTimestamp, formatTime } from '../utils';
 
 export function SaveStatus() {
   const {
@@ -27,9 +27,9 @@ export function SaveStatus() {
           {isDirty ? 'Save Project (Unsaved)' : 'Project Saved'}
         </button>
         {lastSaveTime && <div className="save-timestamp">Last saved at {formatTimestamp(lastSaveTime)}</div>}
-        <div className="save-timestamp">
-          Autosaving in {Math.floor(autoSaveCountdown / 60)}:{(autoSaveCountdown % 60).toString().padStart(2, '0')}
-        </div>
+        {isDirty && <div className="save-timestamp">
+          Autosaving in: {formatTime(autoSaveCountdown * 1000)}
+        </div>}
       </div>
     </div>
   );

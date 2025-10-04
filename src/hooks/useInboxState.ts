@@ -85,12 +85,10 @@ export function useInboxState({
   }, [showToast, setIsDirty]);
 
   const handleEmptyTrash = useCallback(() => {
-    if (window.confirm(`Are you sure you want to permanently delete all ${trashedMessages.length} items in the trash? This cannot be undone.`)) {
-      setTrashedMessages([]);
-      showToast("Trash has been emptied.");
-      setIsDirty(true);
-    }
-  }, [trashedMessages.length, showToast, setIsDirty]);
+    setTrashedMessages([]);
+    showToast("Trash has been emptied.");
+    setIsDirty(true);
+  }, [showToast, setIsDirty]);
 
   const handleDismissArchivedMessage = useCallback((messageId: number) => {
     const messageToTrash = archivedMessages.find(m => m.id === messageId);
@@ -102,21 +100,17 @@ export function useInboxState({
   }, [archivedMessages, showToast, setIsDirty]);
 
   const handleRestoreAllFromTrash = useCallback(() => {
-    if (window.confirm('Are you sure you want to restore all items from the trash?')) {
-      setInboxMessages(prev => [...prev, ...trashedMessages]);
-      setTrashedMessages([]);
-      showToast('All messages restored from trash.');
-      setIsDirty(true);
-    }
+    setInboxMessages(prev => [...prev, ...trashedMessages]);
+    setTrashedMessages([]);
+    showToast('All messages restored from trash.');
+    setIsDirty(true);
   }, [trashedMessages, showToast, setIsDirty]);
 
   const handleTrashAllArchived = useCallback(() => {
-    if (window.confirm(`Are you sure you want to move all ${archivedMessages.length} archived messages to the trash?`)) {
-      setTrashedMessages(prev => [...prev, ...archivedMessages]);
-      setArchivedMessages([]);
-      showToast('All archived messages moved to trash.');
-      setIsDirty(true);
-    }
+    setTrashedMessages(prev => [...prev, ...archivedMessages]);
+    setArchivedMessages([]);
+    showToast('All archived messages moved to trash.');
+    setIsDirty(true);
   }, [archivedMessages, showToast, setIsDirty]);
 
   const handleDismissInboxMessage = useCallback((messageId: number) => {

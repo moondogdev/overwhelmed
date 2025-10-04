@@ -10,12 +10,18 @@ All notable changes to this project will be documented in this file. See `## Log
     -   Allow for inline editing of task properties (title, due date, priority, etc.) directly from the table cells.
     -   Include features like column sorting, filtering, and resizing.
 
--   ### **Inbox Expansion**:
-    The Inbox will need further expansion to support options, context menus, and sorting
-    -   **Inbox Options**: Expand the inbox options to choose which message are received/displayed
-    -   **Inbox Sort Overhaul**: Currently the sort only works for Active tab.
-    -   **Inbox Sort**: Expand sort to include `by: Important` 
-    
+-   ### **Checklist & Editor Enhancements**:
+    -   **Paste Image into Rich Text Editor**: Allow pasting an image from the clipboard directly into the editor.
+    -   **Image Support in Checklist**: Add the ability to include images in checklist item notes and responses.
+    -   **Checklist Item Nesting**: Implement a "Make Child" action to indent a checklist item under the one above it.
+    -   **Promote Item to Header**: Add an action to convert a checklist item into a new section header, moving subsequent items under it.
+    -   **Advanced Checklist Sorting**: Add sorting options for checklist items (alphabetical, by highlight, by completion status).
+    -   **Automatic Hyperlinking**: Automatically convert text like `Name: url` into a hyperlink in checklist items.
+    -   **Inter-Section Content**: Add a feature to insert a rich text editor block between checklist sections for additional notes or content.
+
+-   ### **Linked / Looped Tasks**:
+    -   **Task Series Loop**: Expand the linked task feature to support multi-step series (A -> B -> C), not just two-task loops.
+
 -   ### **Standalone Application**: 
     Package the application into a distributable and installable format for major operating systems (Windows, macOS, Linux).
 
@@ -25,10 +31,16 @@ All notable changes to this project will be documented in this file. See `## Log
 -   ### **Themes**: 
     -   Different style layouts
 
--   ### **Settings**: 
-    -   Missing a few settings options and probably want to build a full settings view soon
+-   ### **Settings & Data Management**: 
+    -   Build a full, dedicated "Settings" view instead of having them in the sidebar.
+    -   Implement "Export Settings" and "Import Settings" functionality to allow users to save, load, and share their application configuration independently of their task data.
+-   Implement "Import Tasks" and "Export Tasks" to allow for merging task data from different project files without overwriting settings.
 
 -   ### **Calendar**: 
+-   ### **System Integration & Quick Actions**:
+    -   **Launch Program Buttons**: Add the ability to create custom buttons or links within the app that can launch external programs on the user's system.
+    -   **Open File Path Buttons**: Add a feature to create buttons or links that open a specific folder path in the system's file explorer.
+
     -   Task view in Calendar form. Can start new task on a specific due date by using the calendar
 
 -   ### **Response to Ticket**: 
@@ -46,6 +58,7 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
+- **[1.0.25] - 2025-10-03: Inbox Expansion & Auto-Save Logic**: feat(core): Complete Inbox expansion and fix auto-save logic.
 - **[1.0.24] - 2025-10-03: Data Export & Advanced Notification Controls**: feat(core): Implement comprehensive data export and advanced notification management.
 - **[1.0.23] - 2025-10-03: Bulk Task Management**: feat(tasks): Implement bulk task actions and enhanced bulk add.
 - **[1.0.22] - 2025-10-03: Workflow Features & UI Overhaul**: feat(core): Enhance task workflows, stabilize editor, and overhaul UI.
@@ -74,6 +87,30 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
+## [1.0.25] - 2025-10-07: Inbox Expansion & Auto-Save Logic
+**feat(core): Complete Inbox expansion and fix auto-save logic.**
+
+This update finalizes the "Inbox Expansion" feature set by adding comprehensive display and sorting options. It also includes a critical fix to the auto-save logic to prevent unnecessary file writes.
+
+#### Features & UI Improvements:
+-   **Inbox Display Filters**:
+    -   A new "Inbox & Notifications" accordion has been added to the sidebar settings.
+    -   This panel contains checkboxes for all message types ('Task Created', 'Task Completed', 'Task Updated', 'Task Deleted', 'Task Overdue', and 'Deadline Warnings'), giving users full control over what appears in their Inbox.
+    -   This filtering is non-destructive; messages are always logged but only displayed based on user preference.
+-   **Inbox Sorting Overhaul**:
+    -   The sorting dropdown (`Date`, `Message Type`) now correctly applies to all tabs in the Inbox, including "Archived" and "Trash".
+    -   Added a new "Important First" sort option to bring starred messages to the top of the list.
+-   **Improved Auto-Save Logic**:
+    -   The auto-save timer will now only start its countdown when there are actual unsaved changes (`isDirty` is true).
+    -   The "Autosaving in..." UI text is now correctly hidden when the project is saved, providing a clearer status indication.
+-   **UI Stability**: Replaced all native `window.confirm()` dialogs in the Inbox view with the application's standard, non-blocking two-click confirmation pattern, preventing potential UI freezes.
+-   **UI/UX Refinements**:
+    -   The redundant "Shortcuts: Ctrl+B..." text that appeared under every rich text editor has been removed. It is now displayed just once at the bottom of the task view for a cleaner interface.
+
+#### Summary
+This release gives users full control over their Inbox, with powerful sorting and filtering capabilities. The refined auto-save logic makes the application more efficient and the UI more intuitive.
+
+---
 ## [1.0.24] - 2025-10-03: Data Export & Advanced Notification Controls
 **feat(core): Implement comprehensive data export and advanced notification management.**
 
@@ -110,7 +147,7 @@ This is a major feature update that rolls up two key areas of development: a pow
 This update provides a robust bridge between Overwhelmed and other data analysis tools with a comprehensive export system. It also delivers a complete set of tools for managing notifications, giving users full visibility and control over tasks that have been temporarily snoozed or dismissed.
 
 ---
-## [1.0.23] - 2025-10-03: Bulk Task Management
+### [1.0.23] - 2025-10-03: Bulk Task Management
 **feat(tasks): Implement bulk task actions and enhanced bulk add.**
 
 This update introduces a powerful set of features for managing multiple tasks at once, significantly improving workflow efficiency.
@@ -139,7 +176,7 @@ This update introduces a powerful set of features for managing multiple tasks at
 This update delivers a comprehensive suite of bulk editing tools, empowering users to select and modify multiple tasks with just a few clicks. The enhanced "Bulk Add" feature further streamlines the process of creating structured tasks.
 
 ---
-## [1.0.22] - 2025-10-03: Workflow Features & UI Overhaul
+### [1.0.22] - 2025-10-03: Workflow Features & UI Overhaul
 **feat(core): Enhance task workflows, stabilize editor, and overhaul UI.**
 
 This update rolls up a significant number of features and bug fixes, focusing on stabilizing the rich text editor and implementing a series of UI/UX improvements for a more polished and intuitive experience.
@@ -170,7 +207,7 @@ This update stabilizes the rich text editor and delivers a wide range of UI/UX e
 
 ---
 
-## [1.0.21] - 2025-09-28: Codebase Cleanup & Bug Fixes
+### [1.0.21] - 2025-09-28: Codebase Cleanup & Bug Fixes
 **refactor(core): Standardize naming conventions (Word->Task) and fix data loading**
 
 This commit completes a major codebase cleanup initiative, standardizing legacy naming conventions and fixing a critical data loading bug.
@@ -188,7 +225,7 @@ This update finalizes the transition to a more modern and intuitive codebase. By
 
 ---
 
-## [1.0.20] - 2025-10-2: MiniPlayer V2: Work Session Manager
+### [1.0.20] - 2025-10-2: MiniPlayer V2: Work Session Manager
 **feat(player): Implement Work Session Manager and MiniPlayer V2**
 
 This commit evolves the `MiniPlayer` from a simple timer display into an interactive "Work Session Manager," allowing users to queue up tasks and navigate between them seamlessly.
@@ -218,7 +255,7 @@ This update transforms the MiniPlayer into a powerful tool for focused work. Use
 
 ---
 
-## [1.0.17] - 2025-09-25: Time Tracker Log & Checklist Integration
+### [1.0.17] - 2025-09-25: Time Tracker Log & Checklist Integration
 **feat(time): Implement detailed time tracker log and checklist integration**
 
 This commit introduces a complete overhaul of the task timer, evolving it from a simple stopwatch into a detailed `TimeTrackerLog`. It also deeply integrates this new system with the `Checklist`, creating a seamless workflow for time tracking.
@@ -249,7 +286,7 @@ This is a major feature release that transforms time tracking in the application
 
 ---
 
-## [1.0.16] - 2025-09-24: Checklist Main Header Context Menu & Command Refactor
+### [1.0.16] - 2025-09-24: Checklist Main Header Context Menu & Command Refactor
 
 #### Added
 -   **Main Header Context Menu**: Implemented a new right-click context menu on the main "Checklist" header. This menu provides global actions such as "Expand/Collapse All Sections," "Add/Delete All Notes/Responses," "Copy All Sections," and "Delete All Sections."
@@ -270,7 +307,7 @@ This commit adds a powerful global context menu to the main checklist header and
 
 ---
 
-## [1.0.15] - 2025-09-24: Checklist Usability & Collapsible Sections
+### [1.0.15] - 2025-09-24: Checklist Usability & Collapsible Sections
 
 #### Added
 -   **Collapsible Sections**:
@@ -300,7 +337,7 @@ This commit introduces major usability enhancements to the checklist system, inc
 
 ---
 
-## [1.0.14] - 2025-09-23: Interactive Checklists & Link Handling
+### [1.0.14] - 2025-09-23: Interactive Checklists & Link Handling
 
 #### Added
 -   **Interactive Items**: Implemented full in-place editing for checklist items, notes, and responses. Added a hover-activated quick-action menu for editing, deleting, and adding notes/responses.
@@ -325,7 +362,7 @@ This commit introduces major usability enhancements to the checklist system, inc
 
 ---
 
-## [1.0.13] - 2025-09-23: Interactive Checklist Items
+### [1.0.13] - 2025-09-23: Interactive Checklist Items
 
 #### Added
 -   **In-Place Editing in "Edit" Mode**: When a task is in "Edit" mode, all checklist items, including their notes and responses, are now rendered as editable `<input>` fields by default.
@@ -351,7 +388,7 @@ These changes transform the checklist from a static list into a fully interactiv
 
 ---
 
-## [1.0.12] - 2025-09-23: Checklist Enhancements
+### [1.0.12] - 2025-09-23: Checklist Enhancements
 
 #### Added
 -   **Individual Due Dates**: Implemented a feature to add an optional due date to each individual checklist item.
@@ -374,7 +411,7 @@ These changes transform the checklist from a static list into a fully interactiv
 
 ---
 
-## [1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish
+### [1.0.11] - 2025-09-23: Checklist UI/UX and Context Menu Polish
 
 #### Changed
 -   **Checklist Item Click Behavior**: Fixed a bug where clicking on a checklist item's note or response would incorrectly toggle the item's completion status. The note and response are now outside the main label.
@@ -393,7 +430,7 @@ These changes transform the checklist from a static list into a fully interactiv
 
 ---
 
-## [1.0.10] - 2025-09-22: Alternating Tasks
+### [1.0.10] - 2025-09-22: Alternating Tasks
 #### Added
 -   **Alternating Tasks**: Implemented a system to link tasks together. A new "Starts Task on Complete" dropdown in the "Edit Task" view allows a user to select a successor task. When the predecessor is completed, the successor task is automatically activated.
 -   **Task Loops**: The system now visually detects and indicates when two tasks are linked to each other, forming a loop. A spinning `fa-sync-alt` icon is displayed instead of the standard link icon.
@@ -402,15 +439,15 @@ These changes transform the checklist from a static list into a fully interactiv
 
 ---
 
-## [1.0.9] - 2025-09-22: Copy Checklist
+### [1.0.9] - 2025-09-22: Copy Checklist
 
-### Added
+#### Added
 -   **Copy Checklist**: Implemented a feature to copy checklist data to the clipboard as formatted plain text.
     -   Added "Copy Section" and "Copy All Sections" buttons to the UI and the section header context menu.
     -   Created a `formatChecklistForCopy` helper function that formats the checklist according to `Rule 51.0`, including completion status (`[✔]`/`[✗]`) and public `response` fields, while excluding private `note` fields.
     -   The copied section title now includes the completion count (e.g., "Section Title (2/5)").
 
-### Changed
+#### Changed
 -   The checklist section header in the UI now displays the completion count (e.g., "Section Title (2/5)").
 
 ---

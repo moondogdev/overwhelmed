@@ -147,7 +147,7 @@ export function useNotifications({
         if (ms < 0) { // Task is overdue
           const snoozedUntil = task.lastNotified || 0;
           if (now > snoozedUntil) {
-            newlyOverdueIds.add(task.id);
+            if (!task.isSilenced) newlyOverdueIds.add(task.id);
           }
         } else { // Task is not yet due, check for approaching deadline
           if (settings.timerNotificationLevel === 'silent') continue;

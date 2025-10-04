@@ -124,7 +124,7 @@ export function useTaskState({
     setTasks(prev => prev.filter(task => task.id !== idToRemove));
     setCompletedTasks(prev => prev.filter(task => task.id !== idToRemove));
     if (taskToRemove) {
-      setInboxMessages(prev => [{ id: Date.now() + Math.random(), type: 'deleted', text: `Task deleted: "${taskToRemove.text}"`, timestamp: Date.now() }, ...prev]);
+      setInboxMessages(prev => [{ id: Date.now() + Math.random(), type: 'deleted', text: `Task deleted: "${taskToRemove.text}"`, timestamp: Date.now(), taskId: idToRemove }, ...prev]);
     }
     showToast('Task removed.');
   }, [tasks, completedTasks, setInboxMessages, showToast]);
@@ -227,13 +227,18 @@ export function useTaskState({
     const newTimer = setTimeout(() => {
       // Check if the task still exists before adding to inbox
       if (tasksRefForDebounce.current.some(t => t.id === updatedTask.id)) {
-        setInboxMessages(prev => [{
-          id: Date.now() + Math.random(),
-          type: 'updated',
-          text: `Task updated: "${updatedTask.text}"`,
-          timestamp: Date.now(),
-          taskId: updatedTask.id,
-        }, ...prev]);
+        setInboxMessages(prev => {
+          // Avoid duplicate 'updated' messages for the same task in a short period
+          const recentUpdate = prev.find(msg => msg.taskId === updatedTask.id && msg.type === 'updated' && (Date.now() - msg.timestamp < 60000));
+          if (recentUpdate) return prev;
+          return [{
+            id: Date.now() + Math.random(),
+            type: 'updated',
+            text: `Task updated: "${updatedTask.text}"`,
+            timestamp: Date.now(),
+            taskId: updatedTask.id,
+          }, ...prev];
+        });
       }
       // Clean up the timer from state
       setUpdateTimers(prev => { const newTimers = { ...prev }; delete newTimers[updatedTask.id]; return newTimers; });
@@ -307,7 +312,7 @@ export function useTaskState({
 
     setTasks(prev => [...prev, ...newTasks]);
     setBulkAddText(""); // Clear the textarea
-  }, [bulkAddText, setBulkAddText, settings.activeCategoryId, settings.activeSubCategoryId, settings.categories, setInboxMessages, setTasks]);
+  }, [bulkAddText, setBulkAddText, settings.activeCategoryId, settings.activeSubCategoryId, setInboxMessages, setTasks]);
 
   const handleBulkDelete = useCallback((taskIds: number[]) => {
     if (taskIds.length === 0) return;

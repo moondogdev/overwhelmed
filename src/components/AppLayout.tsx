@@ -2,7 +2,7 @@ import React from 'react';
 import { useAppContext } from '../contexts/AppContext';
 import { ActiveFullTaskView } from './TaskView';
 import { Footer } from './Footer';
-import { NotificationCenter } from './NotificationCenter';
+import { NotificationCenter } from './NotificationCenter'; // This component seems to exist but is not in context.
 import { MiniPlayer } from './MiniPlayer';
 import { SaveStatus } from './SaveStatus';
 import { AppHeader } from './AppHeader';
@@ -21,6 +21,7 @@ import { ProjectActions } from './ProjectActions';
 import { BackupManager } from './BackupManager';
 import { MemeViewSettings } from './MemeViewSettings';
 import { WorkSessionManager } from './WorkSessionManager';
+import { NotificationSettings } from './NotificationSettings';
 import { BulkActionBar } from './BulkActionBar';
 import './styles/Sidebar.css';
 
@@ -44,7 +45,7 @@ export function AppLayout() {
                 {settings.currentView === 'list' && <ListView />}
             </div>
             <div className={`sidebar ${settings.isSidebarVisible ? '' : 'hidden'}`}>
-                <AddNewTaskForm /> <TaskTypeManager /> <GlobalCategorySettings /> <CategoryManager /> <ExternalLinkManager /> <TimeManagementSettings /> <BulkAdd /> <ProjectActions /> <BackupManager /> {settings.currentView === 'meme' && <MemeViewSettings />}
+                <AddNewTaskForm /> <TaskTypeManager /> <GlobalCategorySettings /> <CategoryManager /> <ExternalLinkManager /> <TimeManagementSettings /> <NotificationSettings /> <BulkAdd /> <ProjectActions /> <BackupManager /> {settings.currentView === 'meme' && <MemeViewSettings />}
             </div>
             <Footer />
             <NotificationCenter />

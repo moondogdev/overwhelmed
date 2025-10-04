@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { InboxMessage, Settings } from '../types';
 import { formatTimestamp } from '../utils';
 import { SimpleAccordion } from './SidebarComponents';
@@ -26,6 +26,32 @@ export function InboxView() {
     handleDismissAllInboxMessages,
   } = useAppContext();
   const [activeInboxTab, setActiveInboxTab] = useState<'active' | 'archived' | 'trash'>('active');
+  const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // State for two-click confirmations
+  const [confirmingUnarchiveAll, setConfirmingUnarchiveAll] = useState(false);
+  const [confirmingTrashAllArchived, setConfirmingTrashAllArchived] = useState(false);
+  const [confirmingRestoreAll, setConfirmingRestoreAll] = useState(false);
+  const [confirmingEmptyTrash, setConfirmingEmptyTrash] = useState(false);
+
+  const filterMessages = (messages: InboxMessage[]) => {
+    const filters = settings.inboxMessageFilters || {};
+    return messages.filter(msg => filters[msg.type] ?? true);
+  };
+
+  // Reusable sorting logic
+  const sortMessages = (messages: InboxMessage[]): InboxMessage[] => {
+    return [...messages].sort((a, b) => {
+      if (settings.inboxSort === 'important') {
+        if (a.isImportant && !b.isImportant) return -1;
+        if (!a.isImportant && b.isImportant) return 1;
+        return b.timestamp - a.timestamp; // Fallback to newest first
+      }
+      if (settings.inboxSort === 'date-asc') return a.timestamp - a.timestamp;
+      if (settings.inboxSort === 'type') return a.type.localeCompare(b.type) || b.timestamp - a.timestamp;
+      return b.timestamp - a.timestamp; // Default to 'date-desc'
+    });
+  };
 
   return (
     <div className="inbox-view">
@@ -37,6 +63,7 @@ export function InboxView() {
             <select value={settings.inboxSort || 'date-desc'} onChange={(e) => setSettings(prev => ({ ...prev, inboxSort: e.target.value as any }))}>
               <option value="date-desc">Date (Newest First)</option>
               <option value="date-asc">Date (Oldest First)</option>
+              <option value="important">Important First</option>
               <option value="type">Message Type</option>
             </select>
           </div>
@@ -87,12 +114,8 @@ export function InboxView() {
           );
         }
 
-        const sortedMessages = [...inboxMessages].sort((a, b) => {
-          if (settings.inboxSort === 'date-asc') return a.timestamp - b.timestamp;
-          if (settings.inboxSort === 'type') return a.type.localeCompare(b.type) || b.timestamp - a.timestamp;
-          return b.timestamp - a.timestamp;
-        });
-
+        const filtered = filterMessages(inboxMessages);
+        const sortedMessages = sortMessages(filtered);
         return (
           <div className="inbox-list">
             {sortedMessages.map(message => (
@@ -113,10 +136,30 @@ export function InboxView() {
         if (archivedMessages.length === 0) {
           return <p>Your archive is empty.</p>;
         }
-        const sortedArchived = [...archivedMessages].sort((a, b) => b.timestamp - a.timestamp);
+        const filtered = filterMessages(archivedMessages);
+        const sortedArchived = sortMessages(filtered);
         const archiveHeader = (
-          <div className="list-header">
-            <button onClick={() => { if (window.confirm('Are you sure you want to un-archive all messages?')) { archivedMessages.forEach(msg => handleUnarchiveInboxMessage(msg.id)); } }} title="Un-archive all messages"><i className="fas fa-undo-alt"></i> Un-archive All</button><button onClick={handleTrashAllArchived} title="Move all archived messages to trash"><i className="fas fa-trash"></i> Trash All</button>
+          <div className="list-header inbox-actions-header">
+            <button 
+              onClick={() => {
+                if (confirmingUnarchiveAll) {
+                  archivedMessages.forEach(msg => handleUnarchiveInboxMessage(msg.id));
+                  setConfirmingUnarchiveAll(false);
+                  if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+                } else {
+                  setConfirmingUnarchiveAll(true);
+                  confirmTimeoutRef.current = setTimeout(() => setConfirmingUnarchiveAll(false), 3000);
+                }
+              }} 
+              className={confirmingUnarchiveAll ? 'confirm-delete' : ''}
+              title="Un-archive all messages">
+              <i className="fas fa-undo-alt"></i> {confirmingUnarchiveAll ? 'Confirm?' : 'Un-archive All'}
+            </button>
+            <button 
+              onClick={handleTrashAllArchived} 
+              title="Move all archived messages to trash">
+              <i className="fas fa-trash"></i> Trash All
+            </button>
           </div>
         );
         return (
@@ -140,10 +183,31 @@ export function InboxView() {
         if (trashedMessages.length === 0) {
           return <p>Your trash is empty.</p>;
         }
-        const sortedTrashed = [...trashedMessages].sort((a, b) => b.timestamp - a.timestamp);
+        const filtered = filterMessages(trashedMessages);
+        const sortedTrashed = sortMessages(filtered);
         const trashHeader = (
-          <div className="list-header">
-            <button onClick={handleRestoreAllFromTrash} title="Restore all messages from trash"><i className="fas fa-undo-alt"></i> Restore All</button><button onClick={handleEmptyTrash} title="Permanently delete all items in trash"><i className="fas fa-dumpster-fire"></i> Empty Trash</button>
+          <div className="list-header inbox-actions-header">
+            <button 
+              onClick={() => {
+                if (confirmingRestoreAll) {
+                  handleRestoreAllFromTrash();
+                  setConfirmingRestoreAll(false);
+                  if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+                } else {
+                  setConfirmingRestoreAll(true);
+                  confirmTimeoutRef.current = setTimeout(() => setConfirmingRestoreAll(false), 3000);
+                }
+              }} 
+              className={confirmingRestoreAll ? 'confirm-delete' : ''}
+              title="Restore all messages from trash">
+              <i className="fas fa-undo-alt"></i> {confirmingRestoreAll ? 'Confirm?' : 'Restore All'}
+            </button>
+            <button 
+              onClick={handleEmptyTrash} 
+              className={confirmingEmptyTrash ? 'confirm-delete' : ''}
+              title="Permanently delete all items in trash">
+              <i className="fas fa-dumpster-fire"></i> {confirmingEmptyTrash ? 'Confirm?' : 'Empty Trash'}
+            </button>
           </div>
         );
         return (

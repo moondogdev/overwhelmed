@@ -48,4 +48,12 @@ export const defaultSettings: Settings = {
   autoplayNextInSession: false, // Default to off
   workSessionQueue: [],
   checklistTemplates: [],
+  inboxMessageFilters: {
+    created: true,
+    completed: true,
+    updated: true,
+    deleted: true,
+    overdue: true,
+    'timer-alert': true,
+  },
 };

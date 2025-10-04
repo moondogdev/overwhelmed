@@ -2,9 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Settings } from '../types';
 import './styles/Modal.css';
 
-// --- Editor Constants ---
-const otherShortcutKeys = `<span><b>Ctrl+B</b>: Bold, <i>Ctrl+I</i>: Italic, <u>Ctrl+U</u>: Underline</span>`;
-
 // --- Modals ---
 
 interface LinkModalProps {
@@ -367,11 +364,7 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
           onBlur={handleBlur}
           ref={textareaRef}
         />
-      )}
-      <div className="shortcut-key">
-        <span>Shortcuts:</span>
-        <span dangerouslySetInnerHTML={{ __html: `${otherShortcutKeys}` }} />
-      </div>
+      )}      
     </div>
   );
 }

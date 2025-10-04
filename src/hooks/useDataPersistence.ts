@@ -40,6 +40,15 @@ interface UseDataPersistenceProps {
   setActiveTimerLiveTime: React.Dispatch<React.SetStateAction<number>>;
 }
 
+type SavedState = {
+  tasks: Task[];
+  completedTasks: Task[];
+  settings: Settings;
+  inboxMessages: InboxMessage[];
+  archivedMessages: InboxMessage[];
+  trashedMessages: InboxMessage[];
+};
+
 export function useDataPersistence({
   isLoading, setIsLoading, isDirty, setIsDirty,
   tasks, setTasks, completedTasks, setCompletedTasks, settingsRef,
@@ -49,6 +58,7 @@ export function useDataPersistence({
   setAutoSaveCountdown, showToast, activeTimerTaskId, activeTimerEntry,
   setActiveTimerTaskId, setActiveTimerEntry, setActiveTimerLiveTime
 }: UseDataPersistenceProps) {
+  const lastSavedState = useRef<SavedState | null>(null);
 
   // Effect to load all data from the store on initial startup
   useEffect(() => {
@@ -91,6 +101,16 @@ export function useDataPersistence({
           }
         }
 
+        // After loading, capture the initial state as the "last saved" state.
+        lastSavedState.current = {
+          tasks: savedTasks || [],
+          completedTasks: savedCompletedTasks || [],
+          settings: savedSettings || defaultSettings,
+          inboxMessages: savedInboxMessages || [],
+          archivedMessages: savedArchivedMessages || [],
+          trashedMessages: savedTrashedMessages || [],
+        };
+
         setIsLoading(false);
         window.electronAPI.send('renderer-ready-for-startup-backup', { tasks: savedTasks, completedTasks: savedCompletedTasks, settings: savedSettings, inboxMessages: savedInboxMessages, archivedMessages: savedArchivedMessages, trashedMessages: savedTrashedMessages });
       } catch (error) {
@@ -101,15 +121,14 @@ export function useDataPersistence({
     loadDataFromStore();
   }, []); // Empty dependency array ensures this runs only once on mount
 
-  // Effect to manage the "dirty" state (unsaved changes)
+  // Effect to manage the "dirty" state (unsaved changes) by comparing current state to last saved state
   useEffect(() => {
-    // This is the critical fix. By depending on the `.current` value of the ref,
-    // this effect will correctly re-evaluate whenever the settings object changes,
-    // even though the `settings` variable in this hook's closure is stale.
-    // This ensures that changes to templates, categories, etc., properly mark the
-    // application as "dirty" and trigger a save.    
-    if (!isLoading) setIsDirty(true);
-  }, [tasks, completedTasks, inboxMessages, archivedMessages, trashedMessages, settings, isLoading, setIsDirty, activeTimerTaskId, activeTimerEntry]);
+    if (isLoading || !lastSavedState.current) return;
+
+    const currentState = { tasks, completedTasks, settings, inboxMessages, archivedMessages, trashedMessages };
+    const hasChanges = JSON.stringify(currentState) !== JSON.stringify(lastSavedState.current);
+    setIsDirty(hasChanges);
+  }, [tasks, completedTasks, settings, inboxMessages, archivedMessages, trashedMessages, isLoading]);
 
   useEffect(() => {
     window.electronAPI.notifyDirtyState(isDirty);
@@ -149,6 +168,16 @@ export function useDataPersistence({
     await window.electronAPI.setStoreValue('overwhelmed-trashed-messages', trashedMessagesRef.current);
     await window.electronAPI.setStoreValue('active-timer-taskId', activeTimerTaskIdRef.current);
     await window.electronAPI.setStoreValue('active-timer-entry', entryToSave);
+
+    // After a successful save, update the last saved state reference.
+    lastSavedState.current = {
+      tasks: tasksToSave,
+      completedTasks: completedTasksRef.current,
+      settings: settingsRef.current,
+      inboxMessages: inboxMessagesRef.current,
+      archivedMessages: archivedMessagesRef.current,
+      trashedMessages: trashedMessagesRef.current,
+    };
     setIsDirty(false);
     setLastSaveTime(Date.now());
     setAutoSaveCountdown(AUTO_SAVE_INTERVAL_SECONDS);
@@ -157,46 +186,28 @@ export function useDataPersistence({
 
   // Effect for the auto-save timer
   useEffect(() => {
+    // If there are no unsaved changes, reset the countdown and do nothing.
+    if (!isDirty) {
+      setAutoSaveCountdown(AUTO_SAVE_INTERVAL_SECONDS);
+      return;
+    }
+
+    // If there are unsaved changes, start the countdown.
     const countdownInterval = setInterval(() => {
       setAutoSaveCountdown(prevCountdown => {
         if (prevCountdown <= 1) {
-          if (isDirty) {
-            let tasksToSave = [...tasksRef.current];
-            let entryToSave = activeTimerEntryRef.current;
-            // Same logic as manual save: finalize running timer before saving.
-            if (entryToSave && entryToSave.isRunning && entryToSave.startTime) {
-              const now = Date.now();
-              const elapsed = now - entryToSave.startTime;
-              const finalDuration = entryToSave.duration + elapsed;
-              // Same logic as manual save: preserve the running state for restart.
-              entryToSave = { ...entryToSave, duration: finalDuration, isRunning: true, startTime: now };
-              tasksToSave = tasksToSave.map(t => 
-                t.id === activeTimerTaskIdRef.current 
-                  ? { ...t, timeLog: (t.timeLog || []).map(e => e.id === entryToSave.id ? entryToSave : e) } 
-                  : t
-              );
-            }
-
-            window.electronAPI.send('auto-save-data', { 
-              tasks: tasksToSave, 
-              completedTasks: completedTasksRef.current, 
-              settings: settingsRef.current, 
-              inboxMessages: inboxMessagesRef.current, 
-              archivedMessages: archivedMessagesRef.current, 
-              trashedMessages: trashedMessagesRef.current, 
-              activeTimerTaskId: activeTimerTaskIdRef.current, 
-              activeTimerEntry: entryToSave
-            });
-            setIsDirty(false);
-            setLastSaveTime(Date.now());
-          }
+          // When the countdown hits zero, trigger a manual save.
+          // handleSaveProject will automatically handle the "isDirty" flag and reset the timer.
+          handleSaveProject();
           return AUTO_SAVE_INTERVAL_SECONDS;
         }
         return prevCountdown - 1;
       });
     }, 1000);
+
+    // Cleanup function to clear the interval if the component unmounts or if isDirty becomes false.
     return () => clearInterval(countdownInterval);
-  }, [isDirty, settingsRef, tasksRef, completedTasksRef, inboxMessagesRef, archivedMessagesRef, trashedMessagesRef, setIsDirty, setLastSaveTime, setAutoSaveCountdown, activeTimerTaskIdRef, activeTimerEntryRef]);
+  }, [isDirty, handleSaveProject, setAutoSaveCountdown]);
 
   const handleExport = useCallback(() => {
     const projectData = {

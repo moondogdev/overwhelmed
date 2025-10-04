@@ -166,7 +166,7 @@ export interface Settings {
   snoozeTime: 'low' | 'medium' | 'high' | 'long'; // New setting for snooze duration
   editorHeights?: { [key: string]: string };
   useDefaultBrowserForSearch?: boolean; // New global setting
-  inboxSort?: 'date-desc' | 'date-asc' | 'type';
+  inboxSort?: 'date-desc' | 'date-asc' | 'type' | 'important';
   openInboxGroupTypes?: string[];
   taskTypes?: TaskType[];
   openChecklistSectionIds?: number[]; // New setting to store open/collapsed checklist sections
@@ -174,6 +174,9 @@ export interface Settings {
   showChecklistNotes?: boolean; // New setting to toggle note visibility
   autoplayNextInSession?: boolean; // New setting for MiniPlayer V2
   allCategoryColor?: string;
+  inboxMessageFilters?: {
+    [key in InboxMessage['type']]?: boolean;
+  };
   checklistTemplates?: ChecklistTemplate[];
 }
 
