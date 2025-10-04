@@ -27,9 +27,9 @@ declare global {
       showInboxItemContextMenu: (payload: { message: InboxMessage, x: number, y: number }) => void;
       showNavButtonContextMenu: (payload: { x: number, y: number, canGoBack: boolean, canGoForward: boolean }) => void;
       showSaveButtonContextMenu: (payload: { x: number, y: number }) => void;
-      showChecklistSectionContextMenu: (payload: { taskId: number, sectionId: number, areAllComplete: boolean, isSectionOpen: boolean, isNotesHidden: boolean, isResponsesHidden: boolean, x: number, y: number, isInEditMode: boolean, isConfirmingDelete: boolean }) => void;
-      showChecklistMainHeaderContextMenu: (payload: { taskId: number, sectionId: number, areAllComplete: boolean, isSectionOpen: boolean, isNotesHidden: boolean, isResponsesHidden: boolean, x: number, y: number, isInEditMode: boolean, isConfirmingDelete: boolean }) => void;
-      showChecklistItemContextMenu: (payload: { taskId: number, sectionId: number, itemId: number, isCompleted: boolean, hasNote: boolean, hasResponse: boolean, hasUrl: boolean, isInEditMode: boolean, x: number, y: number }) => void;
+      showChecklistSectionContextMenu: (payload: { taskId: number, sectionId: number, areAllComplete: boolean, isSectionOpen: boolean, availableContentBlocks: {id: number, title: string}[], isNotesHidden: boolean, isResponsesHidden: boolean, isPairedWithContentBlock: boolean, x: number, y: number, isInEditMode: boolean, isConfirmingDelete: boolean }) => void;
+      showChecklistMainHeaderContextMenu: (payload: { taskId: number, areAllComplete: boolean, isSectionOpen: boolean, isNotesHidden: boolean, isResponsesHidden: boolean, x: number, y: number, isInEditMode: boolean, isConfirmingDelete: boolean }) => void;
+      showChecklistItemContextMenu: (payload: { taskId: number, sectionId: number, itemId: number, isCompleted: boolean, hasNote: boolean, hasResponse: boolean, hasUrl: boolean, isInEditMode: boolean, level: number, x: number, y: number }) => void;
       showChecklistNoteContextMenu: (payload: { sectionId: number, itemId: number, hasUrl: boolean, hasNote: boolean, x: number, y: number }) => void;
       showChecklistResponseContextMenu: (payload: { sectionId: number, itemId: number, hasUrl: boolean, hasResponse: boolean, x: number, y: number }) => void;
       showTimeLogItemContextMenu: (payload: { entry: TimeLogEntry, index: number, totalEntries: number, x: number, y: number }) => void;

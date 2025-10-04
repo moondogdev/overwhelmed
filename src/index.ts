@@ -612,7 +612,7 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
   ipcMain.on('show-checklist-item-context-menu', (event, payload) => {
-    const { sectionId, itemId, isCompleted, hasNote, hasResponse, hasUrl, isInEditMode, taskId, x, y } = payload;
+    const { sectionId, itemId, isCompleted, hasNote, hasResponse, hasUrl, isInEditMode, level, taskId, x, y } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];  
 
@@ -703,12 +703,29 @@ app.whenReady().then(() => {
       },
       { type: 'separator' },
       {
+        label: 'Indent Item',
+        accelerator: 'Tab',
+        click: () => webContents.send('checklist-item-command', { command: 'indent', sectionId, itemId }),
+      },
+      {
+        label: 'Outdent Item',
+        accelerator: 'Shift+Tab',
+        enabled: level > 0, // Only enable if the item is not at the top level
+        click: () => webContents.send('checklist-item-command', { command: 'outdent', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
         label: 'Add Item Before',
         click: () => webContents.send('checklist-item-command', { command: 'add_before', sectionId, itemId }),
       },
       {
         label: 'Add Item After',
         click: () => webContents.send('checklist-item-command', { command: 'add_after', sectionId, itemId }),
+      },
+      { type: 'separator' },
+      {
+        label: 'Promote to Section Header',
+        click: () => webContents.send('checklist-item-command', { command: 'promote_to_header', sectionId, itemId }),
       },
       { type: 'separator' },
       {
@@ -752,7 +769,7 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
   ipcMain.on('show-checklist-section-context-menu', (event, payload) => {
-    const { taskId, sectionId, areAllComplete, isSectionOpen, isNotesHidden, isResponsesHidden, x, y, isInEditMode, isConfirmingDelete } = payload;
+    const { taskId, sectionId, areAllComplete, isSectionOpen, isNotesHidden, isResponsesHidden, x, y, isInEditMode, isConfirmingDelete, availableContentBlocks, isPairedWithContentBlock } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];
     
@@ -779,6 +796,23 @@ app.whenReady().then(() => {
       {
         label: 'Edit Section Title',
         click: () => webContents.send('checklist-section-command', { command: 'edit_title', sectionId }),
+      },
+      {
+        label: 'Move to Content Block',
+        enabled: availableContentBlocks && availableContentBlocks.length > 0,
+        submenu: (availableContentBlocks || []).map((block: { id: number, title: string }) => ({
+          label: block.title,
+          click: () => webContents.send('checklist-section-command', { 
+            command: 'associate_with_block', 
+            sectionId, 
+            blockId: block.id 
+          }),
+        })),
+      },
+      {
+        label: 'Detach from Content Block',
+        visible: isPairedWithContentBlock, // Only show if it's part of a group
+        click: () => webContents.send('checklist-section-command', { command: 'detach_from_block', sectionId }),
       },
       { type: 'separator' },
       {
@@ -1080,7 +1114,7 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(webContents) });
   });
   ipcMain.on('show-checklist-main-header', (event, payload) => {
-    const { taskId, sectionId, areAllComplete, isSectionOpen, isNotesHidden, isResponsesHidden, x, y, isInEditMode, isConfirmingDelete } = payload;
+    const { taskId, areAllComplete, isSectionOpen, isNotesHidden, isResponsesHidden, x, y, isInEditMode, isConfirmingDelete } = payload;
     const webContents = event.sender;
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];
     template.push(      
@@ -1113,12 +1147,12 @@ app.whenReady().then(() => {
       { type: 'separator' },      
       {
         label: 'Clear All Highlights',
-        click: () => webContents.send('checklist-main-header-command', { command: 'clear_all_highlights', sectionId }),
+        click: () => webContents.send('checklist-main-header-command', { command: 'clear_all_highlights' }),
       },      
       { type: 'separator' },
       {
         label: 'Copy All Sections',
-        click: () => webContents.send('checklist-main-header-command', { command: 'copy_all_sections', sectionId }),
+        click: () => webContents.send('checklist-main-header-command', { command: 'copy_all_sections' }),
       },      
       {
         label: 'Copy All Sections Raw',
@@ -1162,11 +1196,11 @@ app.whenReady().then(() => {
       {
         label: 'Undo Last Action',
         // We don't know if it's enabled from here, but we can send the command. The renderer will handle it.
-        click: () => webContents.send('checklist-main-header-command', { command: 'undo_checklist', sectionId }),
+        click: () => webContents.send('checklist-main-header-command', { command: 'undo_checklist' }),
       },
       {
         label: 'Redo Last Action',
-        click: () => webContents.send('checklist-main-header-command', { command: 'redo_checklist', sectionId }),
+        click: () => webContents.send('checklist-main-header-command', { command: 'redo_checklist' }),
       },
       { type: 'separator' },
       {

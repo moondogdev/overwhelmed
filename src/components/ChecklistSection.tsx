@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChecklistSection, Settings, ChecklistItem } from '../types';
+import { ChecklistSection, Settings, ChecklistItem, RichTextBlock } from '../types';
 import { formatChecklistForCopy } from '../utils';
 import { ChecklistItemComponent } from './ChecklistItemComponent';
 
@@ -8,7 +8,7 @@ interface ChecklistSectionProps {
     taskId: number;
     isEditable: boolean;
     settings: Settings;
-    history: ChecklistSection[][];
+    history: (ChecklistSection | RichTextBlock)[][];
     historyIndex: number;
     timeLogDurations: Map<number, number>;
     editingItemId: number | null;
@@ -24,13 +24,14 @@ interface ChecklistSectionProps {
     confirmingDeleteSectionResponses: number | null;
     confirmingDeleteSectionNotes: number | null;
     newItemTexts: { [key: number]: string };
+    contentBlockId: number | null;
     editingItemInputRef: React.RefObject<HTMLInputElement>;
     subInputRefs: React.MutableRefObject<{ [key: string]: HTMLInputElement; }>;
     addItemInputRef: React.MutableRefObject<{ [key: number]: HTMLTextAreaElement; }>;
     confirmTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
 
     // Handlers
-    onUpdate: (sections: ChecklistSection[]) => void;
+    onUpdate: (sections: (ChecklistSection | RichTextBlock)[]) => void;
     showToast: (message: string) => void;
     onToggleItem: (sectionId: number, itemId: number) => void;
     onUpdateItemText: (sectionId: number, itemId: number, newText: string) => void;
@@ -46,13 +47,17 @@ interface ChecklistSectionProps {
     onSetEditingItemId: (id: number | null) => void;
     onSetEditingItemText: (text: string) => void;
     onSetEditingResponseForItemId: (id: number | null) => void;
-    onSetEditingNoteForItemId: (id: number | null) => void;
+    onSetEditingNoteForItemId: (id: number | null) => void;    
+    onIndent: (itemId: number) => void;
+    onOutdent: (itemId: number) => void;
+    onTab: (itemId: number, shiftKey: boolean) => void;
     onSetFocusSubInputKey: (key: string | null) => void;
     onToggleSectionCollapse: (sectionId: number) => void;
     onSetEditingSectionId: (id: number | null) => void;
     onSetEditingSectionTitle: (title: string) => void;
     onUpdateSectionTitle: (sectionId: number, newTitle: string) => void;
     onDeleteChecked: (sectionId?: number) => void;
+    onAddRichTextBlock: (sectionId: number, contentBlockId?: number | null) => void;
     onCompleteAllInSection: (sectionId: number) => void;
     onSendSectionToTimer: (section: ChecklistSection, startImmediately: boolean) => void;
     onAddResponses: (sectionId?: number) => void;
@@ -65,7 +70,7 @@ interface ChecklistSectionProps {
     onDeleteSection: (sectionId: number) => void;
     onAddItem: (sectionId: number) => void;
     onSetNewItemTexts: React.Dispatch<React.SetStateAction<{ [key: number]: string }>>;
-    moveSection: (sections: ChecklistSection[], sectionId: number, direction: 'up' | 'down') => ChecklistSection[];
+    moveSection: (sections: (ChecklistSection | RichTextBlock)[], sectionId: number, direction: 'up' | 'down') => (ChecklistSection | RichTextBlock)[];
     setConfirmingDeleteSectionResponses: React.Dispatch<React.SetStateAction<number | null>>;
     setConfirmingDeleteSectionNotes: React.Dispatch<React.SetStateAction<number | null>>;
 }
@@ -75,8 +80,8 @@ export const ChecklistSectionComponent: React.FC<ChecklistSectionProps> = ({
     editingItemId, editingItemText, editingResponseForItemId, editingNoteForItemId,
     editingSectionId, editingSectionTitle, hiddenNotesSections, hiddenResponsesSections,
     confirmingDeleteSectionId, confirmingDeleteChecked, confirmingDeleteSectionResponses,
-    confirmingDeleteSectionNotes, newItemTexts, editingItemInputRef, subInputRefs,
-    addItemInputRef, confirmTimeoutRef, onUpdate, showToast, onToggleItem, onUpdateItemText,
+    confirmingDeleteSectionNotes, newItemTexts, contentBlockId, editingItemInputRef, subInputRefs,
+    addItemInputRef, confirmTimeoutRef, onUpdate, showToast, onToggleItem, onUpdateItemText, onIndent, onOutdent, onTab, onAddRichTextBlock,
     onUpdateItemResponse, onUpdateItemNote, onDeleteItemResponse, onDeleteItemNote,
     onDeleteItem, onUpdateItemDueDateFromPicker, onUpdateItemDueDate, onSendToTimer,
     onDuplicateChecklistItem, onSetEditingItemId, onSetEditingItemText, onSetEditingResponseForItemId,
@@ -97,13 +102,23 @@ export const ChecklistSectionComponent: React.FC<ChecklistSectionProps> = ({
         <div key={section.id} className="checklist-section" data-section-id={section.id} onContextMenu={(e) => {
             e.preventDefault();
             e.stopPropagation(); // Stop the event from bubbling up to the parent TaskAccordion            
+            const availableContentBlocks = history[historyIndex]
+                .filter(b => 'type' in b && b.type === 'rich-text')
+                .map(b => {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = (b as RichTextBlock).content;
+                    const title = (tempDiv.querySelector('h3')?.innerText || tempDiv.innerText).substring(0, 30);
+                    return { id: b.id, title: title || 'Untitled Block' };
+                });
             const isInEditMode = settings.activeTaskTabs?.[taskId] === 'edit';
             window.electronAPI.showChecklistSectionContextMenu({
                 taskId,
                 sectionId: section.id,
                 areAllComplete,
                 isSectionOpen,
+                availableContentBlocks,
                 isNotesHidden: hiddenNotesSections.has(section.id),
+                isPairedWithContentBlock: contentBlockId !== null,
                 isResponsesHidden: hiddenResponsesSections.has(section.id),
                 isConfirmingDelete: confirmingDeleteSectionId === section.id,
                 isInEditMode, // This was the missing piece
@@ -156,11 +171,31 @@ export const ChecklistSectionComponent: React.FC<ChecklistSectionProps> = ({
                             <button className={`checklist-action-btn ${confirmingDeleteSectionNotes === section.id ? 'confirm-delete' : ''}`} onClick={() => { if (confirmingDeleteSectionNotes === section.id) { onDeleteAllSectionNotes(section.id); setConfirmingDeleteSectionNotes(null); if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current); } else { setConfirmingDeleteSectionNotes(section.id); setConfirmingDeleteSectionResponses(null); if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current); confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteSectionNotes(null), 3000); } }} title="Delete All Notes in Section">{confirmingDeleteSectionNotes === section.id ? <i className="fas fa-trash-alt delete-icon"></i> : <i className="fas fa-trash-alt delete-icon"></i>}</button>
                         </div>
                         <div className="checklist-action-group checklist-action-group-copy">
-                            <button className="checklist-action-btn" onClick={() => { const sectionToCopy = history[historyIndex].find(s => s.id === section.id); if (sectionToCopy) { const textToCopy = formatChecklistForCopy([sectionToCopy]); navigator.clipboard.writeText(textToCopy); showToast('Section copied to clipboard!'); } }} title="Copy Section"><i className="fas fa-copy"></i></button>
-                            <button className="checklist-action-btn" onClick={() => { const sectionToCopy = history[historyIndex].find(s => s.id === section.id); if (sectionToCopy) { const header = `### ${sectionToCopy.title}`; const itemsText = sectionToCopy.items.map(item => item.text).join('\n'); const textToCopy = `${header}\n${itemsText}`; navigator.clipboard.writeText(textToCopy); showToast('Section raw content copied!'); } }} title="Copy Section Raw"><i className="fas fa-paste"></i></button>
+                            <button className="checklist-action-btn" onClick={() => {
+                                const sectionToCopy = history[historyIndex].find(s => s.id === section.id);
+                                if (sectionToCopy && 'items' in sectionToCopy) {
+                                    const textToCopy = formatChecklistForCopy([sectionToCopy]);
+                                    navigator.clipboard.writeText(textToCopy);
+                                    showToast('Section copied to clipboard!');
+                                }
+                            }} title="Copy Section"><i className="fas fa-copy"></i></button>
+                            <button className="checklist-action-btn" onClick={() => {
+                                const sectionToCopy = history[historyIndex].find(s => s.id === section.id);
+                                if (sectionToCopy && 'items' in sectionToCopy) {
+                                    const header = `### ${sectionToCopy.title}`;
+                                    const itemsText = sectionToCopy.items.map((item: ChecklistItem) => item.text).join('\n');
+                                    const textToCopy = `${header}\n${itemsText}`; navigator.clipboard.writeText(textToCopy); showToast('Section raw content copied!');
+                                }
+                            }} title="Copy Section Raw"><i className="fas fa-paste"></i></button>
                             <button className="checklist-action-btn" onClick={() => onDuplicateSection(section.id)} title="Duplicate Section"><i className="fas fa-clone"></i></button>
                         </div>
                         <div className="checklist-action-group checklist-action-group-history">
+                            <button 
+                                className={`checklist-action-btn ${contentBlockId ? 'active-icon' : ''}`} 
+                                onClick={() => onAddRichTextBlock(section.id, contentBlockId)} 
+                                title={contentBlockId ? "Edit Content Block" : "Add Content Block Above"}>
+                                <i className="fas fa-file-alt"></i>
+                            </button>
                             <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(history[historyIndex], section.id, 'up'))} title="Move Section Up"><i className="fas fa-arrow-up"></i></button>
                             <button className="checklist-action-btn" onClick={() => onUpdate(moveSection(history[historyIndex], section.id, 'down'))} title="Move Section Down"><i className="fas fa-arrow-down"></i></button>
                         </div>
@@ -206,6 +241,9 @@ export const ChecklistSectionComponent: React.FC<ChecklistSectionProps> = ({
                                 onSetEditingItemText={onSetEditingItemText}
                                 onSetEditingResponseForItemId={onSetEditingResponseForItemId}
                                 onSetEditingNoteForItemId={onSetEditingNoteForItemId}
+                                onIndent={() => onIndent(item.id)}
+                                onOutdent={() => onOutdent(item.id)}
+                                onTab={(shiftKey) => onTab(item.id, shiftKey)}
                                 onSetFocusSubInputKey={onSetFocusSubInputKey}
                             />
                         ))}

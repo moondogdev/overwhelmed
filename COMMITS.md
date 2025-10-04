@@ -6,6 +6,7 @@ A log of what was commited to git.
 
 ## Log of Changes
 
+- **[1.0.26] - 2025-10-07: Advanced Checklist Nesting & Bulk Actions**: feat(checklist): Implement item nesting, promotion to section, and bulk indent/outdent actions.
 - **[1.0.22] - 2025-10-03: Workflow Features & UI Overhaul**: feat(core): Enhance task workflows, stabilize editor, and overhaul UI.
 - **[1.0.19] - 2025-09-27: Full Refactor to Hook-Based Architecture**: refactor: Complete full refactor to hook-based architecture and MiniPlayer
 - **[1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls**: feat(time): Implement Time Log Sessions and advanced timer controls
@@ -27,6 +28,27 @@ A log of what was commited to git.
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.26] - 2025-10-07: Advanced Checklist Nesting & Bulk Actions
+**feat(checklist): Implement item nesting, promotion to section, and bulk indent/outdent actions.**
+
+This commit introduces a suite of powerful organizational features for checklists, allowing for hierarchical structures and efficient bulk editing.
+
+#### Features:
+-   **Checklist Item Nesting**: Implemented the core functionality for indenting and outdenting checklist items. This includes updating the data structure with `level` and `parentId` properties, adding UI buttons, and enabling keyboard shortcuts (`Tab`/`Shift+Tab`).
+-   **Promote Item to Section**: Added a "Promote to Section Header" context menu action. This powerful feature converts a checklist item into a new section, automatically moving all of its sub-items into the new section with their indentation levels correctly adjusted.
+-   **Bulk Indent/Outdent**:
+    -   Users can now check multiple items and use the new "Indent Checked" and "Outdent Checked" buttons in the main checklist header to modify them all at once.
+    -   The `Tab` and `Shift+Tab` keyboard shortcuts are now context-aware. If any items are checked, the shortcut will perform a bulk action on the checked items; otherwise, it will act only on the focused item.
+
+#### Fixes & UX Improvements:
+-   **Sibling Indentation**: Fixed a bug where bulk-indenting multiple items would incorrectly create a nested chain. The logic now correctly indents all selected items as siblings under the same parent.
+-   **Selection Persistence**: Fixed a UX issue where performing a bulk action would uncheck the selected items. The items now remain checked, allowing for multiple consecutive bulk actions without re-selection.
+
+#### Summary
+This update transforms the checklist from a flat list into a powerful outlining tool. Users can now create complex, multi-level structures and efficiently organize them with both single-item and bulk actions, accessible via UI buttons, context menus, and intuitive keyboard shortcuts.
 
 ---
 

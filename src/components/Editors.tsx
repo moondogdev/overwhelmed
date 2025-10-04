@@ -98,16 +98,19 @@ export function PromptModal({ isOpen, title, onClose, onConfirm, placeholder, in
 
 // --- Main Editor Component ---
 
-export function DescriptionEditor({ description, onDescriptionChange, settings, onSettingsChange, editorKey }: { 
+export function DescriptionEditor({ description, onDescriptionChange, settings, onSettingsChange, editorKey, editorRef: passedRef, onBlur: onParentBlur }: { 
   description: string, 
   onDescriptionChange: (html: string) => void, 
   settings: Settings, 
   onSettingsChange: (update: Partial<Settings> | ((prevSettings: Settings) => Partial<Settings>)) => void, 
-  editorKey: string 
+  editorKey: string,
+  editorRef?: React.Ref<HTMLDivElement>,
+  onBlur?: () => void;
 }) {
   const [activeView, setActiveView] = useState<'view' | 'html'>('view');
   const [htmlContent, setHtmlContent] = useState(description);
-  const editorRef = useRef<HTMLDivElement>(null);
+  const internalEditorRef = useRef<HTMLDivElement>(null);
+  const editorRef = passedRef || internalEditorRef; // Use passed ref if available, otherwise internal.
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // State for link modal
@@ -122,15 +125,23 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
 
   useEffect(() => {
     // This effect synchronizes the DOM with React's state, especially after undo/redo.
-    if (editorRef.current && htmlContent !== editorRef.current.innerHTML) {
+    if (editorRef && 'current' in editorRef && editorRef.current && htmlContent !== editorRef.current.innerHTML) {
       editorRef.current.innerHTML = htmlContent;
     }
   }, [htmlContent]);
 
-  const handleBlur = (e: React.FocusEvent<HTMLDivElement | HTMLTextAreaElement>) => {
-    const newHtml = activeView === 'view' ? (e.target as HTMLDivElement).innerHTML : (e.target as HTMLTextAreaElement).value;
-    setHtmlContent(newHtml);
-    onDescriptionChange(newHtml);
+  const handleContainerBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    // This is the key: e.relatedTarget is the element that is *receiving* focus.
+    // If the relatedTarget is null or is NOT inside the current component's container,
+    // then the user has clicked away from the editor entirely.
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      // Save the latest content before closing.
+      const editor = (editorRef && 'current' in editorRef) ? editorRef.current : null;
+      if (editor) {
+        onDescriptionChange(editor.innerHTML);
+      }
+      if (onParentBlur) onParentBlur();
+    }
   };
 
   const updateHistory = (newHtml: string) => {
@@ -162,13 +173,57 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
       selectionRange.insertNode(link);
 
       // Update state and history
-      if (editorRef.current) {
+      if (editorRef && 'current' in editorRef && editorRef.current) {
         const newHtml = editorRef.current.innerHTML;
         updateHistory(newHtml);
         onDescriptionChange(editorRef.current.innerHTML);
       }
     }
     setIsLinkModalOpen(false);
+  };
+
+  const formatBlock = (tag: 'p' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') => {
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) return;
+
+    const range = selection.getRangeAt(0);
+    let block = range.startContainer;
+    const editorNode = (editorRef && 'current' in editorRef) ? editorRef.current : null;
+    if (!editorNode) return;
+
+    // Find the current block-level element containing the cursor
+    while (block.parentNode !== editorNode) {
+      if (!block.parentNode) return; // Should not happen
+      block = block.parentNode;
+    }
+
+    // If it's already the correct tag, change it back to a paragraph
+    // Add a guard to ensure we're dealing with an element node.
+    const currentTag = (block as HTMLElement).tagName;
+    if (!currentTag) return false; // Not an element, can't format.
+    const newTagName = currentTag.toLowerCase() === tag ? 'p' : tag;
+    
+    // Create the new element and transfer content
+    const newBlock = document.createElement(newTagName);
+    while (block.firstChild) {
+      newBlock.appendChild(block.firstChild);
+    }
+
+    // Replace the old block with the new one
+    block.parentNode.replaceChild(newBlock, block);
+
+    // Restore the selection inside the new element
+    const newRange = document.createRange();
+    // This is a simple restoration. A more complex one would be needed for multi-node selections.
+    if (newBlock.firstChild) {
+      newRange.selectNodeContents(newBlock);
+      newRange.collapse(true); // Collapse to the start
+    }
+    selection.removeAllRanges();
+    selection.addRange(newRange);
+
+    // Return true to indicate a command was executed
+    return true;
   };
 
   const handleEditorFocus = () => {
@@ -199,6 +254,7 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
   const handleRichTextKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     let commandExecuted = false;
     const isCtrl = e.ctrlKey || e.metaKey;
+    const isAlt = e.altKey;
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
 
@@ -207,7 +263,7 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
 
     // Traverse up to find the block-level element (or the editor itself)
     while (block.nodeType !== Node.ELEMENT_NODE || window.getComputedStyle(block as Element).display !== 'block') {
-      if (block.parentNode === editorRef.current || !block.parentNode) break;
+      if (editorRef && 'current' in editorRef && block.parentNode === editorRef.current || !block.parentNode) break;
       block = block.parentNode;
     }
   
@@ -242,11 +298,18 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
           // We no longer intercept other formatting commands.
       }
     }
+
+    if (isAlt && !isCtrl && e.key >= '1' && e.key <= '6') {
+      e.preventDefault();
+      const level = parseInt(e.key, 10);
+      const headerTag = `h${level}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+      commandExecuted = formatBlock(headerTag);
+    }
   
     if (commandExecuted) {
       // Use a timeout to ensure the DOM has been updated by the browser before we read it.
       setTimeout(() => {
-        if (editorRef.current) {
+        if (editorRef && 'current' in editorRef && editorRef.current) {
           // This block is now only used for our custom commands (like linking)
           // which already update history internally.
         }
@@ -310,7 +373,7 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
     // After the command, the DOM is updated. We need to sync React's state.
     // We use a timeout to ensure the DOM update has completed.
     setTimeout(() => {
-      if (editorRef.current) {
+      if (editorRef && 'current' in editorRef && editorRef.current) {
         const newHtml = editorRef.current.innerHTML;
         // After our manual DOM change, update the history and the parent state.
         updateHistory(newHtml);
@@ -333,7 +396,7 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
   };
 
   return (
-    <div className="description-editor-container">
+    <div className="description-editor-container" onBlur={handleContainerBlur}>
       <div className="description-editor-tabs">
         <button onClick={() => setActiveView('view')} className={activeView === 'view' ? 'active' : ''}>View</button>
         <button onClick={() => setActiveView('html')} className={activeView === 'html' ? 'active' : ''}>Edit HTML</button>
@@ -349,7 +412,6 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
           contentEditable
           dangerouslySetInnerHTML={{ __html: htmlContent }}
           onFocus={handleEditorFocus}
-          onBlur={handleBlur}
           onKeyDown={handleRichTextKeyDown}
           onPaste={handlePaste}
           onMouseUp={handleMouseUp}
@@ -361,7 +423,6 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
           className="html-editor"
           value={htmlContent}
           onChange={(e) => setHtmlContent(e.target.value)}
-          onBlur={handleBlur}
           ref={textareaRef}
         />
       )}      

@@ -353,6 +353,12 @@ Please keep this consistent to keep the maintainer from having to make frequent 
 
 ### Log of Issues and Lessons
 
+#### [1.0.23] - Keyboard Events on Non-Interactive Elements
+-   **Issue**: We needed to capture `Tab` and `Shift+Tab` key presses on a `div` representing a checklist item to implement indent/outdent keyboard shortcuts. By default, `div` elements cannot receive focus and therefore do not fire keyboard events.
+-   **Lesson**: To make a non-interactive element like a `div` or `span` capable of receiving keyboard focus and events, you must add the `tabIndex={0}` attribute to it. This adds the element to the natural tab order of the page, allowing it to be focused and to trigger `onKeyDown` handlers. This is a crucial accessibility pattern for creating keyboard-navigable custom components. See `Rule 74.0` for a full explanation.
+
+---
+
 #### [1.0.22] - The Perils of `contentEditable`
 -   **Issue**: While building the rich text editor, attempts to add custom formatting features (like lists, headers, and custom undo/redo for native actions) led to a cascade of unpredictable bugs, including cursor jumping, random content deletion, and state desynchronization.
 -   **Lesson**: A `contentEditable` `div` is a "black box" with its own internal state and rules. Manually manipulating its DOM while the browser is also trying to manage it is a losing battle. The correct architectural decision is to either use a dedicated editor library (like Tiptap or Slate) that manages its own state model, or to drastically simplify the feature set to avoid conflicting with native browser behavior. We chose the latter for stability, removing our custom formatting shortcuts. See `Rule 72.0` for a full explanation.
@@ -567,6 +573,7 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 71.0: State Replacement vs. State Merging
   - Rule 72.0: The Perils of `contentEditable`
   - Rule 73.0: Safe Conditional Rendering in JSX
+  - Rule 74.0: Keyboard Interactivity with `onKeyDown` and `tabIndex`
 
 ---
 

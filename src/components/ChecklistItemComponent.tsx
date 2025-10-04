@@ -2,9 +2,26 @@ import React from 'react';
 import { ChecklistItem, Settings } from '../types';
 import { formatDate, formatTime, extractUrlFromText } from '../utils';
 
-const ClickableText = ({ text, settings }: { text: string, settings: Settings }) => {
-    const url = extractUrlFromText(text);
+const extractNamedUrl = (text: string): { name: string; url: string } | null => {
+    const regex = /([^:]+):\s*(https?:\/\/[^\s]+)/;
+    const match = text.match(regex);
+    if (match && match[1] && match[2]) {
+        return { name: match[1].trim(), url: match[2].trim() };
+    }
+    return null;
+};
 
+const ClickableText = ({ text, settings }: { text: string, settings: Settings }) => {
+    const namedUrl = extractNamedUrl(text);
+    if (namedUrl) {
+        return (
+            <a href={namedUrl.url} onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.electronAPI.openExternalLink({ url: namedUrl.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>
+                {namedUrl.name}
+            </a>
+        );
+    }
+
+    const url = extractUrlFromText(text);
     if (!url) {
         return <span className="checklist-item-text">{text}</span>;
     }
@@ -49,11 +66,14 @@ interface ChecklistItemProps {
     onUpdateItemDueDate: (sectionId: number, itemId: number, newDueDate: number | undefined) => void;
     onSendToTimer: (item: ChecklistItem, startImmediately: boolean) => void;
     onDuplicateChecklistItem: (sectionId: number, itemId: number) => void;
+    onIndent: () => void;
+    onOutdent: () => void;
     onSetEditingItemId: (id: number | null) => void;
     onSetEditingItemText: (text: string) => void;
     onSetEditingResponseForItemId: (id: number | null) => void;
     onSetEditingNoteForItemId: (id: number | null) => void;
     onSetFocusSubInputKey: (key: string | null) => void;
+    onTab: (shiftKey: boolean) => void;
 }
 
 export const ChecklistItemComponent: React.FC<ChecklistItemProps> = ({
@@ -61,15 +81,25 @@ export const ChecklistItemComponent: React.FC<ChecklistItemProps> = ({
     editingItemId, editingItemText, editingResponseForItemId, editingNoteForItemId,
     hiddenNotesSections, hiddenResponsesSections, editingItemInputRef, subInputRefs,
     onToggleItem, onUpdateItemText, onUpdateItemResponse, onUpdateItemNote,
-    onDeleteItemResponse, onDeleteItemNote, onDeleteItem, onUpdateItemDueDateFromPicker,
-    onUpdateItemDueDate, onSendToTimer, onDuplicateChecklistItem, onSetEditingItemId,
-    onSetEditingItemText, onSetEditingResponseForItemId, onSetEditingNoteForItemId, onSetFocusSubInputKey
+    onDeleteItemResponse, onDeleteItemNote, onDeleteItem, onUpdateItemDueDateFromPicker, onUpdateItemDueDate,
+    onSendToTimer, onDuplicateChecklistItem, onIndent, onOutdent, onSetEditingItemId, onSetEditingItemText, onTab,
+    onSetEditingResponseForItemId, onSetEditingNoteForItemId, onSetFocusSubInputKey
 }) => {
     return (
         <div
             key={item.id}
             className={`checklist-item ${item.isCompleted ? 'completed' : ''} ${item.highlightColor ? 'highlighted' : ''} checklist-item-interactive-area`}
-            style={{ borderLeftColor: item.highlightColor || 'transparent' }}
+            style={{
+                borderLeftColor: item.highlightColor || 'transparent',
+                paddingLeft: `${(item.level || 0) * 25}px`
+            }}
+            onKeyDown={(e) => {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    onTab(e.shiftKey);
+                }
+            }}
+            tabIndex={0} // Make the div focusable
             onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -84,6 +114,7 @@ export const ChecklistItemComponent: React.FC<ChecklistItemProps> = ({
                     hasResponse: !!item.response,
                     hasUrl: !!url,
                     isInEditMode,
+                    level: item.level || 0,
                     x: e.clientX,
                     y: e.clientY
                 });
@@ -153,6 +184,24 @@ export const ChecklistItemComponent: React.FC<ChecklistItemProps> = ({
                                     onSetEditingItemText(item.text);
                                 }} title="Edit Item"><i className="fas fa-pencil-alt"></i></button>
                                 <button className="icon-button" onClick={() => onDuplicateChecklistItem(sectionId, item.id)} title="Duplicate Item"><i className="fas fa-clone"></i></button>
+                                <button
+                                    title="Indent (Tab)"
+                                    className="icon-button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onIndent();
+                                    }}
+                                >
+                                    <i className="fas fa-indent"></i>
+                                </button>
+                                <button
+                                    title="Outdent (Shift+Tab)"
+                                    className="icon-button"
+                                    onClick={(e) => { e.stopPropagation(); onOutdent(); }}
+                                    disabled={!item.level || item.level === 0}
+                                >
+                                    <i className="fas fa-outdent"></i>
+                                </button>
                                 {item.response === undefined ? (
                                     <button className="icon-button" onClick={() => { onUpdateItemResponse(sectionId, item.id, ''); onSetEditingResponseForItemId(item.id); }} title="Add Response"><i className="fas fa-reply"></i></button>
                                 ) : (

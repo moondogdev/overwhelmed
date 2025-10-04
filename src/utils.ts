@@ -1,4 +1,4 @@
-import { Category, ChecklistSection, TimeLogSession, Settings, Task } from './types';
+import { Category, ChecklistSection, TimeLogSession, Settings, Task, ChecklistItem, RichTextBlock } from './types';
 
 export const formatTime = (ms: number): string => {
   if (typeof ms !== 'number' || !isFinite(ms)) return '00:00:00';
@@ -124,10 +124,12 @@ export const formatChecklistForCopy = (sections: ChecklistSection[]): string => 
     const totalCount = section.items.length;
     output += `${section.title} (${completedCount}/${totalCount}):\n`;
     for (const item of section.items) {
+      const indent = '  '.repeat(1 + (item.level || 0));
       const status = item.isCompleted ? '[✔]' : '[✗]';
-      output += `  ${status} ${item.text}\n`;
+      output += `${indent}${status} ${item.text}\n`;
       if (item.response) {
-        output += `      Response: ${item.response}\n`;
+        const responseIndent = '  '.repeat(2 + (item.level || 0));
+        output += `${responseIndent}  Response: ${item.response}\n`;
       }
     }
     output += '\n';
@@ -137,6 +139,20 @@ export const formatChecklistForCopy = (sections: ChecklistSection[]): string => 
 
 export const formatChecklistSectionRawForCopy = (section: ChecklistSection): string => {
   return section.items.map(item => item.text).join('\n');
+};
+
+export const formatChecklistItemsForRawCopy = (items: ChecklistItem[]): string => {
+  return items.map(item => {
+    const level = item.level || 0;
+    if (level === 0) {
+      return item.text;
+    }
+    // Use 2 spaces per indent level for consistency with the parsing logic.
+    const indent = '  '.repeat(level);
+    // Use a hyphen for level 1 and an asterisk for level 2+ for style.
+    const prefix = level === 1 ? '- ' : '* ';
+    return `${indent}${prefix}${item.text}`;
+  }).join('\n');
 };
 
 export const extractUrlFromText = (text: string): string | null => {
@@ -208,4 +224,134 @@ export const calculateNextOccurrence = (task: Task): Date | null => {
   }
 
   return nextDate;
+};
+
+export const indentChecklistItem = (sections: (ChecklistSection | RichTextBlock)[], sectionId: number, itemId: number): (ChecklistSection | RichTextBlock)[] => {
+  const newSections = JSON.parse(JSON.stringify(sections));
+  const sectionIndex = newSections.findIndex((s: ChecklistSection | RichTextBlock) => 'items' in s && s.id === sectionId);
+  if (sectionIndex === -1) return sections;
+  const section = newSections[sectionIndex] as ChecklistSection;
+
+  const itemIndex = section.items.findIndex((i: any) => i.id === itemId);
+  // Cannot indent the first item or an item that doesn't exist.
+  if (itemIndex <= 0) return sections;
+
+  const currentItem = section.items[itemIndex];
+  const potentialParent = section.items[itemIndex - 1];
+
+  // An item can only be indented under an item of the same or higher level.
+  // The new level can be at most the parent's level + 1.
+  const currentLevel = currentItem.level || 0;
+  const parentLevel = potentialParent.level || 0;
+
+  if (parentLevel >= currentLevel) {
+    currentItem.parentId = potentialParent.id;
+    currentItem.level = parentLevel + 1;
+  } else {
+    // If trying to indent under a deeper item, match the parent's level.
+    currentItem.parentId = potentialParent.parentId;
+    currentItem.level = parentLevel;
+  }
+
+  newSections[sectionIndex] = section;
+  return newSections;
+};
+
+const getAllDescendantIds = (items: ChecklistSection['items'], parentId: number): number[] => {
+  const children = items.filter((i: ChecklistItem) => i.parentId === parentId);
+  let descendantIds: number[] = children.map(c => c.id);
+  for (const child of children) {
+    descendantIds = descendantIds.concat(getAllDescendantIds(items, child.id));
+  }
+  return descendantIds;
+};
+
+export const deleteChecklistItemAndChildren = (sections: (ChecklistSection | RichTextBlock)[], sectionId: number, itemId: number): (ChecklistSection | RichTextBlock)[] => {
+  const newSections = JSON.parse(JSON.stringify(sections));
+  const sectionIndex = newSections.findIndex((s: ChecklistSection | RichTextBlock) => 'items' in s && s.id === sectionId);
+  if (sectionIndex === -1) return sections;
+
+  const section = newSections[sectionIndex] as ChecklistSection;
+  const descendantIds = getAllDescendantIds(section.items, itemId);
+  const idsToDelete = new Set([itemId, ...descendantIds]);
+
+  section.items = section.items.filter((item: ChecklistItem) => !idsToDelete.has(item.id));
+
+  newSections[sectionIndex] = section;
+  return newSections;
+};
+
+export const moveChecklistItemAndChildren = (sections: (ChecklistSection | RichTextBlock)[], sectionId: number, itemId: number, direction: 'up' | 'down'): (ChecklistSection | RichTextBlock)[] => {
+  const newSections = JSON.parse(JSON.stringify(sections));
+  const sectionIndex = newSections.findIndex((s: ChecklistSection | RichTextBlock) => 'items' in s && s.id === sectionId);
+  if (sectionIndex === -1) return sections;
+  const section = newSections[sectionIndex] as ChecklistSection;
+
+  const itemIndex = section.items.findIndex((i: any) => i.id === itemId);
+  if (itemIndex === -1) return sections;
+
+  const descendantIds = getAllDescendantIds(section.items, itemId);
+  const blockIds = [itemId, ...descendantIds];
+  
+  // Extract the block of items to move
+  const block = section.items.filter((item: any) => blockIds.includes(item.id));
+  // Get the remaining items
+  const remainingItems = section.items.filter((item: any) => !blockIds.includes(item.id));
+
+  const currentItem = section.items[itemIndex];
+  const currentLevel = currentItem.level || 0;
+
+  if (direction === 'up') {
+    if (itemIndex === 0) return sections; // Already at the top
+    // Find the first item above the block that is at the same or a lower level
+    let targetIndex = itemIndex - 1;
+    while (targetIndex > 0 && (section.items[targetIndex].level || 0) > currentLevel) {
+      targetIndex--;
+    }
+    const insertionIndex = remainingItems.findIndex((i: any) => i.id === section.items[targetIndex].id);
+    remainingItems.splice(insertionIndex, 0, ...block);
+  } else { // 'down'
+    const lastItemInBlockIndex = section.items.findIndex((i: any) => i.id === block[block.length - 1].id);
+    if (lastItemInBlockIndex === section.items.length - 1) return sections; // Already at the bottom
+    
+    const itemAfterBlock = section.items[lastItemInBlockIndex + 1];
+    const insertionIndex = remainingItems.findIndex((i: any) => i.id === itemAfterBlock.id) + 1;
+    remainingItems.splice(insertionIndex, 0, ...block);
+  }
+
+  section.items = remainingItems;
+  newSections[sectionIndex] = section;
+  return newSections;
+};
+
+export const outdentChecklistItem = (sections: (ChecklistSection | RichTextBlock)[], sectionId: number, itemId: number): (ChecklistSection | RichTextBlock)[] => {
+  const newSections = JSON.parse(JSON.stringify(sections));
+  const sectionIndex = newSections.findIndex((s: ChecklistSection | RichTextBlock) => 'items' in s && s.id === sectionId);
+  if (sectionIndex === -1) return sections;
+  const section = newSections[sectionIndex] as ChecklistSection;
+
+  const itemIndex = section.items.findIndex((i: any) => i.id === itemId);
+  if (itemIndex === -1) return sections;
+
+  const currentItem = section.items[itemIndex];
+  const currentLevel = currentItem.level || 0;
+
+  // Cannot outdent a top-level item.
+  if (currentLevel === 0) return sections;
+
+  // Find the original parent.
+  const parent = section.items.find((i: any) => i.id === currentItem.parentId);
+
+  if (parent) {
+    // The new parent is the original parent's parent.
+    currentItem.parentId = parent.parentId;
+    currentItem.level = (parent.level || 0);
+  } else {
+    // If for some reason the parent isn't found, move to top level.
+    currentItem.parentId = null;
+    currentItem.level = 0;
+  }
+
+  newSections[sectionIndex] = section;
+  return newSections;
 };

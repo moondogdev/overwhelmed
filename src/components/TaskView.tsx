@@ -86,6 +86,17 @@ export function TabbedView({
         handleTimerNotify, handleNextEntry, handlePreviousEntry
     } = useAppContext();
 
+  const [editingField, setEditingField] = useState<'description' | 'notes' | 'responses' | null>(null);
+  const descriptionEditorRef = useRef<HTMLDivElement>(null);
+  const notesEditorRef = useRef<HTMLDivElement>(null);
+  const responsesEditorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editingField === 'description') descriptionEditorRef.current?.focus();
+    else if (editingField === 'notes') notesEditorRef.current?.focus();
+    else if (editingField === 'responses') responsesEditorRef.current?.focus();
+  }, [editingField]);
+
     const initialTab = settings.activeTaskTabs[task.id] || (task.completedDuration ? 'ticket' : 'ticket');
     const [activeTab, setActiveTab] = useState<'ticket' | 'edit'>(initialTab);
     // This effect synchronizes the internal state with the prop from the parent.
@@ -345,55 +356,73 @@ export function TabbedView({
                                 onSettingsChange={onSettingsChange || setSettings}
                             />
                             <div className="description-header" onContextMenu={handleTaskContextMenu}>
-                                <strong>Description:</strong>
-                                <button className="icon-button copy-btn" title="Copy Description Text" onClick={handleCopyDescription}><i className="fas fa-copy"></i></button>
-                                <button className="icon-button copy-btn" title="Copy Description HTML" onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigator.clipboard.writeText(task.description || ''); showToast('Description HTML copied!');
-                                }}><i className="fas fa-code"></i></button>
-                                <button className="icon-button copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}><i className="fas fa-copy"></i> All</button>
+                                <strong>Description:</strong>                                
+                                <div className="header-actions">
+                                    {editingField !== 'description' && <button className="icon-button" onClick={() => setEditingField('description')} title="Edit Description"><i className="fas fa-pencil-alt"></i></button>}
+                                    <button className="icon-button copy-btn" title="Copy Description Text" onClick={handleCopyDescription}><i className="fas fa-copy"></i></button>
+                                    <button className="icon-button copy-btn" title="Copy Description HTML" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(task.description || ''); showToast('Description HTML copied!'); }}><i className="fas fa-code"></i></button>
+                                    <button className="icon-button copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}><i className="fas fa-copy"></i> All</button>
+                                </div>
                             </div>
-                            <DescriptionEditor
-                                description={task.description || ''}
-                                onDescriptionChange={(html) => handleFieldChange('description', html)}
-                                settings={settings}                                
-                                onSettingsChange={onSettingsChange || setSettings}
-                                editorKey={`task-description-${task.id}`} 
-                            />
+                            {editingField === 'description' ? (
+                                <DescriptionEditor
+                                    description={task.description || ''}
+                                    onDescriptionChange={(html) => handleFieldChange('description', html)}
+                                    settings={settings}
+                                    onSettingsChange={onSettingsChange || setSettings}
+                                    editorKey={`task-description-${task.id}`}
+                                    onBlur={() => setEditingField(null)}
+                                    editorRef={descriptionEditorRef}
+                                />
+                            ) : (
+                                <div className="rich-text-block-view" dangerouslySetInnerHTML={{ __html: task.description || '<p><i>No description. Double-click to add one.</i></p>' }} onDoubleClick={() => setEditingField('description')} />
+                            )}
                         </div>
                         <div className="description-container" ref={notesRef}>
                             <div className="description-header">
                                 <strong>Notes:</strong>
-                                <button className="icon-button copy-btn" title="Copy Notes Text" onClick={handleCopyNotes}><i className="fas fa-copy"></i></button>                                
-                                <button className="icon-button copy-btn" title="Copy Notes HTML" onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigator.clipboard.writeText(task.notes || ''); showToast('Notes HTML copied!');
-                                }}><i className="fas fa-code"></i></button>
+                                <div className="header-actions">
+                                    {editingField !== 'notes' && <button className="icon-button" onClick={() => setEditingField('notes')} title="Edit Notes"><i className="fas fa-pencil-alt"></i></button>}
+                                    <button className="icon-button copy-btn" title="Copy Notes Text" onClick={handleCopyNotes}><i className="fas fa-copy"></i></button>
+                                    <button className="icon-button copy-btn" title="Copy Notes HTML" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(task.notes || ''); showToast('Notes HTML copied!'); }}><i className="fas fa-code"></i></button>
+                                </div>
                             </div>
-                            <DescriptionEditor
-                                description={task.notes || ''}
-                                onDescriptionChange={(html) => handleFieldChange('notes', html)}
-                                settings={settings}                                
-                                onSettingsChange={onSettingsChange || setSettings}
-                                editorKey={`task-notes-${task.id}`} 
-                            />
+                            {editingField === 'notes' ? (
+                                <DescriptionEditor
+                                    description={task.notes || ''}
+                                    onDescriptionChange={(html) => handleFieldChange('notes', html)}
+                                    settings={settings}
+                                    onSettingsChange={onSettingsChange || setSettings}
+                                    editorKey={`task-notes-${task.id}`}
+                                    onBlur={() => setEditingField(null)}
+                                    editorRef={notesEditorRef}
+                                />
+                            ) : (
+                                <div className="rich-text-block-view" dangerouslySetInnerHTML={{ __html: task.notes || '<p><i>No notes. Double-click to add some.</i></p>' }} onDoubleClick={() => setEditingField('notes')} />
+                            )}
                         </div>
                         <div className="description-container" ref={responsesRef}>
                             <div className="description-header">
                                 <strong>Responses:</strong>
-                                <button className="icon-button copy-btn" title="Copy Responses Text" onClick={handleCopyResponses}><i className="fas fa-copy"></i></button>
-                                <button className="icon-button copy-btn" title="Copy Responses HTML" onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigator.clipboard.writeText(task.responses || ''); showToast('Responses HTML copied!');
-                                }}><i className="fas fa-code"></i></button>
+                                <div className="header-actions">
+                                    {editingField !== 'responses' && <button className="icon-button" onClick={() => setEditingField('responses')} title="Edit Responses"><i className="fas fa-pencil-alt"></i></button>}
+                                    <button className="icon-button copy-btn" title="Copy Responses Text" onClick={handleCopyResponses}><i className="fas fa-copy"></i></button>
+                                    <button className="icon-button copy-btn" title="Copy Responses HTML" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(task.responses || ''); showToast('Responses HTML copied!'); }}><i className="fas fa-code"></i></button>
+                                </div>
                             </div>
-                            <DescriptionEditor
-                                description={task.responses || ''}
-                                onDescriptionChange={(html) => handleFieldChange('responses', html)}
-                                settings={settings}
-                                onSettingsChange={onSettingsChange || setSettings}
-                                editorKey={`task-responses-${task.id}`} 
-                            />
+                            {editingField === 'responses' ? (
+                                <DescriptionEditor
+                                    description={task.responses || ''}
+                                    onDescriptionChange={(html) => handleFieldChange('responses', html)}
+                                    settings={settings}
+                                    onSettingsChange={onSettingsChange || setSettings}
+                                    editorKey={`task-responses-${task.id}`}
+                                    onBlur={() => setEditingField(null)}
+                                    editorRef={responsesEditorRef}
+                                />
+                            ) : (
+                                <div className="rich-text-block-view" dangerouslySetInnerHTML={{ __html: task.responses || '<p><i>No responses. Double-click to add some.</i></p>' }} onDoubleClick={() => setEditingField('responses')} />
+                            )}
                         </div>
                     </div>
                 )}

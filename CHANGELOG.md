@@ -13,11 +13,6 @@ All notable changes to this project will be documented in this file. See `## Log
 -   ### **Checklist & Editor Enhancements**:
     -   **Paste Image into Rich Text Editor**: Allow pasting an image from the clipboard directly into the editor.
     -   **Image Support in Checklist**: Add the ability to include images in checklist item notes and responses.
-    -   **Checklist Item Nesting**: Implement a "Make Child" action to indent a checklist item under the one above it.
-    -   **Promote Item to Header**: Add an action to convert a checklist item into a new section header, moving subsequent items under it.
-    -   **Advanced Checklist Sorting**: Add sorting options for checklist items (alphabetical, by highlight, by completion status).
-    -   **Automatic Hyperlinking**: Automatically convert text like `Name: url` into a hyperlink in checklist items.
-    -   **Inter-Section Content**: Add a feature to insert a rich text editor block between checklist sections for additional notes or content.
 
 -   ### **Linked / Looped Tasks**:
     -   **Task Series Loop**: Expand the linked task feature to support multi-step series (A -> B -> C), not just two-task loops.
@@ -58,6 +53,7 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
+- **[1.0.26] - 2025-10-04: Advanced Checklist Structuring & Organization**: feat(checklist): Implement content blocks, hierarchical sorting, nesting, bulk actions, and named hyperlinks.
 - **[1.0.25] - 2025-10-03: Inbox Expansion & Auto-Save Logic**: feat(core): Complete Inbox expansion and fix auto-save logic.
 - **[1.0.24] - 2025-10-03: Data Export & Advanced Notification Controls**: feat(core): Implement comprehensive data export and advanced notification management.
 - **[1.0.23] - 2025-10-03: Bulk Task Management**: feat(tasks): Implement bulk task actions and enhanced bulk add.
@@ -87,7 +83,40 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
-## [1.0.25] - 2025-10-07: Inbox Expansion & Auto-Save Logic
+## [1.0.26] - 2025-10-04: Advanced Checklist Structuring & Organization
+**feat(checklist): Implement content blocks, hierarchical sorting, nesting, bulk actions, and named hyperlinks.**
+
+This is a major feature release that transforms the checklist from a simple to-do list into a powerful, hierarchical outlining tool with advanced sorting and formatting capabilities.
+
+#### Features:
+-   **Content Blocks**: Users can now add rich text "Content Blocks" above checklist sections to serve as titles, descriptions, or introductions.
+    -   **Visual Grouping**: The UI now visually groups a content block and any checklist sections immediately following it into a single container with a border.
+    -   **In-Place Editing**: Content blocks can be edited directly in the task view without switching to the main "Edit" tab.
+    -   **Group Actions**: A new hover menu on content blocks allows for moving the entire group (content block + sections) up/down, copying the group's content (formatted or raw), and deleting the group.
+    -   **Section Association**: A new context menu action allows standalone checklist sections to be moved and associated with an existing content block.
+    -   **Section Detachment**: A corresponding "Detach" action allows a section to be broken out from a group into its own new block.
+-   **In-Place Editing for Task Details**: The `Description`, `Notes`, and `Responses` fields in the main "Task" view now display as clean, rendered content. Users can double-click or use a new edit icon to instantly switch to an in-place editor for quick modifications without needing to navigate to the main "Edit" tab.
+-   **Hierarchical Nesting**: Implemented the core functionality for indenting and outdenting checklist items. This includes updating the data structure with `level` and `parentId` properties, adding UI buttons, and enabling keyboard shortcuts (`Tab`/`Shift+Tab`).
+-   **Promote Item to Section**: Added a "Promote to Section Header" context menu action. This powerful feature converts a checklist item into a new section, automatically moving all of its sub-items into the new section with their indentation levels correctly adjusted.
+-   **Bulk Indent/Outdent**:
+    -   Users can now check multiple items and use the new "Indent Checked" and "Outdent Checked" buttons in the main checklist header to modify them all at once.
+    -   The `Tab` and `Shift+Tab` keyboard shortcuts are now context-aware. If any items are checked, the shortcut will perform a bulk action on the checked items; otherwise, it will act only on the focused item.
+-   **Hierarchical Sorting**: A new sort dropdown has been added to the main checklist header, allowing users to sort items within each section.
+    -   **Sort Options**: Default (manual), Alphabetical, By Highlight, and By Status.
+    -   **Hierarchy-Preserving**: The sorting logic is hierarchy-aware. It sorts items at the same nesting level under their respective parents, ensuring that the nested structure of sub-tasks is always maintained.
+-   **Named Hyperlinks**: Checklist items, notes, and responses now support a `Name: url` format. For example, typing `Google: https://google.com` will automatically render a clean, clickable link that just says "Google". The old behavior of automatically linking raw URLs is still supported.
+
+#### Fixes & UX Improvements:
+-   **Sibling Indentation**: Fixed a bug where bulk-indenting multiple items would incorrectly create a nested chain. The logic now correctly indents all selected items as siblings under the same parent.
+-   **Selection Persistence**: Fixed a UX issue where performing a bulk action would uncheck the selected items. The items now remain checked, allowing for multiple consecutive bulk actions without re-selection.
+-   **Bulk Add Enhancement**: The "Bulk Add" feature now supports parsing and creating `RichTextBlock`s, allowing for seamless copy/paste of entire structured checklists between tasks.
+
+#### Summary
+This update transforms both tasks and checklists into powerful outlining tools. Checklists gain rich text introductions and advanced organization, while core task fields (`Description`, `Notes`) now support a streamlined in-place editing workflow, improving readability and speeding up quick edits.
+
+---
+
+## [1.0.25] - 2025-10-03: Inbox Expansion & Auto-Save Logic
 **feat(core): Complete Inbox expansion and fix auto-save logic.**
 
 This update finalizes the "Inbox Expansion" feature set by adding comprehensive display and sorting options. It also includes a critical fix to the auto-save logic to prevent unnecessary file writes.

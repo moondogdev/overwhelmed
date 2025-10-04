@@ -119,6 +119,8 @@ interface ChecklistItem {
   note?: string;
   dueDate?: number;
   highlightColor?: string;
+  level?: number;
+  parentId?: number | null;
 
 }
 ```

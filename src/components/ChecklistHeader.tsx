@@ -1,11 +1,11 @@
 import React from 'react';
-import { ChecklistSection, Settings } from '../types';
+import { ChecklistSection, RichTextBlock, Settings } from '../types';
 import { formatChecklistForCopy } from '../utils';
 
 interface ChecklistHeaderProps {
     taskId: number;
     settings: Settings;
-    history: ChecklistSection[][];
+    history: (ChecklistSection | RichTextBlock)[][];
     historyIndex: number;
     isEditable: boolean;
     confirmingDeleteChecked: number | 'all' | null;
@@ -30,6 +30,8 @@ interface ChecklistHeaderProps {
     onUndo: () => void;
     onRedo: () => void;
     onDeleteAllSections: () => void;
+    onIndentChecked: (direction: 'indent' | 'outdent') => void;
+    onSortChange: (sortKey: 'default' | 'alphabetical' | 'highlight' | 'status') => void;
     setConfirmingDeleteResponses: React.Dispatch<React.SetStateAction<boolean>>;
     setConfirmingDeleteNotes: React.Dispatch<React.SetStateAction<boolean>>;
 }
@@ -39,11 +41,13 @@ export const ChecklistHeader: React.FC<ChecklistHeaderProps> = ({
     confirmingDeleteChecked, confirmingDeleteResponses, confirmingDeleteNotes,
     confirmingDeleteAllSections, confirmTimeoutRef, onDeleteChecked, onToggleAllSections,
     onSendAllItemsToTimer, onExpandAllSections, onCollapseAllSections, onAddResponses,
-    onSettingsChange, onDeleteAllResponses, onAddNotes, onDeleteAllNotes, showToast,
+    onSettingsChange, onDeleteAllResponses, onAddNotes, onDeleteAllNotes, showToast, onIndentChecked, onSortChange,
     onGlobalChecklistCommand, onUndo, onRedo, onDeleteAllSections,
     setConfirmingDeleteResponses, setConfirmingDeleteNotes
 }) => {
-    const allItems = history[historyIndex]?.flatMap(sec => sec.items) || [];
+    const allItems = history[historyIndex]?.flatMap(block => 
+        'items' in block ? block.items : []
+    ) || [];
     if (allItems.length === 0) {
         return (
             <div className="checklist-main-header">
@@ -62,7 +66,6 @@ export const ChecklistHeader: React.FC<ChecklistHeaderProps> = ({
             const isInEditMode = settings.activeTaskTabs?.[taskId] === 'edit';
             window.electronAPI.showChecklistMainHeaderContextMenu({
                 taskId,
-                sectionId: 0,
                 areAllComplete: false,
                 isSectionOpen: false,
                 isNotesHidden: !settings.showChecklistNotes,
@@ -78,6 +81,27 @@ export const ChecklistHeader: React.FC<ChecklistHeaderProps> = ({
                 {anyItemsCompleted && (
                     <button className={`checklist-action-btn delete-btn ${confirmingDeleteChecked === 'all' ? 'confirm-delete' : ''}`} onClick={() => onDeleteChecked()} title="Delete All Checked Items">
                         <i className="fas fa-trash-alt"></i>
+                    </button>
+                )}
+                {anyItemsCompleted && (
+                    <button className="checklist-action-btn" onClick={() => onIndentChecked('indent')} title="Indent Checked Items">
+                        <i className="fas fa-indent"></i>
+                    </button>
+                )}
+                {anyItemsCompleted && (
+                    <button className="checklist-action-btn" onClick={() => onIndentChecked('outdent')} title="Outdent Checked Items">
+                        <i className="fas fa-outdent"></i>
+                    </button>
+                )}
+                {!isEditable && (
+                    <button className="checklist-action-btn" title="Sort Checklist Items">
+                        <i className="fas fa-sort-amount-down"></i>
+                        <select className="checklist-sort-select" onChange={(e) => onSortChange(e.target.value as any)} defaultValue="default">
+                            <option value="default">Default</option>
+                            <option value="alphabetical">Alphabetical</option>
+                            <option value="highlight">By Highlight</option>
+                            <option value="status">By Status</option>
+                        </select>
                     </button>
                 )}
                 <button onClick={onToggleAllSections} className="checklist-action-btn" title={areAllItemsComplete ? 'Re-Open All Items in All Sections' : 'Complete All Items in All Sections'}>
@@ -120,10 +144,10 @@ export const ChecklistHeader: React.FC<ChecklistHeaderProps> = ({
                     </button>
                 </div>
                 <div className="checklist-action-group checklist-action-group-copy">
-                    <button className="checklist-action-btn" onClick={() => { const textToCopy = formatChecklistForCopy(history[historyIndex]); navigator.clipboard.writeText(textToCopy); showToast('All sections copied to clipboard!'); }} title="Copy All Sections">
+                    <button className="checklist-action-btn" onClick={() => onGlobalChecklistCommand({ command: 'copy_all_sections' })} title="Copy All Sections">
                         <i className="fas fa-copy"></i>
                     </button>
-                    <button className="checklist-action-btn" onClick={() => { const allRawText = history[historyIndex].map(section => { const header = `### ${section.title}`; const itemsText = section.items.map(item => item.text).join('\n'); return `${header}\n${itemsText}`; }).join('\n---\n'); navigator.clipboard.writeText(allRawText); showToast('All sections raw content copied!'); }} title="Copy All Sections Raw">
+                    <button className="checklist-action-btn" onClick={() => onGlobalChecklistCommand({ command: 'copy_all_sections_raw' })} title="Copy All Sections Raw">
                         <i className="fas fa-paste"></i>
                     </button>
                     <button className="checklist-action-btn" onClick={() => onGlobalChecklistCommand({ command: 'save_checklist_as_template' })} title="Save Checklist as Template">

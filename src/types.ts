@@ -14,6 +14,8 @@ export interface ChecklistItem {
   dueDate?: number; // Timestamp for individual due date
   highlightColor?: string;
   loggedTime?: number; // Time logged against this specific item
+  parentId?: number | null; // ID of the parent item for nesting
+  level?: number; // Nesting level, e.g., 0 for top-level, 1 for child
 }
 
 export interface TimeLogEntry {
@@ -41,6 +43,12 @@ export interface TimeLogSession {
   createdAt?: number; // Timestamp for when the session was created
 }
 
+export interface RichTextBlock {
+  id: number;
+  type: 'rich-text';
+  content: string;
+}
+
 export interface ChecklistSection {
   id: number;
   title: string;
@@ -61,8 +69,8 @@ export interface Task {
   websiteUrl?: string;
   imageLinks?: string[];
   description?: string;
-  attachments?: Attachment[];
-  checklist?: ChecklistSection[] | ChecklistItem[]; // Support both for migration
+  attachments?: Attachment[]; 
+  checklist?: (ChecklistSection | RichTextBlock)[] | ChecklistItem[]; // Support both for migration
   notes?: string;
   responses?: string;
   // Add dimensions for hit detection

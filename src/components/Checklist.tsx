@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Task, ChecklistItem, ChecklistSection, InboxMessage, Settings, TimeLogEntry, ChecklistTemplate } from '../types';
+import { Task, ChecklistItem, ChecklistSection, InboxMessage, Settings, TimeLogEntry, ChecklistTemplate, RichTextBlock } from '../types';
 import { PromptModal } from './Editors';
 import './styles/Checklist.css';
 import { ChecklistHeader } from './ChecklistHeader';
 import { ChecklistSectionComponent } from './ChecklistSection';
 import { useChecklist } from '../hooks/useChecklist';
-import { useChecklistIPC } from '../hooks/useChecklistIPC';
+import { RichTextBlockComponent } from './RichTextBlockComponent';
 import { ManageTemplatesModal } from './ManageTemplatesModal';
 
 interface ChecklistProps {
-  sections: ChecklistSection[] | ChecklistItem[];
-  onUpdate: (newSections: ChecklistSection[]) => void;
+  sections: (ChecklistSection | RichTextBlock)[] | ChecklistItem[];
+  onUpdate: (newSections: (ChecklistSection | RichTextBlock)[]) => void;
   isEditable: boolean;
   onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
   tasks: Task[];
@@ -63,6 +63,10 @@ export function Checklist({
     editingItemText, setEditingItemText,
     editingResponseForItemId, setEditingResponseForItemId,
     editingNoteForItemId, setEditingNoteForItemId,
+    editingContentBlockId,
+    setEditingContentBlockId,
+    focusEditorKey,
+    setFocusEditorKey,
     subInputRefs,
     hiddenNotesSections,
     hiddenResponsesSections,
@@ -94,6 +98,12 @@ export function Checklist({
     handleUpdateItemDueDate,
     handleUpdateItemDueDateFromPicker,
     handleAddSection,
+    handleAddRichTextBlock,
+    handleCopyBlock,
+    handleCopyBlockRaw,
+    handleMoveBlock,
+    handleUpdateRichTextBlockContent,
+    handleDeleteRichTextBlock,
     handleUpdateSectionTitle,
     handleDuplicateSection,
     handleDeleteSection,
@@ -110,6 +120,12 @@ export function Checklist({
     handleDeleteItem,
     handleUndo,
     handleRedo,
+    handleSortChange,
+    sortedSections,
+    handleIndentChecked,
+    handleIndent,
+    handleTabOnChecklistItem,
+    handleOutdent,
     handleToggleSectionCollapse,
     handleCollapseAllSections,
     handleExpandAllSections,
@@ -127,33 +143,6 @@ export function Checklist({
     onTaskUpdate, checklistRef, showToast, focusItemId, onFocusHandled, settings,
     onSettingsChange, handleGlobalToggleTimer, handleClearActiveTimer, handlePrimeTask,
     handlePrimeTaskWithNewLog, activeTimerEntry, activeTimerLiveTime
-  });
-
-  // Phase 2: Set up IPC command listeners by passing handlers to the dedicated IPC hook.
-  useChecklistIPC({ history, historyIndex, isEditable, settings, taskId, tasks,
-    onUpdate, onComplete, showToast, onSettingsChange, updateHistory,
-    handleDuplicateChecklistItem, setEditingItemId, setEditingItemText,
-    handleUpdateItemResponse, setEditingResponseForItemId, handleUpdateItemNote,
-    setEditingNoteForItemId, handleSendToTimer, moveSection, handleUndo, handleRedo,
-    setEditingSectionId, setEditingSectionTitle, handleCompleteAllInSection,
-    handleToggleSectionCollapse, handleAddNotes, handleAddResponses,
-    handleToggleSectionNotes, handleToggleSectionResponses, handleDuplicateSection,
-    handleDeleteSection, handleSendSectionToTimer,
-    setTemplateSectionsToSave: (sections) => {
-      // This is a bit of a workaround because the state setter is in the main hook.
-      // We find the state setter in the main hook's return value and call it.
-      const mainHook = useChecklist({ sections, onUpdate, isEditable, onComplete, tasks, setInboxMessages, task, taskId,
-        onTaskUpdate, checklistRef, showToast, focusItemId, onFocusHandled, settings,
-        onSettingsChange, handleGlobalToggleTimer, handleClearActiveTimer, handlePrimeTask,
-        handlePrimeTaskWithNewLog, activeTimerEntry, activeTimerLiveTime
-      });
-      // This is not ideal, but it works for now. A better solution would be to
-      // move the template state out of useChecklist if it's only used by the IPC hook.
-      // For now, we'll just call the setter from the main hook.
-      // This is a known issue with this refactoring pattern.
-    },
-    setIsSaveTemplatePromptOpen: setIsSaveTemplatePromptOpen,
-    handleGlobalChecklistCommand,
   });
 
   return (
@@ -190,77 +179,109 @@ export function Checklist({
         onGlobalChecklistCommand={handleGlobalChecklistCommand}
         onUndo={handleUndo}
         onRedo={handleRedo}
+        onSortChange={handleSortChange}
+        onIndentChecked={handleIndentChecked}
         onDeleteAllSections={handleDeleteAllSections}
         setConfirmingDeleteResponses={setConfirmingDeleteResponses}
         setConfirmingDeleteNotes={setConfirmingDeleteNotes}
       />
-      {history[historyIndex].map(section => (
-        <ChecklistSectionComponent
-          key={section.id}
-          section={section}
-          taskId={taskId}
-          isEditable={isEditable}
-          settings={settings}
-          history={history}
-          historyIndex={historyIndex}
-          timeLogDurations={timeLogDurations}
-          editingItemId={editingItemId}
-          editingItemText={editingItemText}
-          editingResponseForItemId={editingResponseForItemId}
-          editingNoteForItemId={editingNoteForItemId}
-          editingSectionId={editingSectionId}
-          editingSectionTitle={editingSectionTitle}
-          hiddenNotesSections={hiddenNotesSections}
-          hiddenResponsesSections={hiddenResponsesSections}
-          confirmingDeleteSectionId={confirmingDeleteSectionId}
-          confirmingDeleteChecked={confirmingDeleteChecked}
-          confirmingDeleteSectionResponses={confirmingDeleteSectionResponses}
-          confirmingDeleteSectionNotes={confirmingDeleteSectionNotes}
-          newItemTexts={newItemTexts}
-          editingItemInputRef={editingItemInputRef}
-          subInputRefs={subInputRefs}
-          addItemInputRef={addItemInputRef}
-          confirmTimeoutRef={confirmTimeoutRef}
-          onUpdate={onUpdate}
-          showToast={showToast}
-          onToggleItem={handleToggleItem}
-          onUpdateItemText={handleUpdateItemText}
-          onUpdateItemResponse={handleUpdateItemResponse}
-          onUpdateItemNote={handleUpdateItemNote}
-          onDeleteItemResponse={handleDeleteItemResponse}
-          onDeleteItemNote={handleDeleteItemNote}
-          onDeleteItem={handleDeleteItem}
-          onUpdateItemDueDateFromPicker={handleUpdateItemDueDateFromPicker}
-          onUpdateItemDueDate={handleUpdateItemDueDate}
-          onSendToTimer={handleSendToTimer}
-          onDuplicateChecklistItem={handleDuplicateChecklistItem}
-          onSetEditingItemId={setEditingItemId}
-          onSetEditingItemText={setEditingItemText}
-          onSetEditingResponseForItemId={setEditingResponseForItemId}
-          onSetEditingNoteForItemId={setEditingNoteForItemId}
-          onSetFocusSubInputKey={setFocusSubInputKey}
-          onToggleSectionCollapse={handleToggleSectionCollapse}
-          onSetEditingSectionId={setEditingSectionId}
-          onSetEditingSectionTitle={setEditingSectionTitle}
-          onUpdateSectionTitle={handleUpdateSectionTitle}
-          onDeleteChecked={handleDeleteChecked}
-          onCompleteAllInSection={handleCompleteAllInSection}
-          onSendSectionToTimer={handleSendSectionToTimer}
-          onAddResponses={handleAddResponses}
-          onToggleSectionResponses={handleToggleSectionResponses}
-          onDeleteAllSectionResponses={handleDeleteAllSectionResponses}
-          onAddNotes={handleAddNotes}
-          onToggleSectionNotes={handleToggleSectionNotes}
-          onDeleteAllSectionNotes={handleDeleteAllSectionNotes}
-          onDuplicateSection={handleDuplicateSection}
-          onDeleteSection={handleDeleteSection}
-          onAddItem={handleAddItem}
-          onSetNewItemTexts={setNewItemTexts}
-          moveSection={moveSection}
-          setConfirmingDeleteSectionResponses={setConfirmingDeleteSectionResponses}
-          setConfirmingDeleteSectionNotes={setConfirmingDeleteSectionNotes}
-        />
-      ))}
+      {(() => {
+        const renderedBlocks = [];
+        for (let i = 0; i < sortedSections.length; i++) {
+          const currentBlock = sortedSections[i];
+
+          // Case 1: A RichTextBlock
+          if ('type' in currentBlock) {
+            // Find all consecutive ChecklistSections that follow this RichTextBlock
+            const associatedSections: ChecklistSection[] = [];
+            let j = i + 1;
+            while (j < sortedSections.length && !('type' in sortedSections[j])) {
+              associatedSections.push(sortedSections[j] as ChecklistSection);
+              j++;
+            }
+
+            renderedBlocks.push(
+              <div key={currentBlock.id} className={associatedSections.length > 0 ? "checklist-section-container" : ""}>
+                <RichTextBlockComponent
+                  block={currentBlock}
+                  isEditable={isEditable}
+                  onUpdate={handleUpdateRichTextBlockContent}
+                  onDelete={handleDeleteRichTextBlock}
+                  settings={settings}
+                  onCopy={handleCopyBlock}
+                  onCopyRaw={handleCopyBlockRaw}
+                  onMove={handleMoveBlock} // Note: onMove might need adjustment for multi-section groups
+                  onSettingsChange={onSettingsChange}
+                  isEditing={editingContentBlockId === currentBlock.id}
+                  onSetEditing={setEditingContentBlockId}
+                  editorKey={`rtb-${currentBlock.id}`}
+                />
+                {associatedSections.map(section => (
+                  <ChecklistSectionComponent
+                    key={section.id}
+                    section={section}
+                    taskId={taskId} isEditable={isEditable} settings={settings} history={history} historyIndex={historyIndex}
+                    timeLogDurations={timeLogDurations} editingItemId={editingItemId} editingItemText={editingItemText}
+                    editingResponseForItemId={editingResponseForItemId} editingNoteForItemId={editingNoteForItemId}
+                    editingSectionId={editingSectionId} editingSectionTitle={editingSectionTitle} hiddenNotesSections={hiddenNotesSections}
+                    hiddenResponsesSections={hiddenResponsesSections} confirmingDeleteSectionId={confirmingDeleteSectionId}
+                    confirmingDeleteChecked={confirmingDeleteChecked} confirmingDeleteSectionResponses={confirmingDeleteSectionResponses}
+                    confirmingDeleteSectionNotes={confirmingDeleteSectionNotes} newItemTexts={newItemTexts}
+                    editingItemInputRef={editingItemInputRef} subInputRefs={subInputRefs} addItemInputRef={addItemInputRef}
+                    confirmTimeoutRef={confirmTimeoutRef} onUpdate={onUpdate} showToast={showToast} onToggleItem={handleToggleItem}
+                    onUpdateItemText={handleUpdateItemText} onUpdateItemResponse={handleUpdateItemResponse} onUpdateItemNote={handleUpdateItemNote}
+                    onDeleteItemResponse={handleDeleteItemResponse} onDeleteItemNote={handleDeleteItemNote} onDeleteItem={handleDeleteItem}
+                    onUpdateItemDueDateFromPicker={handleUpdateItemDueDateFromPicker} onUpdateItemDueDate={handleUpdateItemDueDate}
+                    contentBlockId={currentBlock.id}
+                    onSendToTimer={handleSendToTimer} onDuplicateChecklistItem={handleDuplicateChecklistItem} onSetEditingItemId={setEditingItemId}
+                    onSetEditingItemText={setEditingItemText} onSetEditingResponseForItemId={setEditingResponseForItemId}
+                    onSetEditingNoteForItemId={setEditingNoteForItemId} onSetFocusSubInputKey={setFocusSubInputKey}
+                    onIndent={(itemId) => handleIndent(section.id, itemId)} onOutdent={(itemId) => handleOutdent(section.id, itemId)}
+                    onTab={(itemId, shiftKey) => handleTabOnChecklistItem(section.id, itemId, shiftKey)}
+                    onToggleSectionCollapse={handleToggleSectionCollapse} onSetEditingSectionId={setEditingSectionId}
+                    onSetEditingSectionTitle={setEditingSectionTitle} onUpdateSectionTitle={handleUpdateSectionTitle}
+                    onDeleteChecked={handleDeleteChecked} onCompleteAllInSection={handleCompleteAllInSection}
+                    onSendSectionToTimer={handleSendSectionToTimer} onAddResponses={handleAddResponses}
+                    onToggleSectionResponses={handleToggleSectionResponses} onDeleteAllSectionResponses={handleDeleteAllSectionResponses}
+                    onAddNotes={handleAddNotes} onToggleSectionNotes={handleToggleSectionNotes} onDeleteAllSectionNotes={handleDeleteAllSectionNotes}
+                    onDuplicateSection={handleDuplicateSection} onAddRichTextBlock={handleAddRichTextBlock} onDeleteSection={handleDeleteSection}
+                    onAddItem={handleAddItem} onSetNewItemTexts={setNewItemTexts} moveSection={moveSection}
+                    setConfirmingDeleteSectionResponses={setConfirmingDeleteSectionResponses} setConfirmingDeleteSectionNotes={setConfirmingDeleteSectionNotes}
+                  />
+                ))}
+              </div>
+            );
+            // Skip the sections we just rendered
+            i += associatedSections.length;
+            continue;
+          }
+
+          // Case 2: A standalone ChecklistSection (not preceded by a RichTextBlock)
+          if (!('type' in currentBlock)) {
+            renderedBlocks.push(<ChecklistSectionComponent key={currentBlock.id} section={currentBlock as ChecklistSection} taskId={taskId} isEditable={isEditable} settings={settings} history={history} historyIndex={historyIndex} timeLogDurations={timeLogDurations} editingItemId={editingItemId} editingItemText={editingItemText} editingResponseForItemId={editingResponseForItemId} editingNoteForItemId={editingNoteForItemId} editingSectionId={editingSectionId} editingSectionTitle={editingSectionTitle} hiddenNotesSections={hiddenNotesSections} hiddenResponsesSections={hiddenResponsesSections} confirmingDeleteSectionId={confirmingDeleteSectionId} confirmingDeleteChecked={confirmingDeleteChecked} confirmingDeleteSectionResponses={confirmingDeleteSectionResponses} confirmingDeleteSectionNotes={confirmingDeleteSectionNotes} newItemTexts={newItemTexts} editingItemInputRef={editingItemInputRef} subInputRefs={subInputRefs} addItemInputRef={addItemInputRef} confirmTimeoutRef={confirmTimeoutRef} onUpdate={onUpdate} showToast={showToast} onToggleItem={handleToggleItem} onUpdateItemText={handleUpdateItemText} onUpdateItemResponse={handleUpdateItemResponse} onUpdateItemNote={handleUpdateItemNote} onDeleteItemResponse={handleDeleteItemResponse} onDeleteItemNote={handleDeleteItemNote} onDeleteItem={handleDeleteItem} onUpdateItemDueDateFromPicker={handleUpdateItemDueDateFromPicker} onUpdateItemDueDate={handleUpdateItemDueDate} contentBlockId={null} 
+            onSendToTimer={handleSendToTimer}
+            onDuplicateChecklistItem={handleDuplicateChecklistItem}
+            onSetEditingItemId={setEditingItemId}
+            onSetEditingItemText={setEditingItemText}
+            onSetEditingResponseForItemId={setEditingResponseForItemId}
+            onSetEditingNoteForItemId={setEditingNoteForItemId}
+            onSetFocusSubInputKey={setFocusSubInputKey}
+            onIndent={(itemId) => handleIndent(currentBlock.id, itemId)}
+            onOutdent={(itemId) => handleOutdent(currentBlock.id, itemId)}
+            onTab={(itemId, shiftKey) => handleTabOnChecklistItem(currentBlock.id, itemId, shiftKey)}
+            onToggleSectionCollapse={handleToggleSectionCollapse} onSetEditingSectionId={setEditingSectionId}
+            onSetEditingSectionTitle={setEditingSectionTitle} onUpdateSectionTitle={handleUpdateSectionTitle}
+            onDeleteChecked={handleDeleteChecked} onCompleteAllInSection={handleCompleteAllInSection}
+            onSendSectionToTimer={handleSendSectionToTimer} onAddResponses={handleAddResponses}
+            onToggleSectionResponses={handleToggleSectionResponses} onDeleteAllSectionResponses={handleDeleteAllSectionResponses}
+            onAddNotes={handleAddNotes} onToggleSectionNotes={handleToggleSectionNotes} onDeleteAllSectionNotes={handleDeleteAllSectionNotes}
+            onDuplicateSection={handleDuplicateSection} onAddRichTextBlock={handleAddRichTextBlock} onDeleteSection={handleDeleteSection}
+            onAddItem={handleAddItem} onSetNewItemTexts={setNewItemTexts} moveSection={moveSection}
+            setConfirmingDeleteSectionResponses={setConfirmingDeleteSectionResponses} setConfirmingDeleteSectionNotes={setConfirmingDeleteSectionNotes} />);
+          }
+        }
+        return renderedBlocks;
+      })()}
       <div className="checklist-actions">
         <div className="checklist-main-actions">
           <button onClick={handleAddSection} className="add-section-btn">
