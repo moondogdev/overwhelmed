@@ -11,8 +11,9 @@ import { ReportsView } from './ReportsView';
 import { InboxView } from './InboxView';
 import { ListView } from './ListView';
 import { AddNewTaskForm } from './AddNewTaskForm';
-import { TaskTypeManager } from './SidebarComponents';
+import { AccountManager, TaskTypeManager } from './SidebarComponents';
 import { GlobalCategorySettings } from './GlobalCategorySettings';
+import { TransactionAutocategorizeSettings } from './TransactionAutocategorizeSettings';
 import { CategoryManager } from './CategoryManager';
 import { ExternalLinkManager } from './ExternalLinkManager';
 import { TimeManagementSettings } from './TimeManagementSettings';
@@ -45,7 +46,7 @@ export function AppLayout() {
                 {settings.currentView === 'list' && <ListView />}
             </div>
             <div className={`sidebar ${settings.isSidebarVisible ? '' : 'hidden'}`}>
-                <AddNewTaskForm /> <TaskTypeManager /> <GlobalCategorySettings /> <CategoryManager /> <ExternalLinkManager /> <TimeManagementSettings /> <NotificationSettings /> <BulkAdd /> <ProjectActions /> <BackupManager /> {settings.currentView === 'meme' && <MemeViewSettings />}
+                <AddNewTaskForm /> <TaskTypeManager /> <GlobalCategorySettings /> <CategoryManager /> <TransactionAutocategorizeSettings /> <AccountManager /> <ExternalLinkManager /> <TimeManagementSettings /> <NotificationSettings /> <BulkAdd /> <ProjectActions /> <BackupManager /> {settings.currentView === 'meme' && <MemeViewSettings />}
             </div>
             <Footer />
             <NotificationCenter />

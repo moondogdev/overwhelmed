@@ -86,6 +86,13 @@ export function TabbedView({
         handleTimerNotify, handleNextEntry, handlePreviousEntry
     } = useAppContext();
 
+  const isTransaction = useMemo(() => {
+    if (!task.categoryId) return false;
+    const category = settings.categories.find(c => c.id === task.categoryId);
+    const parentCategory = category?.parentId ? settings.categories.find(c => c.id === category.parentId) : category;
+    return parentCategory?.name === 'Transactions';
+  }, [task.categoryId, settings.categories]);
+
   const [editingField, setEditingField] = useState<'description' | 'notes' | 'responses' | null>(null);
   const descriptionEditorRef = useRef<HTMLDivElement>(null);
   const notesEditorRef = useRef<HTMLDivElement>(null);
@@ -220,7 +227,7 @@ export function TabbedView({
 
     const tabHeaders = (
         <div className="tab-headers" style={{ marginTop: '5px' }}>
-            <button onClick={() => handleTabClick('ticket')} className={activeTab === 'ticket' ? 'active' : ''}>Task</button>
+            <button onClick={() => handleTabClick('ticket')} className={activeTab === 'ticket' ? 'active' : ''}>{isTransaction ? 'Details' : 'Task'}</button>
             {!task.completedDuration && ( // Only show Edit tab for non-completed items
                 <button onClick={() => handleTabClick('edit')} className={activeTab === 'edit' ? 'active' : ''}>Edit</button>
             )}
@@ -234,36 +241,51 @@ export function TabbedView({
                 {activeTab === 'ticket' && (
                     <div className="ticket-display-view">
                         <h3 onContextMenu={handleTaskContextMenu}>{task.text} (ID: {task.id})</h3>
-                        {task.url && <p><strong>URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: task.url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{task.url}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(task.url); showToast('URL copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
-                        <p><strong>Category:</strong> {settings.categories.find(c => c.id === task.categoryId)?.name || 'Uncategorized'}</p>
-                        <p><strong>Priority:</strong> {task.priority || 'Medium'}</p>
-                        <p><strong>Open Date:</strong> {formatTimestamp(task.openDate)}</p>
+                        {isTransaction ? (
+                            <>
+                                <p><strong>Main Category:</strong> Transactions</p>
+                                {task.categoryId && <p><strong>Sub-Category:</strong> {settings.categories.find(c => c.id === task.categoryId)?.name || 'Uncategorized'}</p>}
+                                {task.accountId && <p><strong>Account:</strong> {settings.accounts.find(a => a.id === task.accountId)?.name || 'N/A'}</p>}
+                                {task.transactionType && task.transactionType !== 'none' && <p><strong>Transaction Type:</strong> <span style={{ textTransform: 'capitalize' }}>{task.transactionType}</span></p>}
+                                {task.transactionAmount && <p><strong>Transaction Amount:</strong> <span className={task.transactionAmount > 0 ? 'income-text' : 'expense-text'}>${Math.abs(task.transactionAmount).toFixed(2)}</span></p>}
+                                <p><strong>Date:</strong> {formatTimestamp(task.openDate)}</p>
+                            </>
+                        ) : (
+                            <>
+                                {task.url && <p><strong>URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: task.url || '', browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{task.url}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(task.url || ''); showToast('URL copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
+                                <p><strong>Category:</strong> {settings.categories.find(c => c.id === task.categoryId)?.name || 'Uncategorized'}</p>
+                                <p><strong>Priority:</strong> {task.priority || 'Medium'}</p>
+                                <p><strong>Open Date:</strong> {formatTimestamp(task.openDate)}</p>
+                            </>
+                        )}
                         <p><strong>Time Open:</strong> <TimeOpen startDate={task.createdAt} /></p>
                         {task.completeBy && <p><strong>Complete By:</strong> {formatTimestamp(task.completeBy)}</p>}
                         {task.completeBy && <p><strong>Time Left:</strong> <TimeLeft task={task} onUpdate={onUpdate} onNotify={handleTimerNotify} settings={settings} /></p>}
-                        {task.company && <p><strong>Company:</strong> <span className="link-with-copy">{task.company}<button className="icon-button copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(task.company); showToast('Company copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
-                        <div className="work-timer-container"><strong>Work Timer:</strong>
-                            <TimeTrackerLog
-                                task={task}
-                                onUpdate={onUpdate}
-                                showToast={showToast}
-                                handleGlobalToggleTimer={handleGlobalToggleTimer}
-                                activeTimerTaskId={activeTimerTaskId}
-                                activeTimerEntry={activeTimerEntry}
-                                activeTimerLiveTime={activeTimerLiveTime}                                
-                                handleClearActiveTimer={handleClearActiveTimer}
-                                handleGlobalResetTimer={handleGlobalResetTimer}
-                                handleGlobalStopTimer={handleGlobalStopTimer} // This was missing
-                                handleNextEntry={handleNextEntry}
-                                handlePreviousEntry={handlePreviousEntry}
-                                handlePostLog={handlePostLog}
-                                handlePostAndResetLog={handlePostAndResetLog}
-                                handleResetAllLogEntries={handleResetAllLogEntries}
-                                handlePostAndComplete={handlePostAndComplete}
-                                settings={settings}
-                                checklistRef={activeChecklistRef}
-                            />
-                        </div>
+                        {task.company && <p><strong>Company:</strong> <span className="link-with-copy">{task.company}<button className="icon-button copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(task.company || ''); showToast('Company copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
+                        {!isTransaction && (
+                          <div className="work-timer-container"><strong>Work Timer:</strong>
+                              <TimeTrackerLog
+                                  task={task}
+                                  onUpdate={onUpdate}
+                                  showToast={showToast}
+                                  handleGlobalToggleTimer={handleGlobalToggleTimer}
+                                  activeTimerTaskId={activeTimerTaskId}
+                                  activeTimerEntry={activeTimerEntry}
+                                  activeTimerLiveTime={activeTimerLiveTime}                                
+                                  handleClearActiveTimer={handleClearActiveTimer}
+                                  handleGlobalResetTimer={handleGlobalResetTimer}
+                                  handleGlobalStopTimer={handleGlobalStopTimer} // This was missing
+                                  handleNextEntry={handleNextEntry}
+                                  handlePreviousEntry={handlePreviousEntry}
+                                  handlePostLog={handlePostLog}
+                                  handlePostAndResetLog={handlePostAndResetLog}
+                                  handleResetAllLogEntries={handleResetAllLogEntries}
+                                  handlePostAndComplete={handlePostAndComplete}
+                                  settings={settings}
+                                  checklistRef={activeChecklistRef}
+                              />
+                          </div>
+                        )}
                         {task.payRate > 0 && (
                             <div>
                                 <p><strong>Pay Rate:</strong> ${task.payRate.toFixed(2)}/hr</p>
@@ -274,7 +296,7 @@ export function TabbedView({
                                 </div>
                             </div>
                         )}
-                        {task.websiteUrl && <p><strong>Website URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: task.websiteUrl, browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{task.websiteUrl}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(task.websiteUrl); showToast('Website URL copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
+                        {task.websiteUrl && <p><strong>Website URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: task.websiteUrl || '', browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{task.websiteUrl}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(task.websiteUrl || ''); showToast('Website URL copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
                         {task.imageLinks && task.imageLinks.length > 0 && (
                             <div><strong>Image Links:</strong>
                                 <div className="image-links-display">
@@ -304,7 +326,7 @@ export function TabbedView({
                                 </div>
                             </div>
                         )}
-                        {tabHeaders}
+                        {!isTransaction && tabHeaders}
                         <div className="description-container" onContextMenu={(e) => {
                             const selection = window.getSelection();
                             const selectedText = selection?.toString().trim();
@@ -325,36 +347,38 @@ export function TabbedView({
                             }
                         }} onClick={(e) => { // Also handle left-clicks for links
                             const target = e.target as HTMLElement;
-                            if (target.tagName === 'A') {
+                            if (target.tagName === 'A' && target.hasAttribute('href')) {
                                 e.preventDefault();
                                 e.stopPropagation(); // Also stop propagation on left-click to be consistent
                                 const url = target.getAttribute('href');
                                 if (url) window.electronAPI.openExternalLink({ url, browserPath: settings.browsers[settings.activeBrowserIndex]?.path });
                             }
                         }}>                            
-                            <Checklist
-                                sections={task.checklist || []}
-                                onUpdate={(newSections) => handleFieldChange('checklist', newSections)}
-                                onComplete={handleChecklistCompletion}
-                                tasks={tasks}
-                                setInboxMessages={setInboxMessages}
-                                task={task}
-                                taskId={task.id}
-                                onTaskUpdate={onUpdate}
-                                checklistRef={activeChecklistRef}
-                                showToast={showToast}
-                                isEditable={false}
-                                focusItemId={focusChecklistItemId}
-                                onFocusHandled={() => setFocusChecklistItemId(null)}
-                                settings={settings}
-                                handleGlobalToggleTimer={handleGlobalToggleTimer}
-                                handlePrimeTask={handlePrimeTask}
-                                handlePrimeTaskWithNewLog={handlePrimeTaskWithNewLog}
-                                activeTimerEntry={activeTimerEntry}
-                                activeTimerLiveTime={activeTimerLiveTime}
-                                handleClearActiveTimer={handleClearActiveTimer}                                                                                   
-                                onSettingsChange={onSettingsChange || setSettings}
-                            />
+                            {!isTransaction && (
+                              <Checklist
+                                  sections={task.checklist || []}
+                                  onUpdate={(newSections) => handleFieldChange('checklist', newSections)}
+                                  onComplete={handleChecklistCompletion}
+                                  tasks={tasks}
+                                  setInboxMessages={setInboxMessages}
+                                  task={task}
+                                  taskId={task.id}
+                                  onTaskUpdate={onUpdate}
+                                  checklistRef={activeChecklistRef}
+                                  showToast={showToast}
+                                  isEditable={false}
+                                  focusItemId={focusChecklistItemId}
+                                  onFocusHandled={() => setFocusChecklistItemId(null)}
+                                  settings={settings}
+                                  handleGlobalToggleTimer={handleGlobalToggleTimer}
+                                  handlePrimeTask={handlePrimeTask}
+                                  handlePrimeTaskWithNewLog={handlePrimeTaskWithNewLog}
+                                  activeTimerEntry={activeTimerEntry}
+                                  activeTimerLiveTime={activeTimerLiveTime}
+                                  handleClearActiveTimer={handleClearActiveTimer}                                                                                   
+                                  onSettingsChange={onSettingsChange || setSettings}
+                              />
+                            )}
                             <div className="description-header" onContextMenu={handleTaskContextMenu}>
                                 <strong>Description:</strong>                                
                                 <div className="header-actions">
@@ -498,6 +522,42 @@ export function TabbedView({
                         <label><h4>Pay Rate ($/hr):</h4>
                             <input type="number" value={task.payRate || 0} onChange={(e) => handleFieldChange('payRate', Number(e.target.value))} />
                         </label>
+                        <label><h4>Transaction:</h4>
+                          <div className="transaction-input-group">
+                            <input
+                              type="number"
+                              placeholder="0.00"
+                              value={task.transactionAmount ? Math.abs(task.transactionAmount) : ''}
+                              onChange={(e) => {
+                                const rawAmount = parseFloat(e.target.value) || 0;                                
+                                const type = rawAmount === 0 ? 'none' : (task.transactionType === 'none' ? 'expense' : task.transactionType);
+                                const finalAmount = type === 'expense' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
+                                onUpdate({ ...task, transactionAmount: finalAmount, transactionType: type });
+                              }}
+                            />
+                            <div className="transaction-type-toggle">
+                              <button className={`none-btn ${(task.transactionType || 'none') === 'none' || !task.transactionAmount ? 'active' : ''}`} onClick={() => {
+                                onUpdate({ ...task, transactionType: 'none', transactionAmount: 0 });
+                              }}>None</button>
+                              <button className={`expense-btn ${task.transactionType === 'expense' && task.transactionAmount !== 0 ? 'active' : ''}`} onClick={() => {
+                                const currentAmount = Math.abs(task.transactionAmount || 1);
+                                onUpdate({ ...task, transactionType: 'expense', transactionAmount: -currentAmount });
+                              }}>Expense</button>
+                              <button className={`income-btn ${task.transactionType === 'income' && task.transactionAmount !== 0 ? 'active' : ''}`} onClick={() => {
+                                const currentAmount = Math.abs(task.transactionAmount || 1);
+                                onUpdate({ ...task, transactionType: 'income', transactionAmount: currentAmount });
+                              }}>Income</button>
+                            </div>
+                          </div>
+                        </label>
+                        {task.transactionAmount !== 0 && (
+                          <label><h4>Account:</h4>
+                            <select value={task.accountId || ''} onChange={(e) => handleFieldChange('accountId', Number(e.target.value) || undefined)}>
+                              <option value="">-- None --</option>
+                              {settings.accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                            </select>
+                          </label>
+                        )}
                         <label><h4>Website URL:</h4>
                             <input type="text" value={task.websiteUrl || ''} onChange={(e) => handleFieldChange('websiteUrl', e.target.value)} placeholder="https://company.com" />
                         </label>
@@ -529,7 +589,7 @@ export function TabbedView({
                                 handleFieldChange('attachments', [...(task.attachments || []), newFile]);
                             }
                         }}><i className="fas fa-plus"></i> Attach File</button>
-                        {tabHeaders}
+                        {!isTransaction && tabHeaders}
                         <div className="description-header" style={{ marginBottom: '10px' }}>
                             <strong>Description:</strong>
                             <button className="icon-button copy-btn" title="Copy Description Text" onClick={handleCopyDescription}><i className="fas fa-copy"></i></button>
@@ -538,29 +598,31 @@ export function TabbedView({
                             }}><i className="fas fa-code"></i></button>
                             <button className="icon-button copy-btn" title="Copy All (Description + Notes)" onClick={handleCopyAll}><i className="fas fa-copy"></i> All</button>
                         </div>
-                        <Checklist
-                            sections={task.checklist || []}
-                            onUpdate={(newSections) => handleFieldChange('checklist', newSections)}
-                            onComplete={handleChecklistCompletion}
-                            isEditable={true}
-                            onTaskUpdate={onUpdate}
-                            task={task}
-                            tasks={tasks}
-                            setInboxMessages={setInboxMessages} // This was missing
-                            checklistRef={activeChecklistRef}
-                            taskId={task.id}
-                            showToast={showToast}
-                            focusItemId={focusChecklistItemId}
-                            onFocusHandled={() => setFocusChecklistItemId(null)}
-                            settings={settings}
-                            onSettingsChange={onSettingsChange || setSettings}
-                            handleGlobalToggleTimer={handleGlobalToggleTimer}                            
-                            handlePrimeTaskWithNewLog={handlePrimeTaskWithNewLog}
-                            handlePrimeTask={handlePrimeTask}
-                            activeTimerEntry={activeTimerEntry}
-                            activeTimerLiveTime={activeTimerLiveTime}
-                            handleClearActiveTimer={handleClearActiveTimer}
-                        />
+                        {!isTransaction && (
+                          <Checklist
+                              sections={task.checklist || []}
+                              onUpdate={(newSections) => handleFieldChange('checklist', newSections)}
+                              onComplete={handleChecklistCompletion}
+                              isEditable={true}
+                              onTaskUpdate={onUpdate}
+                              task={task}
+                              tasks={tasks}
+                              setInboxMessages={setInboxMessages} // This was missing
+                              checklistRef={activeChecklistRef}
+                              taskId={task.id}
+                              showToast={showToast}
+                              focusItemId={focusChecklistItemId}
+                              onFocusHandled={() => setFocusChecklistItemId(null)}
+                              settings={settings}
+                              onSettingsChange={onSettingsChange || setSettings}
+                              handleGlobalToggleTimer={handleGlobalToggleTimer}                            
+                              handlePrimeTaskWithNewLog={handlePrimeTaskWithNewLog}
+                              handlePrimeTask={handlePrimeTask}
+                              activeTimerEntry={activeTimerEntry}
+                              activeTimerLiveTime={activeTimerLiveTime}
+                              handleClearActiveTimer={handleClearActiveTimer}
+                          />
+                        )}
                         <DescriptionEditor
                             description={task.description || ''}
                             onDescriptionChange={(html) => handleFieldChange('description', html)}

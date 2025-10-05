@@ -23,14 +23,15 @@
 }
 
 .category-tabs button {
-  padding: 10px 20px;
-  cursor: pointer;
-  border: none;
-  background-color: transparent;
-  color: #aaa;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -1px;
-  font-size: 1em;
+    padding: 10px 20px;
+    cursor: pointer;
+    border: none;
+    background-color: transparent;
+    color: #aaa;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+    font-size: .80em;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,    Arial, sans-serif;
 }
 
 .category-tabs button.active {
@@ -45,6 +46,7 @@
   padding-left: 20px; /* Indent the sub-category bar */
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .sub-category-tabs button {
@@ -62,10 +64,25 @@
   box-shadow: 0 0 8px #61dafb, 0 0 4px #61dafb inset; /* Add a glow effect and a subtle inner glow */
 }
 
+.transaction-total-pill {
+  margin-left: 15px;
+  padding: 4px 12px;
+  border-radius: 15px;
+  font-size: 0.9em;
+  font-weight: bold;
+  color: white;
+}
+.transaction-total-pill.income {
+  background-color: #28a745; /* Green for income */
+}
+.transaction-total-pill.expense {
+  background-color: #dc3545; /* Red for expense */
+}
+
 .list-view-controls {
   width: 100%; /* Make the container full width */
   display: flex;
-  justify-content: center;
+  flex-direction: column; /* Stack search and sort controls vertically */
   margin-bottom: 20px;
 }
 
@@ -109,20 +126,19 @@
   color: white;
   box-sizing: border-box;
 }
-.list-header-search::before {
-  content: '🔍'; /* Search icon */
+.list-header-search::before {  
+  font-family: "Font Awesome 5 Free"; /* Use Font Awesome */
+  font-weight: 900; /* Solid style */
+  content: '\f002'; /* Unicode for fa-search */
   position: absolute;
   left: 15px;
   top: 50%;
   transform: translateY(-50%);
   color: #aaa;
 }
-
-.clear-search-btn {
-  position: absolute;
-  right: 5px;
-  top: 50%;
-  transform: translateY(-50%);
+.clear-btn,
+.clear-search-btn,
+.clear-sort-btn {
   background: none !important;
   border: none !important;
   color: #aaa !important;
@@ -130,18 +146,18 @@
   font-size: 1.2em;
   padding: 0 5px !important;
   margin: 0 !important;
+  line-height: 1; /* Align the 'x' better vertically */
 }
 
-.list-header-sort {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center; /* Center the content */
-  background-color: #21252b;
-  padding: 8px;
-  border-radius: 5px;
-  margin-bottom: 10px; /* Space below the sort bar */
-  box-sizing: border-box;
+.clear-search-btn {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.clear-sort-btn {
+  transition: color 0.2s ease;
 }
 
 .list-header-sort label {
@@ -160,16 +176,71 @@
   padding: 5px 10px;
   border-radius: 5px;
 }
+.list-header-sort-pills, .list-header-year-filter {
+    display: flex;
+    gap: 8px;
+    margin: 5px 10px 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    border: 1px solid rgba(0,0,0,.2);
+    padding: 8px;
+}
 
-.clear-sort-btn {
-  background: none !important;
-  border: none !important;
-  color: #aaa !important;
+.list-filter-title {
+  font-weight: bold;
+  color: #aaa;
+  font-size: 0.9em;
+  margin-right: 8px;
+}
+
+.auto-cat-container {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.list-auto-cat-btn-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.list-header-year-filter.filter-group-auto-categorize {
+    flex-direction: column;    
+}
+.list-header-year-filter.filter-group-auto-categorize > * {
+    width: 100%;
+}
+.auto-cat-zero-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9em;
+  color: #888;
+  font-style: italic;
+}
+
+.list-header-sort-pills button,
+.list-header-year-filter button {
+  background-color: #3a3f4b;
+  color: #ccc;
+  border: 1px solid #555;
+  border-radius: 15px;
+  padding: 4px 12px;
+  font-size: 0.8em;
   cursor: pointer;
-  font-size: 1.2em;
-  padding: 0 5px !important;
-  margin: 0 !important;
-  line-height: 1; /* Align the 'x' better vertically */
+  transition: all 0.2s ease;
+}
+
+.list-header-sort-pills button:hover,
+.list-header-year-filter button:hover {
+  background-color: #4a4f5b;
+}
+
+.list-header-sort-pills button.active,
+.list-header-year-filter button.active {
+  color: #fff !important;
+  border-color: #61dafb;
+  font-weight: bold;
+  box-shadow: 0 0 8px #61dafb, 0 0 4px #61dafb inset; /* Add a glow effect */
 }
 .list-header-actions button[title="Add New Task"] {
   font-weight: bold;
@@ -178,25 +249,6 @@
 
 .list-header-actions button[title="Clear All Words"] {
   font-size: 1.1em; /* Make trashcan slightly larger */
-}
-
-/* --- Priority List (Drag-and-Drop Area) --- */
-
-.priority-list {
-  flex-grow: 1;
-  background-color: #282c34;
-  border: 1px dashed #555;
-  padding: 5px;
-  overflow-y: auto; /* Add scroll for long lists */
-  min-height: 150px; /* Ensure the list is always visible */
-}
-
-.priority-list-main {
-  display: flex;
-  flex-direction: column;
-  gap: 10px; /* Space between list items */
-  width: 100%;
-  margin-bottom: 20px;
 }
 
 .priority-list-item {

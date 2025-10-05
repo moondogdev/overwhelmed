@@ -50,6 +50,22 @@
   white-space: nowrap; /* Prevent the pill from wrapping */
 }
 
+.accordion-subtitle .category-pill {
+  padding: 2px 8px;
+  font-size: 0.75em;
+}
+
+.account-pill {
+  background-color: #6c757d; /* A neutral gray */
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.account-pill .fas {
+  opacity: 0.8;
+}
+
 .accordion-main-title {
   font-size: 1em;
   font-weight: bold;

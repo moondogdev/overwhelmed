@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { Task, Category, ChecklistSection, ChecklistItem } from '../types';
 import { getContrastColor, getRelativeDateHeader, formatTimestamp, formatTime, } from '../utils';
 import { TaskAccordion, TaskAccordionHeader, Stopwatch, Dropdown } from './TaskComponents';
@@ -11,7 +11,7 @@ export function ListView() {
   const {
     tasks, completedTasks, setTasks, settings, setSettings, searchQuery, setSearchQuery, editingTaskId, setEditingTaskId,
     editingText, handleEditChange, handleEditKeyDown, editingViaContext, confirmingClearCompleted, handleClearAll,
-    handleCopyList, handleClearCompleted, handleCompleteTask, moveTask, removeTask, handleTaskUpdate, handleAccordionToggle, setSelectedTaskIds,
+    handleCopyList, handleClearCompleted, handleCompleteTask, moveTask, removeTask, handleTaskUpdate, handleAccordionToggle, setSelectedTaskIds, handleAutoCategorize,
     handleReopenTask, handleDuplicateTask, handleTogglePause, setActiveCategoryId, handleNextTask, handlePreviousTask,
     setActiveSubCategoryId, focusAddTaskInput, setNewTask, setFullTaskViewId, searchInputRef, sortSelectRef, selectedTaskIds, handleToggleTaskSelection,
     activeChecklistRef, showToast, setInboxMessages, handleChecklistCompletion, focusChecklistItemId,
@@ -20,13 +20,30 @@ export function ListView() {
   } = useAppContext();
 
   const activeCategoryId = settings.activeCategoryId ?? 'all';
+  const activeAccountId = settings.activeAccountId ?? 'all';
+  const activeTransactionTypeFilter = settings.activeTransactionTypeFilter ?? 'all';
   const activeSubCategoryId = settings.activeSubCategoryId ?? 'all';
+  const [selectedYear, setSelectedYear] = useState<'all' | number>('all');
 
   const parentCategories = settings.categories.filter(c => !c.parentId);
   const subCategoriesForActive = activeCategoryId !== 'all' ? settings.categories.filter(c => c.parentId === activeCategoryId) : [];
 
+  const isTransactionsView = useMemo(() => {
+    const parentCategory = settings.categories.find(c => c.name === 'Transactions');
+    if (!parentCategory) return false;
+    if (activeCategoryId === parentCategory.id) return true;
+    
+    const activeCat = settings.categories.find(c => c.id === activeCategoryId);
+    if (activeCat?.parentId === parentCategory.id) return true;
+
+    const activeSubCat = settings.categories.find(c => c.id === activeSubCategoryId);
+    if (activeSubCat?.parentId === parentCategory.id) return true;
+
+    return false;
+  }, [activeCategoryId, activeSubCategoryId, settings.categories]);
+
   const filteredTasks = useMemo(() => {
-    const filtered = tasks.filter(task => {
+    let filtered = tasks.filter(task => {
       if (activeCategoryId === 'all' && !searchQuery) return true;
 
       const matchesSearch = searchQuery ? task.text.toLowerCase().includes(searchQuery.toLowerCase()) : true;
@@ -46,6 +63,26 @@ export function ListView() {
       return categoryIdsToShow.includes(task.categoryId);
     });
 
+    // NEW: Add year filtering for transactions view
+    if (isTransactionsView && selectedYear !== 'all') {
+      filtered = filtered.filter(task => {
+        return new Date(task.openDate).getFullYear() === selectedYear;
+      });
+    }
+
+    // NEW: Add account filtering for transactions view
+    if (isTransactionsView && activeAccountId !== 'all') {
+      filtered = filtered.filter(task => task.accountId === activeAccountId);
+    }
+
+    // NEW: Add income/expense filtering for transactions view
+    if (isTransactionsView && activeTransactionTypeFilter !== 'all') {
+      if (activeTransactionTypeFilter === 'income') {
+        filtered = filtered.filter(task => (task.transactionAmount || 0) > 0);
+      } else if (activeTransactionTypeFilter === 'expense') {
+        filtered = filtered.filter(task => (task.transactionAmount || 0) < 0);
+      }
+    }
     const currentSortConfig = settings.prioritySortConfig?.[String(activeCategoryId)] || null;
     if (currentSortConfig) {
       filtered.sort((a, b) => {
@@ -59,18 +96,31 @@ export function ListView() {
           const priorityOrder = { 'High': 1, 'Medium': 2, 'Low': 3 };
           aValue = priorityOrder[a.priority || 'Medium'];
           bValue = priorityOrder[b.priority || 'Medium'];
+        } else if (currentSortConfig.key === 'text') {
+          // Special case for case-insensitive string sorting
+          aValue = a.text.toLowerCase();
+          bValue = b.text.toLowerCase();
+        } else if (currentSortConfig.key === 'price') {
+          // For 'price', prioritize transactionAmount, then fall back to calculated earnings.
+          aValue = a.transactionAmount && a.transactionAmount !== 0 
+            ? Math.abs(a.transactionAmount) 
+            : ((a.manualTime || 0) / (1000 * 60 * 60)) * (a.payRate || 0);
+          
+          bValue = b.transactionAmount && b.transactionAmount !== 0
+            ? Math.abs(b.transactionAmount)
+            : ((b.manualTime || 0) / (1000 * 60 * 60)) * (b.payRate || 0);
         } else {
           aValue = a[currentSortConfig.key as keyof Task] || 0;
           bValue = b[currentSortConfig.key as keyof Task] || 0;
         }
 
-        if (aValue < bValue) return currentSortConfig.direction === 'ascending' ? -1 : 1;
-        if (aValue > bValue) return currentSortConfig.direction === 'ascending' ? 1 : -1;
+        if (aValue < bValue) return currentSortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return currentSortConfig.direction === 'asc' ? 1 : -1;
         return 0;
       });
     }
     return filtered;
-  }, [tasks, activeCategoryId, activeSubCategoryId, searchQuery, settings.categories, settings.prioritySortConfig]);
+  }, [tasks, activeCategoryId, activeSubCategoryId, searchQuery, settings.categories, settings.prioritySortConfig, selectedYear, activeAccountId, activeTransactionTypeFilter, isTransactionsView]);
 
   const filteredCompletedTasks = useMemo(() => {
     return completedTasks.filter(task => {
@@ -117,6 +167,13 @@ export function ListView() {
     setSelectedTaskIds(prev => allVisibleSelected ? prev.filter(id => !visibleIdsSet.has(id)) : [...new Set([...prev, ...visibleTaskIds])]);
   };
 
+  const handleSortPillClick = (key: string, direction: 'asc' | 'desc') => {
+    const newSortConfig = { ...settings.prioritySortConfig };
+    newSortConfig[String(activeCategoryId)] = { key: key as any, direction: direction as any };
+    setSettings(prev => ({ ...prev, prioritySortConfig: newSortConfig }));
+    if (sortSelectRef.current) sortSelectRef.current.value = `${key}-${direction}`;
+  };
+
   // --- Logic for "Select All" in Completed Tasks (Moved to top level) ---
   const selectAllCompletedCheckboxRef = useRef<HTMLInputElement>(null);
 
@@ -143,11 +200,78 @@ export function ListView() {
     setSelectedTaskIds(prev => allCompletedVisibleSelected ? prev.filter(id => !visibleIdsSet.has(id)) : [...new Set([...prev, ...visibleIdsSet])]);
   };
 
+  const transactionTotal = useMemo(() => {
+    return filteredTasks.reduce((sum, task) => sum + (task.transactionAmount || 0), 0);
+  }, [filteredTasks]);
+
+  const tasksForAccountCounting = useMemo(() => {
+    if (!isTransactionsView) return [];
+
+    let filtered = tasks.filter(task => {
+      const matchesSearch = searchQuery ? task.text.toLowerCase().includes(searchQuery.toLowerCase()) : true;
+      if (!matchesSearch) return false;
+
+      if (activeCategoryId === 'all') return true;
+
+      // If a sub-category is selected, only count tasks within it.
+      if (activeSubCategoryId !== 'all') {
+        return task.categoryId === activeSubCategoryId;
+      }
+
+      // Otherwise, count tasks in the parent category and all its sub-categories.
+      const parentCategory = settings.categories.find(c => c.id === activeCategoryId);
+      const subCategoryIds = settings.categories.filter(sc => sc.parentId === parentCategory?.id).map(sc => sc.id);
+      return task.categoryId === activeCategoryId || subCategoryIds.includes(task.categoryId);
+    });
+    return filtered;
+  }, [tasks, activeCategoryId, activeSubCategoryId, searchQuery, settings.categories, isTransactionsView]);
+
+  const transactionYears = useMemo(() => {
+    if (!isTransactionsView) return [];
+    const years = new Set<number>();
+    tasks.forEach(task => {
+      if (task.transactionAmount && task.transactionAmount !== 0) {
+        years.add(new Date(task.openDate).getFullYear());
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a); // Sort descending
+  }, [tasks, isTransactionsView]);
+
+  const autoCategorizeCounts = useMemo(() => {
+    if (!isTransactionsView) return {};
+
+    const transactionsCategory = settings.categories.find(c => c.name === 'Transactions');
+    if (!transactionsCategory) return {};
+
+    const subCategoriesWithKeywords = settings.categories.filter(
+      c => c.parentId === transactionsCategory.id && c.autoCategorizationKeywords && c.autoCategorizationKeywords.length > 0
+    );
+
+    const counts: { [key: string]: number } = {};
+    let totalCategorizable = 0;
+    const categorizableIds = new Set<number>();
+
+    for (const subCat of subCategoriesWithKeywords) {
+      counts[subCat.id] = 0;
+      for (const task of filteredTasks) {
+        // A task is a candidate if it's not already in this sub-category and its text matches a keyword.
+        if (task.categoryId !== subCat.id && (subCat.autoCategorizationKeywords || []).some(kw => task.text.toLowerCase().includes(kw.toLowerCase().trim()))) {
+          counts[subCat.id]++;
+          if (!categorizableIds.has(task.id)) {
+            categorizableIds.add(task.id);
+          }
+        }
+      }
+    }
+    counts['all'] = categorizableIds.size;
+    return counts;
+  }, [filteredTasks, settings.categories, isTransactionsView]);
+
   return (
     <div className="list-view-container">
       <div className="category-tabs">
         <button
-          onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); setSearchQuery(''); }}
+          onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); setSearchQuery(''); setSelectedYear('all'); setSettings(prev => ({ ...prev, activeAccountId: 'all', activeTransactionTypeFilter: 'all' })); }}
           className={`all-category-btn ${activeCategoryId === 'all' ? 'active' : ''}`}
           style={{
             backgroundColor: settings.allCategoryColor || '#4a4f5b',
@@ -162,7 +286,7 @@ export function ListView() {
           return (
             <button
               key={cat.id}
-              onClick={() => { setActiveCategoryId(cat.id); setActiveSubCategoryId('all'); setSearchQuery(''); }}
+              onClick={() => { setActiveCategoryId(cat.id); setActiveSubCategoryId('all'); setSearchQuery(''); setSelectedYear('all'); setSettings(prev => ({ ...prev, activeAccountId: 'all', activeTransactionTypeFilter: 'all' })); }}
               className={activeCategoryId === cat.id ? 'active' : ''}
               style={{
                 backgroundColor: cat.color || 'transparent',
@@ -181,7 +305,7 @@ export function ListView() {
             const totalCount = tasks.filter(t => t.categoryId === parentCategory?.id || (t.categoryId && subCatIds.includes(t.categoryId))).length;
             return (
               <button
-                onClick={() => { setActiveSubCategoryId('all'); setSearchQuery(''); }}
+                onClick={() => { setActiveSubCategoryId('all'); setSearchQuery(''); setSelectedYear('all'); setSettings(prev => ({ ...prev, activeAccountId: 'all', activeTransactionTypeFilter: 'all' })); }}
                 className={`all-category-btn ${activeSubCategoryId === 'all' ? 'active' : ''}`}
                 style={{
                   backgroundColor: parentCategory?.color || '#3a3f4b',
@@ -192,17 +316,18 @@ export function ListView() {
           })()}
           {subCategoriesForActive.map(subCat => {
             const count = tasks.filter(t => t.categoryId === subCat.id).length;
-            return <button
-              key={subCat.id}
-              onClick={() => { setActiveSubCategoryId(subCat.id); setSearchQuery(''); }}
-              className={activeSubCategoryId === subCat.id ? 'active' : ''}
-              style={{
-                backgroundColor: subCat.color || '#3a3f4b',
-                color: getContrastColor(subCat.color || '#3a3f4b')
-              }}
-            >
-              {subCat.name} ({count})
-            </button>
+            // For transactions view, hide sub-categories with 0 count to reduce clutter.
+            if (isTransactionsView && count === 0) {
+              return null;
+            }
+            return (
+              <button key={subCat.id} onClick={() => { setActiveSubCategoryId(subCat.id); setSearchQuery(''); setSelectedYear('all'); setSettings(prev => ({ ...prev, activeAccountId: 'all', activeTransactionTypeFilter: 'all' })); }} className={activeSubCategoryId === subCat.id ? 'active' : ''} style={{
+                  backgroundColor: subCat.color || '#3a3f4b',
+                  color: getContrastColor(subCat.color || '#3a3f4b')
+                }}>
+                {subCat.name} ({count})
+              </button>
+            );
           })}
         </div>
       )}
@@ -222,6 +347,121 @@ export function ListView() {
           />
           <button className="clear-search-btn" onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }} title="Clear Search"><i className="fas fa-times"></i></button>
         </div>
+        <div className="list-header-sort">
+          <label>Sort by:
+            <select ref={sortSelectRef}
+              onChange={(e) => {
+                const value = e.target.value;
+                const newSortConfig = { ...settings.prioritySortConfig };
+                if (value === 'none') {
+                  newSortConfig[String(activeCategoryId)] = null;
+                } else {
+                  const [key, direction] = value.split('-');
+                  newSortConfig[String(activeCategoryId)] = { key: key as any, direction: direction as any };
+                }
+                setSettings(prev => ({ ...prev, prioritySortConfig: newSortConfig }));
+              }}
+              value={settings.prioritySortConfig?.[String(activeCategoryId)] ? `${settings.prioritySortConfig[String(activeCategoryId)].key}-${settings.prioritySortConfig[String(activeCategoryId)].direction}` : 'none'}
+            >
+              <option value="none">Default (Manual)</option>
+              <option value="completeBy-asc">Due Date (Soonest First)</option>
+              <option value="text-asc">Task Name (A-Z)</option>
+              <option value="text-desc">Task Name (Z-A)</option>
+              <option value="priority-asc">Priority (High to Low)</option>
+              <option value="openDate-desc">Open Date (Newest First)</option>
+              <option value="openDate-asc">Open Date (Oldest First)</option>
+              <option value="timeOpen-desc">Time Open (Longest First)</option>
+              <option value="price-desc">Price (Highest First)</option>
+              <option value="price-asc">Price (Lowest First)</option>
+            </select>
+          </label>
+        </div>
+        <div className="list-header-sort-pills">
+          {settings.prioritySortConfig?.[String(activeCategoryId)] && (
+            <button className="clear-sort-btn" onClick={() => { setSettings(prev => ({ ...prev, prioritySortConfig: { ...prev.prioritySortConfig, [String(activeCategoryId)]: null } })); if (sortSelectRef.current) sortSelectRef.current.value = 'none'; }} title="Clear Sort"><i className="fas fa-times"></i></button>
+          )}
+          {(() => {
+            const activeCategory = settings.categories.find(c => c.id === activeCategoryId);
+            if (activeCategory?.name === 'Transactions') {
+              const currentSort = settings.prioritySortConfig?.[String(activeCategoryId)];
+              const isActive = (key: keyof Task | 'price', dir: string) => currentSort?.key === key && currentSort?.direction === dir;
+              return (
+                <>
+                  <span className="list-filter-title">Quick Sort:</span>
+                  <button className={isActive('price', 'desc') ? 'active' : ''} onClick={() => handleSortPillClick('price', 'desc')}>Price (Highest)</button>
+                  <button className={isActive('price', 'asc') ? 'active' : ''} onClick={() => handleSortPillClick('price', 'asc')}>Price (Lowest)</button>
+                  <button className={isActive('openDate', 'desc') ? 'active' : ''} onClick={() => handleSortPillClick('openDate', 'desc')}>Date (Newest)</button>
+                  <button className={isActive('openDate', 'asc') ? 'active' : ''} onClick={() => handleSortPillClick('openDate', 'asc')}>Date (Oldest)</button>
+                  <button className={isActive('text', 'asc') ? 'active' : ''} onClick={() => handleSortPillClick('text', 'asc')}>Name (A-Z)</button>
+                  <button className={isActive('text', 'desc') ? 'active' : ''} onClick={() => handleSortPillClick('text', 'desc')}>Name (Z-A)</button>
+                </>
+              );
+            }
+            return null;
+          })()}
+        </div>
+        {isTransactionsView && (
+          <div className="list-header-year-filter filter-group-auto-categorize">
+            {(autoCategorizeCounts['all'] || 0) > 0 && (
+              <>
+                <div className="list-filter-title-container">
+                  <span className="list-filter-title">Auto-Categorize:</span>
+                </div>
+                <div className="list-auto-cat-btn-container">
+                  {settings.categories
+                    .filter(c => c.parentId === settings.categories.find(p => p.name === 'Transactions')?.id && (autoCategorizeCounts[c.id] || 0) > 0)
+                    .map(subCat => (
+                      <button key={subCat.id} onClick={() => handleAutoCategorize(filteredTasks.map(t => t.id), subCat.id)} title={`Categorize based on "${subCat.name}" keywords`}>
+                        {subCat.name} ({autoCategorizeCounts[subCat.id] || 0})
+                      </button>
+                    ))}
+                </div>
+                <div className="list-auto-cat-all-container">
+                  <button onClick={() => handleAutoCategorize(filteredTasks.map(t => t.id))} title="Run all auto-categorization rules"><i className="fas fa-magic"></i> Auto-Categorize All ({autoCategorizeCounts['all'] || 0})</button>
+                </div>
+              </>
+            )}
+            {(autoCategorizeCounts['all'] || 0) === 0 && (
+              <div className="auto-cat-zero-state">
+                <span>All visible transactions are categorized.</span>
+                <button onClick={() => setSettings(prev => ({ ...prev, openAccordionIds: [...new Set([...prev.openAccordionIds, -3])] }))}>Add Keywords</button>
+              </div>
+            )}
+          </div>
+        )}
+        {isTransactionsView && transactionYears.length > 1 && (
+          <div className="list-header-year-filter filter-group-year">
+            <span className="list-filter-title">Filter by Year:</span><button className={selectedYear === 'all' ? 'active' : ''} onClick={() => setSelectedYear('all')}>All Years</button>
+            {transactionYears.map(year => (
+              <button key={year} className={selectedYear === year ? 'active' : ''} onClick={() => setSelectedYear(year)}>{year}</button>
+            ))}
+          </div>
+        )}
+        {isTransactionsView && settings.accounts.length > 0 && (
+          <div className="list-header-year-filter filter-group-account">
+            <span className="list-filter-title">Filter by Account:</span><button className={activeAccountId === 'all' ? 'active' : ''} onClick={() => setSettings(prev => ({ ...prev, activeAccountId: 'all' }))}>
+              All Accounts ({tasksForAccountCounting.length})
+            </button>
+            {settings.accounts.map(account => (
+              <button key={account.id} className={activeAccountId === account.id ? 'active' : ''} onClick={() => setSettings(prev => ({ ...prev, activeAccountId: account.id }))}>
+                {account.name} ({tasksForAccountCounting.filter(t => t.accountId === account.id).length})
+              </button>
+            ))}
+          </div>
+        )}
+        {isTransactionsView && (
+          <div className="list-header-year-filter filter-group-transaction-type">
+            <span className="list-filter-title">Filter by Type:</span><button className={activeTransactionTypeFilter === 'all' ? 'active' : ''} onClick={() => setSettings(prev => ({ ...prev, activeTransactionTypeFilter: 'all' }))}>
+              All Types ({tasksForAccountCounting.filter(t => activeAccountId === 'all' || t.accountId === activeAccountId).length})
+            </button>
+            <button className={activeTransactionTypeFilter === 'income' ? 'active' : ''} onClick={() => setSettings(prev => ({ ...prev, activeTransactionTypeFilter: 'income' }))}>
+              Income ({tasksForAccountCounting.filter(t => (t.transactionAmount || 0) > 0 && (activeAccountId === 'all' || t.accountId === activeAccountId)).length})
+            </button>
+            <button className={activeTransactionTypeFilter === 'expense' ? 'active' : ''} onClick={() => setSettings(prev => ({ ...prev, activeTransactionTypeFilter: 'expense' }))}>
+              Expense ({tasksForAccountCounting.filter(t => (t.transactionAmount || 0) < 0 && (activeAccountId === 'all' || t.accountId === activeAccountId)).length})
+            </button>
+          </div>
+        )}
       </div>
       {filteredTasks.length > 0 ? (
         <>
@@ -235,6 +475,11 @@ export function ListView() {
                 const parentCategory = settings.categories.find(c => c.id === activeCategoryId);;
                 return `${parentCategory?.name || 'Category'}: Priority List`;
               })()} ({filteredTasks.length})
+              {isTransactionsView && (
+                <span className={`transaction-total-pill ${transactionTotal >= 0 ? 'income' : 'expense'}`}>
+                  Total: ${transactionTotal.toFixed(2)}
+                </span>
+              )}
             </h3>
             <div className="list-header-actions" onContextMenu={(e) => { e.stopPropagation(); }}>
               <button className="icon-button" onClick={handleClearAll} title="Clear All Tasks"><i className="fas fa-trash"></i></button>
@@ -254,35 +499,9 @@ export function ListView() {
               <button className="icon-button" onClick={() => setSettings(prev => ({ ...prev, openAccordionIds: [] }))} title="Collapse All"><i className="fas fa-folder"></i></button>
             </div>
           </div>
-          <div className="list-header-sort">
-            <label>Sort by:
-              <select ref={sortSelectRef} 
-              onChange={(e) => {
-                const value = e.target.value;
-                const newSortConfig = { ...settings.prioritySortConfig };
-                if (value === 'none') {
-                  newSortConfig[String(activeCategoryId)] = null;
-                } else {
-                  const [key, direction] = value.split('-');
-                  newSortConfig[String(activeCategoryId)] = { key: key as any, direction: direction as any };
-                }
-                setSettings(prev => ({ ...prev, prioritySortConfig: newSortConfig }));
-              }} 
-              value={settings.prioritySortConfig?.[String(activeCategoryId)] ? `${settings.prioritySortConfig[String(activeCategoryId)].key}-${settings.prioritySortConfig[String(activeCategoryId)].direction}` : 'none'}
-              >
-                <option value="none">Default (Manual)</option>
-                <option value="completeBy-ascending">Due Date (Soonest First)</option>
-                <option value="priority-ascending">Priority (High to Low)</option>
-                <option value="openDate-descending">Open Date (Newest First)</option>
-                <option value="openDate-ascending">Open Date (Oldest First)</option>
-              </select>
-            </label>
-            {settings.prioritySortConfig?.[String(activeCategoryId)] && (
-              <button className="clear-sort-btn" onClick={() => { setSettings(prev => ({ ...prev, prioritySortConfig: { ...prev.prioritySortConfig, [String(activeCategoryId)]: null } })); if (sortSelectRef.current) sortSelectRef.current.value = 'none'; }} title="Clear Sort"><i className="fas fa-times"></i></button>
-            )}
-          </div>
+          
           <div className="priority-list-main">
-            {settings.prioritySortConfig?.[String(activeCategoryId)]?.key === 'completeBy' && settings.prioritySortConfig?.[String(activeCategoryId)]?.direction === 'ascending' ? (
+            {settings.prioritySortConfig?.[String(activeCategoryId)]?.key === 'completeBy' && settings.prioritySortConfig?.[String(activeCategoryId)]?.direction === 'asc' ? (
               (() => {
                 const tasksByDate = filteredTasks.reduce((acc, task) => {
                   // This is the corrected logic. It creates a date string based on the local timezone,

@@ -28,7 +28,12 @@ export const defaultSettings: Settings = {
     { name: 'GitHub', url: 'https://github.com/moondogdev/overwhelmed' },
   ],
   currentView: 'meme',
+  accounts: [ // Add default accounts
+    { id: 1, name: 'Personal' },
+    { id: 2, name: 'Business' },
+  ],
   activeCategoryId: 'all',
+  activeTransactionTypeFilter: 'all', // Default to showing all transaction types
   activeSubCategoryId: 'all',
   warningTime: 60, // Default to 60 minutes
   isSidebarVisible: true,
@@ -40,7 +45,7 @@ export const defaultSettings: Settings = {
   inboxSort: 'date-desc', // Default inbox sort  
   openInboxGroupTypes: [], // Default to no groups open
   taskTypes: [ // Default task types
-    { id: 'default', name: 'Default', fields: ['text', 'url', 'priority', 'categoryId', 'openDate', 'completeBy', 'company', 'websiteUrl', 'imageLinks', 'payRate', 'isRecurring', 'isDailyRecurring', 'isWeeklyRecurring', 'isMonthlyRecurring', 'isYearlyRecurring', 'isAutocomplete', 'description', 'attachments', 'checklist', 'notes'] as (keyof Task)[] },
+    { id: 'default', name: 'Default', fields: ['text', 'url', 'priority', 'categoryId', 'openDate', 'completeBy', 'company', 'websiteUrl', 'imageLinks', 'payRate', 'transactionAmount', 'transactionType', 'isRecurring', 'isDailyRecurring', 'isWeeklyRecurring', 'isMonthlyRecurring', 'isYearlyRecurring', 'isAutocomplete', 'description', 'attachments', 'checklist', 'notes'] as (keyof Task)[] },
     { id: 'billing', name: 'Billing', fields: ['text', 'payRate', 'manualTime', 'company', 'openDate', 'completeBy'] as (keyof Task)[] },
     { id: 'research', name: 'Research', fields: ['text', 'url', 'notes', 'description', 'attachments'] as (keyof Task)[] },
   ],
@@ -56,4 +61,5 @@ export const defaultSettings: Settings = {
     overdue: true,
     'timer-alert': true,
   },
+  autoCategorizeOnBulkAdd: false, // Default to off
 };

@@ -286,6 +286,7 @@ interface Task {
   completedDuration?: number; // The final duration when completed
   manualTime?: number; // Manually tracked time in ms
   payRate?: number; // Dollars per hour
+  transactionAmount?: number; // For financial tracking. Positive for income, negative for expense.
   isRecurring?: boolean;
   isDailyRecurring?: boolean;
   isWeeklyRecurring?: boolean;

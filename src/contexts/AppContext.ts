@@ -50,10 +50,18 @@ export interface AppContextType {
   setBulkAddPriority: React.Dispatch<React.SetStateAction<'High' | 'Medium' | 'Low'>>;
   bulkAddCompleteBy: string;
   setBulkAddCompleteBy: React.Dispatch<React.SetStateAction<string>>;
+  bulkAddTransactionType: 'none' | 'income' | 'expense';
+  setBulkAddTransactionType: React.Dispatch<React.SetStateAction<'none' | 'income' | 'expense'>>;
+  bulkAddAccountId: number | undefined;
+  setBulkAddAccountId: React.Dispatch<React.SetStateAction<number | undefined>>;
+  bulkAddYear: number;
+  setBulkAddYear: React.Dispatch<React.SetStateAction<number>>;
   selectedTaskIds: number[];
   setSelectedTaskIds: React.Dispatch<React.SetStateAction<number[]>>;
   isAddTaskOpen: boolean;
   setIsAddTaskOpen: (isOpen: boolean) => void;
+  selectedYear: 'all' | number;
+  setSelectedYear: React.Dispatch<React.SetStateAction<'all' | number>>;
   isWorkSessionManagerOpen: boolean;
   setIsWorkSessionManagerOpen: (isOpen: boolean) => void;
 
@@ -124,7 +132,7 @@ export interface AppContextType {
   navigateToTask: (taskId: number, sectionId?: number) => void;
   handleSaveProject: () => void;
   navigateToView: (view: 'meme' | 'list' | 'reports' | 'inbox') => void;  
-  handleBulkAdd: (options: { categoryId: number | 'default'; priority: 'High' | 'Medium' | 'Low'; completeBy?: string; }) => void;
+  handleBulkAdd: (options: { categoryId: number | 'default'; priority: 'High' | 'Medium' | 'Low'; completeBy?: string; transactionType?: 'none' | 'income' | 'expense', accountId?: number }, contextYear?: number) => void;
   handleBulkDelete: (taskIds: number[]) => void;
   handleBulkReopen: (taskIds: number[]) => void;
   handleBulkComplete: (taskIds: number[]) => void;
@@ -132,6 +140,9 @@ export interface AppContextType {
   handleBulkSetDueDate: (taskIds: number[], completeBy: number) => void;
   handleBulkDownloadAsCsv: (taskIds: number[]) => void;
   handleBulkCopyAsCsv: (taskIds: number[]) => void;
+  handleBulkSetAccount: (taskIds: number[], accountId: number) => void;
+  handleAutoCategorize: (taskIdsToProcess: number[], subCategoryIdToProcess?: number) => void;
+  handleSyncTransactionTypes: () => void;
   handleBulkSetCategory: (taskIds: number[], categoryId: number) => void;
   handleExport: () => void;
   handleImport: () => void;

@@ -20,13 +20,14 @@ interface StandaloneProps {
   handleAccordionToggle: (taskId: number) => void;
   focusAddTaskInput: () => void;
   handleBulkDelete: (taskIds: number[]) => void;
-  handleBulkAdd: (options: { categoryId: number | 'default'; priority: 'High' | 'Medium' | 'Low'; completeBy?: string; }) => void;
+  handleBulkAdd: (options: { categoryId: number | 'default'; priority: 'High' | 'Medium' | 'Low'; completeBy?: string; transactionType?: 'none' | 'income' | 'expense' }) => void;
   handleBulkReopen: (taskIds: number[]) => void;
   handleBulkComplete: (taskIds: number[]) => void;
   handleBulkSetPriority: (taskIds: number[], priority: 'High' | 'Medium' | 'Low') => void;
   handleBulkSetDueDate: (taskIds: number[], completeBy: number) => void;
   handleBulkDownloadAsCsv: (taskIds: number[]) => void;
   handleBulkCopyAsCsv: (taskIds: number[]) => void;
+  handleBulkSetAccount: (taskIds: number[], accountId: number) => void;
   handleBulkSetCategory: (taskIds: number[], categoryId: number) => void;
   handleToggleTaskSelection: (taskId: number) => void;
   handleChecklistCompletion: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;

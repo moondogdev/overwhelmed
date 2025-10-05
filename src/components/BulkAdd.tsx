@@ -8,9 +8,21 @@ export function BulkAdd() {
     bulkAddText, setBulkAddText, handleBulkAdd,
     bulkAddCategoryId, setBulkAddCategoryId,
     bulkAddPriority, setBulkAddPriority,
-    bulkAddCompleteBy, setBulkAddCompleteBy,
+    bulkAddCompleteBy, setBulkAddCompleteBy, 
+    bulkAddTransactionType, setBulkAddTransactionType, bulkAddAccountId, setBulkAddAccountId,
+    bulkAddYear, setBulkAddYear,
     settings
   } = useAppContext();
+
+  const yearOptions = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let i = currentYear + 1; i >= currentYear - 5; i--) {
+      years.push(i);
+    }
+    return years.map(year => <option key={year} value={year}>{year}</option>);
+  };
+
   return (
     <SimpleAccordion title="Bulk Add Tasks">
       <div className="bulk-add-options">
@@ -33,14 +45,39 @@ export function BulkAdd() {
           Due Date:
           <input type="datetime-local" value={bulkAddCompleteBy} onChange={(e) => setBulkAddCompleteBy(e.target.value)} />
         </label>
+        <label>
+          Default Transaction Type:
+          <select value={bulkAddTransactionType} onChange={(e) => setBulkAddTransactionType(e.target.value as any)}>
+            <option value="none">None</option>
+            <option value="expense">Expense</option>
+            <option value="income">Income</option>
+          </select>
+        </label>
+        {bulkAddTransactionType !== 'none' && (
+          <label>
+            Account:
+            <select value={bulkAddAccountId || ''} onChange={(e) => setBulkAddAccountId(e.target.value ? Number(e.target.value) : undefined)}>
+              <option value="">-- Select Account --</option>
+              {settings.accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+            </select>
+          </label>
+        )}
       </div>
+      {bulkAddTransactionType !== 'none' && (
+        <label>
+          For Year:
+          <select value={bulkAddYear} onChange={(e) => setBulkAddYear(Number(e.target.value))}>
+            {yearOptions()}
+          </select>
+        </label>
+      )}
       <textarea
         placeholder="Add multiple tasks, separated by new lines or commas..."
         value={bulkAddText}
         onChange={(e) => setBulkAddText(e.target.value)}
         rows={5}
       />
-      <button onClick={() => handleBulkAdd({ categoryId: bulkAddCategoryId, priority: bulkAddPriority, completeBy: bulkAddCompleteBy })}>Add Tasks</button>
+      <button onClick={() => handleBulkAdd({ categoryId: bulkAddCategoryId, priority: bulkAddPriority, completeBy: bulkAddCompleteBy, transactionType: bulkAddTransactionType, accountId: bulkAddAccountId }, bulkAddYear)}>Add Tasks</button>
     </SimpleAccordion>
   );
 }

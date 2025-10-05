@@ -5,10 +5,32 @@ All notable changes to this project will be documented in this file. See `## Log
 ---
 
 ## Future Features
+-   ### **Finances**:
+    -   **Phase 4: Advanced Features**
+
+-   ### **Taxes & Budgeting**:
+    -   **Phase 1: Tax Helper Data Model & UI**
+        -   **Data Model**:
+            -   Add a new `taxCategoryId?: number` property to the `Task` interface.
+            -   Create a new `TaxCategory` interface with `id`, `name`, and `keywords: string[]`.
+            -   Add `taxCategories: TaxCategory[]` to the `Settings` interface.
+        -   **Management UI**:
+            -   Create a new `TaxCategoryManager.tsx` component in the sidebar. This will allow users to create/rename/delete tax categories and define their associated keywords, similar to the existing `TransactionAutocategorizeSettings`.
+        -   **Assignment UI**:
+            -   In `AddNewTaskForm.tsx` and the `TabbedView.tsx` edit mode, add a "Tax Category" dropdown that appears for any task with a transaction amount. This allows for manual assignment.
+    -   **Phase 2: Auto-Tagging Logic & Filtering**
+        -   **Auto-Tagging Handler**: Create a new `handleAutoTaxCategorize` handler in `useTaskState.ts`. This function will iterate through selected tasks and assign a `taxCategoryId` based on keyword matches in the task title, without changing the primary `categoryId`.
+        -   **Auto-Tagging UI**: In `ListView.tsx`, when viewing transactions, add a new UI section (similar to the current auto-categorize UI) that shows potential matches and allows users to trigger `handleAutoTaxCategorize` for all visible items.
+        -   **Filtering**: In `ListView.tsx`, add a new filter dropdown to the "Transactions" view to allow users to filter transactions by the new `taxCategoryId`.
+    -   **Phase 3: Reporting & Export**
+        -   **Reporting**: In `ReportsView.tsx`, add a new chart/table to the "Finances" tab that specifically groups and sums expenses by `taxCategoryId`, providing a clear overview of all deductible items.
+        -   **Export**: Update the CSV/TSV export functions (`handleBulkDownloadAsCsv`, `handleCopyTaskAsCsv`) to include a new "Tax Category" column.
+ 
 -   ### **Table View**: 
     -   Implement a new "Table View" for tasks, similar to a spreadsheet.
     -   Allow for inline editing of task properties (title, due date, priority, etc.) directly from the table cells.
     -   Include features like column sorting, filtering, and resizing.
+    -   Allow for bulk editing of task properties (title, due date, priority, etc.) directly from the table cells.
 
 -   ### **Checklist & Editor Enhancements**:
     -   **Paste Image into Rich Text Editor**: Allow pasting an image from the clipboard directly into the editor.
@@ -55,6 +77,7 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
+- **[1.0.28] - 2025-10-05: Financial Tracking & Reporting**: feat(finances): Implement comprehensive financial tracking and reporting.
 - **[1.0.27] - 2025-10-04: Checklist Hook Refactor**: refactor(checklist): Decompose monolithic `useChecklist` hook into smaller, single-responsibility hooks.
 - **[1.0.26] - 2025-10-04: Advanced Checklist Structuring & Organization**: feat(checklist): Implement content blocks, hierarchical sorting, nesting, bulk actions, and named hyperlinks.
 - **[1.0.25] - 2025-10-03: Inbox Expansion & Auto-Save Logic**: feat(core): Complete Inbox expansion and fix auto-save logic.
@@ -83,6 +106,60 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.28] - 2025-10-04: Financial Tracking & Reporting
+**feat(finances): Implement comprehensive financial tracking and reporting.**
+
+This is a major feature release that introduces a full suite of tools for tracking income and expenses directly within tasks, along with a powerful new reporting dashboard to visualize financial data.
+
+#### How to Use:
+1.  **Add a Transaction**: When creating or editing a task, use the new "Transaction" field. Enter an amount and toggle between "Income" and "Expense". The amount will appear as a colored pill (green for income, red for expense) in the task header.
+2.  **Bulk Import Transactions**: Use the "Bulk Add" feature to quickly import a list of transactions. Set a "Default Transaction Type" and then type or paste your list. The parser will automatically find monetary values (e.g., `Pay electric bill $75.50`, `Client payment +$500`).
+3.  **View Reports**: Navigate to the "Reports" view and click the new "Finances" tab. Here you will find a complete dashboard with summary cards, an income vs. expense pie chart, a cash flow line chart, and a detailed, sortable table of every transaction.
+
+#### Features:
+-   **Core Transaction Tracking (Phase 1)**:
+    -   Added a `transactionAmount` field to all tasks.
+    -   The "Add New Task" form now includes a "Transaction" input with an "Income/Expense" toggle.
+    -   Tasks with a transaction now display a color-coded currency pill in the list view for at-a-glance information.
+-   **Bulk Transaction Import (Phase 2)**:
+    -   The "Bulk Add" feature now includes a "Default Transaction Type" dropdown (`None`, `Income`, `Expense`).
+    -   The parser is now "money-aware" and can automatically extract monetary values (e.g., `$50`, `-$10.25`, `+100`) from each line, assigning them as transactions and cleaning the task title.
+-   **Financial Reporting Dashboard (Phase 3)**:
+    -   Created a new "Finances" tab in the `ReportsView`.
+    -   **Financial Summary**: Displays high-level cards for Total Income, Total Expenses, and Net Profit calculated from all tasks.
+    -   **Income vs. Expense Chart**: A new pie chart provides a clear visual breakdown of income versus expenses.
+    -   **Cash Flow Over Time**: A new line chart tracks daily income, expenses, and net cash flow, providing insight into financial trends.
+    -   **Transaction Log**: A detailed, sortable table lists every individual transaction, including the associated task, date, category, and amount.
+
+#### Features (Phase 4):
+-   **Account Management**:
+    -   Added a full `Account Manager` to the sidebar, allowing users to create, rename, and delete financial accounts (e.g., "Personal," "Business").
+    -   Tasks with transactions can now be assigned to a specific account.
+    -   The `Bulk Add` form now includes an option to assign all new transactions to a specific account.
+-   **Advanced Transaction Filtering**:
+    -   The main `List View` now includes powerful, context-aware filters when viewing the "Transactions" category.
+    -   Users can filter transactions by **Year**, **Account**, and **Type** (Income/Expense).
+-   **Transaction Auto-Categorization**:
+    -   A new "Transaction Autocategorize Settings" panel has been added to the sidebar.
+    -   Users can define comma-separated keywords for any sub-category under "Transactions" (e.g., "starbucks, dunkin" for a "Coffee" sub-category).
+    -   A new UI appears in the `List View` when viewing uncategorized transactions, allowing users to auto-categorize all visible items with a single click.
+    -   A new setting, "Auto-categorize on Bulk Add," automatically runs these rules on new transactions imported via the bulk add feature.
+
+#### Fixed & UI/UX Improvements:
+-   **Dynamic Filter Counts**: The filter counts in the "Finances" report now dynamically update based on the current selection, ensuring all numbers are accurate and context-aware.
+-   **UI Flicker Fix**: Resolved a UI flicker that occurred when switching to the "Finances" tab by pre-selecting the "Transactions" category in a single state update.
+-   **Streamlined Filter UI**:
+    -   The redundant "Transactions" category tab in the "Finances" report has been replaced with a cleaner title.
+    -   Sub-category filter buttons with a zero count are now hidden to reduce clutter.
+    -   The "Filter by Type" buttons have been styled as distinct pills to differentiate them from other filter groups.
+-   **Context-Aware Lifetime Summary**: The "Lifetime Summary" at the top of the reports view now intelligently displays a financial overview (Income, Expenses, Net) when on the "Finances" tab.
+-   **TypeScript & Prop-Drilling Fixes**: Resolved numerous TypeScript errors related to missing props and incorrect type definitions that arose during the feature's development, ensuring component stability.
+
+#### Summary
+This update integrates powerful yet simple financial tracking directly into the task management workflow. From individual entries to bulk imports and a comprehensive reporting dashboard, users now have a complete toolset to monitor their financial activity alongside their productivity.
 
 ---
 

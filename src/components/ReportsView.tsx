@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
-import { Task, Category } from '../types';
+import { Task, Category, Account } from '../types';
 import { formatTime, formatTimestamp } from '../utils';
 import './styles/ReportsView.css';
 import { useAppContext } from '../contexts/AppContext';
@@ -23,7 +23,7 @@ const renderCustomizedLabel = (props: any) => {
 };
 
 // --- Sub-Components ---
-function ReportFilters({ startDate, setStartDate, endDate, setEndDate, onExportCsv, exportDisabled = false, categories, activeCategoryId, setActiveCategoryId, activeSubCategoryId, setActiveSubCategoryId, dateFilteredTasks }: {
+function ReportFilters({ startDate, setStartDate, endDate, setEndDate, onExportCsv, exportDisabled = false, categories, activeCategoryId, setActiveCategoryId, activeSubCategoryId, activeTab, accounts, activeAccountId, setActiveAccountId, activeTransactionTypeFilter, setActiveTransactionTypeFilter, tasksForCounting, setActiveSubCategoryId, dateFilteredTasks }: {
   startDate: string;
   setStartDate: (val: string) => void;
   endDate: string;
@@ -34,6 +34,13 @@ function ReportFilters({ startDate, setStartDate, endDate, setEndDate, onExportC
   activeCategoryId: number | 'all';
   setActiveCategoryId: (id: number | 'all') => void;
   activeSubCategoryId: number | 'all';
+  activeTransactionTypeFilter: 'all' | 'income' | 'expense';
+  setActiveTransactionTypeFilter: (type: 'all' | 'income' | 'expense') => void;
+  tasksForCounting: Task[];
+  activeTab: string;
+  accounts: Account[];
+  activeAccountId: number | 'all';
+  setActiveAccountId: (id: number | 'all') => void;
   setActiveSubCategoryId: (id: number | 'all') => void;
   dateFilteredTasks: Task[];
 }) {
@@ -58,20 +65,26 @@ function ReportFilters({ startDate, setStartDate, endDate, setEndDate, onExportC
           Export to CSV
         </button>
       </div>
-      <div className="category-tabs">
-        <button onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); }} className={activeCategoryId === 'all' ? 'active' : ''}>
-          All ({dateFilteredTasks.length})
-        </button>
-        {parentCategories.map((cat: Category) => {
-          const subCatIds = categories.filter(sc => sc.parentId === cat.id).map(sc => sc.id);
-          const count = dateFilteredTasks.filter(t => t.categoryId === cat.id || (t.categoryId && subCatIds.includes(t.categoryId))).length;
-          return (
-            <button key={cat.id} onClick={() => { setActiveCategoryId(cat.id); setActiveSubCategoryId('all'); }} className={activeCategoryId === cat.id ? 'active' : ''}>
-              {cat.name} ({count})
-            </button>
-          );
-        })}
-      </div>
+      {activeTab !== 'finances' ? (
+        <div className="category-tabs">
+          <button onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); }} className={activeCategoryId === 'all' ? 'active' : ''}>
+            All ({dateFilteredTasks.length})
+          </button>
+          {parentCategories.map((cat: Category) => {
+            const subCatIds = categories.filter(sc => sc.parentId === cat.id).map(sc => sc.id);
+            const count = dateFilteredTasks.filter(t => t.categoryId === cat.id || (t.categoryId && subCatIds.includes(t.categoryId))).length;
+            return (
+              <button key={cat.id} onClick={() => { setActiveCategoryId(cat.id); setActiveSubCategoryId('all'); }} className={activeCategoryId === cat.id ? 'active' : ''}>
+                {cat.name} ({count})
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="report-filter-title-container">
+          <h4 className="report-filter-title">Filter by Category:</h4>
+        </div>
+      )}
       {subCategoriesForActive.length > 0 && (
         <div className="sub-category-tabs">
           {(() => {
@@ -84,10 +97,44 @@ function ReportFilters({ startDate, setStartDate, endDate, setEndDate, onExportC
           })()}
           {subCategoriesForActive.map(subCat => {
             const count = dateFilteredTasks.filter(t => t.categoryId === subCat.id).length;
-            return <button key={subCat.id} onClick={() => setActiveSubCategoryId(subCat.id)} className={activeSubCategoryId === subCat.id ? 'active' : ''}>
-              {subCat.name} ({count})
-            </button>
+            if (activeTab === 'finances' && count === 0) {
+              return null;
+            }
+            return (
+              <button key={subCat.id} onClick={() => setActiveSubCategoryId(subCat.id)} className={activeSubCategoryId === subCat.id ? 'active' : ''}>
+                {subCat.name} ({count})
+              </button>
+            );
           })}
+        </div>
+      )}
+      {activeTab === 'finances' && accounts.length > 0 && (
+        <div className="category-tabs">
+          <button onClick={() => setActiveAccountId('all')} className={activeAccountId === 'all' ? 'active' : ''}>
+            All Accounts ({tasksForCounting.filter(t => t.transactionAmount).length})
+          </button>
+          {accounts.map(account => {
+            const count = tasksForCounting.filter(t => t.accountId === account.id).length;
+            return (<button key={account.id} onClick={() => setActiveAccountId(account.id)} className={activeAccountId === account.id ? 'active' : ''}>{account.name} ({count})</button>);
+          })}
+        </div>
+      )}
+      {activeTab === 'finances' && (
+        <div className="report-filter-group filter-group-transaction-type" style={{border: '0px solid var(--border-color)'}}>
+          {
+            //<span className="list-filter-title" style={{alignSelf: 'center'}}>Filter by Type:</span>
+          }
+          <div className="category-tabs">
+            <button onClick={() => setActiveTransactionTypeFilter('all')} className={activeTransactionTypeFilter === 'all' ? 'active' : ''}>
+              All ({tasksForCounting.filter(t => t.transactionAmount && (activeAccountId === 'all' || t.accountId === activeAccountId)).length})
+            </button>
+            <button onClick={() => setActiveTransactionTypeFilter('income')} className={activeTransactionTypeFilter === 'income' ? 'active' : ''}>
+              Income ({tasksForCounting.filter(t => (t.transactionAmount || 0) > 0 && (activeAccountId === 'all' || t.accountId === activeAccountId)).length})
+            </button>
+            <button onClick={() => setActiveTransactionTypeFilter('expense')} className={activeTransactionTypeFilter === 'expense' ? 'active' : ''}>
+              Expense ({tasksForCounting.filter(t => (t.transactionAmount || 0) < 0 && (activeAccountId === 'all' || t.accountId === activeAccountId)).length})
+            </button>
+          </div>
         </div>
       )}
     </>
@@ -96,27 +143,71 @@ function ReportFilters({ startDate, setStartDate, endDate, setEndDate, onExportC
 
 // --- Main Exported Component ---
 export function ReportsView() {
-  const { completedTasks, settings, showToast } = useAppContext();
+  const { tasks, completedTasks, settings, showToast } = useAppContext();
   const { categories } = settings;
 
+  const [activeAccountId, setActiveAccountId] = useState<number | 'all'>('all');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [activeTab, setActiveTab] = useState('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'earnings' | 'activity' | 'raw' | 'history' | 'finances'>('summary');
   const [activeCategoryId, setActiveCategoryId] = useState<number | 'all'>('all');
   const [activeSubCategoryId, setActiveSubCategoryId] = useState<number | 'all'>('all');
+  const [activeTransactionTypeFilter, setActiveTransactionTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [sortConfig, setSortConfig] = useState<{ key: keyof Task | 'earnings' | 'categoryName' | 'completionDate', direction: 'ascending' | 'descending' } | null>({ key: 'completionDate', direction: 'descending' });
+  const [transactionSortConfig, setTransactionSortConfig] = useState<{ key: keyof Task | 'categoryName' | 'transactionAmount', direction: 'ascending' | 'descending' }>({ key: 'openDate', direction: 'descending' });
 
   const [historyCount, setHistoryCount] = useState<number>(20);
 
+  const handleTabChange = (tab: 'summary' | 'earnings' | 'activity' | 'raw' | 'history' | 'finances') => {
+    setActiveTab(tab);
+    if (tab === 'finances') {
+      const transactionsCategory = categories.find(c => c.name === 'Transactions');
+      if (transactionsCategory) {
+        setActiveCategoryId(transactionsCategory.id);
+      }
+    } else {
+      // Reset filters when leaving the finances tab
+      setActiveAccountId('all');
+      setActiveCategoryId('all');
+      setActiveTransactionTypeFilter('all');
+    }
+    setActiveSubCategoryId('all');
+  };
+
+  const categoriesForFilter = useMemo(() => {
+    if (activeTab !== 'finances') {
+      return categories; // For all other tabs, show all categories.
+    }
+
+    // For the Finances tab, only show the "Transactions" category and its children.
+    const transactionsCategory = categories.find(c => c.name === 'Transactions');
+    if (!transactionsCategory) {
+      return []; // Return empty if "Transactions" category doesn't exist.
+    }
+
+    return [transactionsCategory, ...categories.filter(c => c.parentId === transactionsCategory.id)];
+  }, [activeTab, categories]);
+
   // First, filter by date range
-  const dateFilteredTasks = completedTasks.filter(task => {
-    if (!task.completedDuration) return false;
-    const completionTime = task.createdAt + task.completedDuration;
-    const start = startDate ? new Date(startDate).getTime() : 0;
-    // Set end date to the end of the selected day
-    const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
-    return completionTime >= start && completionTime <= end;
-  });
+  const dateFilteredTasks = useMemo(() => {
+    // For finances, we want to filter ALL tasks (open and completed) by their openDate.
+    // For other reports, we filter COMPLETED tasks by their completionDate.
+    const sourceTasks = activeTab === 'finances' ? [...tasks, ...completedTasks] : completedTasks;
+
+    return sourceTasks.filter(task => {
+      let taskDate: number;
+      if (activeTab === 'finances') {
+        taskDate = task.openDate; // Use openDate for transactions
+      } else {
+        if (!task.completedDuration) return false;
+        taskDate = task.createdAt + task.completedDuration; // Use completionDate for other reports
+      }
+
+      const start = startDate ? new Date(startDate).getTime() : 0;
+      const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
+      return taskDate >= start && taskDate <= end;
+    });
+  }, [tasks, completedTasks, startDate, endDate, activeTab]);
 
   // Then, filter by the selected category
   const filteredCompletedTasks = dateFilteredTasks.filter(task => {
@@ -131,6 +222,23 @@ export function ReportsView() {
     const categoryIdsToShow = [parentId, ...subCategoriesForActive.map(sc => sc.id)];
     return categoryIdsToShow.includes(task.categoryId);
   });
+
+  const tasksForFinanceCounts = useMemo(() => {
+    if (activeTab !== 'finances') return [];
+
+    if (activeCategoryId === 'all' || (categories.find(c => c.id === activeCategoryId)?.name !== 'Transactions')) {
+      return dateFilteredTasks;
+    }
+
+    const activeCategory = categories.find(c => c.id === activeCategoryId);
+    const parentId = activeCategory?.parentId || activeCategoryId;
+    const subCategoriesForActive = categories.filter(c => c.parentId === parentId);
+
+    if (activeSubCategoryId !== 'all') return dateFilteredTasks.filter(task => task.categoryId === activeSubCategoryId);
+
+    const categoryIdsToShow = [parentId, ...subCategoriesForActive.map(sc => sc.id)];
+    return dateFilteredTasks.filter(task => categoryIdsToShow.includes(task.categoryId));
+  }, [dateFilteredTasks, activeTab, activeCategoryId, activeSubCategoryId, categories]);
 
   // Then, sort the data for the table
   const sortedFilteredTasks = useMemo(() => {
@@ -178,6 +286,135 @@ export function ReportsView() {
   // Calculate grand total time tracked from ALL completed tasks, ignoring filters
   const grandTotalTimeTracked = completedTasks.reduce((sum, task) => sum + (task.manualTime || 0), 0);
 
+  // --- NEW: Lifetime Financial Summary Calculation ---
+  const lifetimeFinancialSummary = useMemo(() => {
+    const allTransactions = [...tasks, ...completedTasks].filter(task => task.transactionAmount && task.transactionAmount !== 0);
+    let totalIncome = 0;
+    let totalExpenses = 0;
+
+    for (const task of allTransactions) {
+      const amount = task.transactionAmount || 0;
+      if (amount > 0) {
+        totalIncome += amount;
+      } else if (amount < 0) {
+        totalExpenses += amount; // This is a negative number
+      }
+    }
+
+    return {
+      totalIncome,
+      totalExpenses: Math.abs(totalExpenses), // Display as a positive value
+      netProfit: totalIncome + totalExpenses, // `totalExpenses` is negative, so this is correct
+    };
+  }, [tasks, completedTasks]);
+
+  // --- NEW: Financial Summary Calculation ---
+  const filteredTransactions = useMemo(() => {
+    let transactions = dateFilteredTasks.filter(task => task.transactionAmount && task.transactionAmount !== 0);
+
+    // Filter by account first
+    if (activeAccountId !== 'all') {
+      transactions = transactions.filter(task => task.accountId === activeAccountId);
+    }
+
+    // Then filter by transaction type
+    if (activeTransactionTypeFilter !== 'all') {
+      if (activeTransactionTypeFilter === 'income') {
+        transactions = transactions.filter(task => (task.transactionAmount || 0) > 0);
+      } else if (activeTransactionTypeFilter === 'expense') {
+        transactions = transactions.filter(task => (task.transactionAmount || 0) < 0);
+      }
+    }
+
+    if (activeCategoryId === 'all') {
+      return transactions;
+    }
+
+    const activeCategory = categories.find(c => c.id === activeCategoryId);
+    const parentId = activeCategory?.parentId || activeCategoryId;
+    const subCategoriesForActive = categories.filter(c => c.parentId === parentId);
+
+    if (activeSubCategoryId !== 'all') {
+      return transactions.filter(task => task.categoryId === activeSubCategoryId);
+    }
+
+    const categoryIdsToShow = [parentId, ...subCategoriesForActive.map(sc => sc.id)];
+    return transactions.filter(task => categoryIdsToShow.includes(task.categoryId));
+  }, [dateFilteredTasks, activeCategoryId, activeSubCategoryId, categories, activeAccountId, activeTransactionTypeFilter]);
+
+  const financialSummary = useMemo(() => {
+    let totalIncome = 0;
+    let totalExpenses = 0;
+
+    for (const task of filteredTransactions) {
+      const amount = task.transactionAmount || 0;
+      if (amount > 0) {
+        totalIncome += amount;
+      } else if (amount < 0) {
+        totalExpenses += amount; // This is a negative number
+      }
+    }
+
+    return {
+      totalIncome,
+      totalExpenses: Math.abs(totalExpenses), // Display as a positive value
+      netProfit: totalIncome + totalExpenses, // `totalExpenses` is negative, so this is correct
+    };
+  }, [filteredTransactions]);
+
+  // --- NEW: Cash Flow Over Time Calculation ---
+  const cashFlowData = useMemo(() => {
+    const dailyData: { [date: string]: { income: number; expenses: number } } = {};
+
+    for (const task of filteredTransactions) {
+      const date = new Date(task.openDate).toLocaleDateString();
+      const amount = task.transactionAmount || 0;
+
+      if (!dailyData[date]) {
+        dailyData[date] = { income: 0, expenses: 0 };
+      }
+
+      if (amount > 0) {
+        dailyData[date].income += amount;
+      } else {
+        dailyData[date].expenses += Math.abs(amount);
+      }
+    }
+
+    return Object.entries(dailyData)
+      .map(([date, { income, expenses }]) => ({ date, income, expenses, net: income - expenses }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [filteredTransactions]);
+
+  const sortedTransactions = useMemo(() => {
+    return [...filteredTransactions].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      if (transactionSortConfig.key === 'categoryName') {
+        aValue = categories.find(c => c.id === a.categoryId)?.name || 'Uncategorized';
+        bValue = categories.find(c => c.id === b.categoryId)?.name || 'Uncategorized';
+      } else {
+        aValue = a[transactionSortConfig.key as keyof Task];
+        bValue = b[transactionSortConfig.key as keyof Task];
+      }
+
+      if (aValue < bValue) {
+        return transactionSortConfig.direction === 'ascending' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return transactionSortConfig.direction === 'ascending' ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [filteredTransactions, transactionSortConfig, categories]);
+
+  const incomeExpenseData = [
+    { name: 'Income', value: financialSummary.totalIncome },
+    { name: 'Expenses', value: financialSummary.totalExpenses },
+  ];
+  const PIE_CHART_COLORS = ['#28a745', '#dc3545']; // Green for Income, Red for Expense
+
   if (filteredCompletedTasks.length === 0) {
     return (
       <div className="reports-view">
@@ -188,8 +425,8 @@ export function ReportsView() {
           <p><strong>Total Time Tracked (All Time):</strong> {formatTime(grandTotalTimeTracked)}</p>
           <p><strong>Grand Total Earnings (All Time):</strong> ${grandTotalEarnings.toFixed(2)}</p></div>
         <hr />
-        {/* Keep filters visible even when there's no data */}
-        <ReportFilters startDate={startDate} setStartDate={setStartDate} endDate={endDate} setEndDate={setEndDate} onExportCsv={() => {}} exportDisabled={true} categories={categories} activeCategoryId={activeCategoryId} setActiveCategoryId={setActiveCategoryId} activeSubCategoryId={activeSubCategoryId} setActiveSubCategoryId={setActiveSubCategoryId} dateFilteredTasks={dateFilteredTasks} />
+      {/* Keep filters visible even when there's no data. Pass all required props. */}
+      <ReportFilters startDate={startDate} setStartDate={setStartDate} endDate={endDate} setEndDate={setEndDate} onExportCsv={() => {}} exportDisabled={true} categories={categories} activeCategoryId={activeCategoryId} setActiveCategoryId={setActiveCategoryId} activeSubCategoryId={activeSubCategoryId} setActiveSubCategoryId={setActiveSubCategoryId} dateFilteredTasks={dateFilteredTasks} activeTab={activeTab} accounts={settings.accounts} activeAccountId={activeAccountId} setActiveAccountId={setActiveAccountId} activeTransactionTypeFilter={activeTransactionTypeFilter} setActiveTransactionTypeFilter={setActiveTransactionTypeFilter} tasksForCounting={tasksForFinanceCounts} />
         <p>No completed tasks in the selected date range to generate a report from.</p>
       </div>
     );
@@ -315,27 +552,61 @@ export function ReportsView() {
     if (!sortConfig || sortConfig.key !== key) return null;
     return sortConfig.direction === 'ascending' ? ' ▲' : ' ▼';
   };
+
+  const requestTransactionSort = (key: keyof Task | 'categoryName' | 'transactionAmount') => {
+    let direction: 'ascending' | 'descending' = 'ascending';
+    if (transactionSortConfig && transactionSortConfig.key === key && transactionSortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setTransactionSortConfig({ key, direction });
+  };
+
+  const getTransactionSortIndicator = (key: keyof Task | 'categoryName' | 'transactionAmount') => {
+    if (!transactionSortConfig || transactionSortConfig.key !== key) return null;
+    return transactionSortConfig.direction === 'ascending' ? ' ▲' : ' ▼';
+  };
   return (
     <div className="reports-view">
       <h2>Reports</h2>
       <div className="category-tabs report-main-tabs">
-        <button onClick={() => setActiveTab('summary')} className={activeTab === 'summary' ? 'active' : ''}>Summary</button>
-        <button onClick={() => setActiveTab('earnings')} className={activeTab === 'earnings' ? 'active' : ''}>Earnings</button>
-        <button onClick={() => setActiveTab('activity')} className={activeTab === 'activity' ? 'active' : ''}>Activity</button>
-        <button onClick={() => setActiveTab('raw')} className={activeTab === 'raw' ? 'active' : ''}>Raw Data</button>
-        <button onClick={() => setActiveTab('history')} className={activeTab === 'history' ? 'active' : ''}>History</button>
+        <button onClick={() => handleTabChange('summary')} className={activeTab === 'summary' ? 'active' : ''}>Summary</button>
+        <button onClick={() => handleTabChange('earnings')} className={activeTab === 'earnings' ? 'active' : ''}>Earnings</button>
+        <button onClick={() => handleTabChange('activity')} className={activeTab === 'activity' ? 'active' : ''}>Activity</button>
+        <button onClick={() => handleTabChange('raw')} className={activeTab === 'raw' ? 'active' : ''}>Raw Data</button>
+        <button onClick={() => handleTabChange('history')} className={activeTab === 'history' ? 'active' : ''}>History</button>
+        <button onClick={() => handleTabChange('finances')} className={activeTab === 'finances' ? 'active' : ''}>Finances</button>
       </div>
-      <div className="report-section grand-total-summary">
-        <h3>Lifetime Summary</h3>
-        <p><strong>Total Tasks Completed (All Time):</strong> {grandTotalTasks}</p>
-        <p><strong>Total Time Tracked (All Time):</strong> {formatTime(grandTotalTimeTracked)}</p>
-        <p><strong>Grand Total Earnings (All Time):</strong> ${grandTotalEarnings.toFixed(2)}</p>
-      </div>
+      {activeTab === 'finances' ? (
+        <div className="report-section grand-total-summary">
+          <h3>Lifetime Financial Summary</h3>
+          <div className="financial-summary-grid lifetime">
+            <div className="summary-item">
+              <span className="summary-label">Total Income</span>
+              <span className="summary-value income">${lifetimeFinancialSummary.totalIncome.toFixed(2)}</span>
+            </div>
+            <div className="summary-item">
+              <span className="summary-label">Total Expenses</span>
+              <span className="summary-value expense">${lifetimeFinancialSummary.totalExpenses.toFixed(2)}</span>
+            </div>
+            <div className="summary-item">
+              <span className={`summary-label ${lifetimeFinancialSummary.netProfit >= 0 ? 'income' : 'expense'}`}>Net Profit</span>
+              <span className={`summary-value ${lifetimeFinancialSummary.netProfit >= 0 ? 'income' : 'expense'}`}>${lifetimeFinancialSummary.netProfit.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="report-section grand-total-summary">
+          <h3>Lifetime Summary</h3>
+          <p><strong>Total Tasks Completed (All Time):</strong> {grandTotalTasks}</p>
+          <p><strong>Total Time Tracked (All Time):</strong> {formatTime(grandTotalTimeTracked)}</p>
+          <p><strong>Grand Total Earnings (All Time):</strong> ${grandTotalEarnings.toFixed(2)}</p>
+        </div>
+      )}
       <hr />
       <ReportFilters 
-        startDate={startDate} setStartDate={setStartDate} endDate={endDate} setEndDate={setEndDate} 
-        onExportCsv={handleExportCsv} categories={categories} activeCategoryId={activeCategoryId} 
-        setActiveCategoryId={setActiveCategoryId} activeSubCategoryId={activeSubCategoryId} setActiveSubCategoryId={setActiveSubCategoryId} dateFilteredTasks={dateFilteredTasks} 
+        startDate={startDate} setStartDate={setStartDate} endDate={endDate} setEndDate={setEndDate}
+        onExportCsv={handleExportCsv} categories={categoriesForFilter} activeCategoryId={activeCategoryId} activeTab={activeTab} accounts={settings.accounts} activeAccountId={activeAccountId} setActiveAccountId={setActiveAccountId} tasksForCounting={tasksForFinanceCounts}
+        activeTransactionTypeFilter={activeTransactionTypeFilter} setActiveTransactionTypeFilter={setActiveTransactionTypeFilter} setActiveCategoryId={setActiveCategoryId} activeSubCategoryId={activeSubCategoryId} setActiveSubCategoryId={setActiveSubCategoryId} dateFilteredTasks={dateFilteredTasks}
       />       
       {activeTab === 'summary' && (
         <>
@@ -440,6 +711,102 @@ export function ReportsView() {
                 </PieChart>
               </ResponsiveContainer>
             </div>
+          </div>
+        </>
+      )}
+
+      {activeTab === 'finances' && (
+        <>
+          <div className="report-section">
+            <h3>Financial Summary (All Time)</h3>
+            <div className="financial-details-grid">
+              <div className="financial-summary-grid">
+                <div className="summary-item">
+                  <span className="summary-label">Total Income</span>
+                  <span className="summary-value income">${financialSummary.totalIncome.toFixed(2)}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Total Expenses</span>
+                  <span className="summary-value expense">${financialSummary.totalExpenses.toFixed(2)}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Net Profit</span>
+                  <span className={`summary-value ${financialSummary.netProfit >= 0 ? 'income' : 'expense'}`}>${financialSummary.netProfit.toFixed(2)}</span>
+                </div>
+              </div>
+              <div className="financial-chart-container">
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={incomeExpenseData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={renderCustomizedLabel}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {incomeExpenseData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+          <div className="report-section">
+            <h3>Cash Flow Over Time</h3>
+            <div style={{ width: '100%', height: 300 }}>
+              <ResponsiveContainer>
+                <LineChart data={cashFlowData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip 
+                    formatter={(value: number) => `$${value.toFixed(2)}`}
+                    labelFormatter={(label: string) => new Date(label).toLocaleDateString()}
+                  />
+                  <Legend />
+                  <Line type="monotone" dataKey="income" name="Income" stroke="#28a745" activeDot={{ r: 8 }} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="expenses" name="Expenses" stroke="#dc3545" activeDot={{ r: 8 }} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="net" name="Net" stroke="#61dafb" strokeWidth={2} activeDot={{ r: 8 }} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="report-section">
+            <h3>All Transactions</h3>
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th onClick={() => requestTransactionSort('text')}>Task / Item{getTransactionSortIndicator('text')}</th>
+                  <th onClick={() => requestTransactionSort('openDate')}>Date{getTransactionSortIndicator('openDate')}</th>
+                  <th onClick={() => requestTransactionSort('categoryName')}>Category{getTransactionSortIndicator('categoryName')}</th>
+                  <th onClick={() => requestTransactionSort('transactionAmount')} className="amount-column">Amount{getTransactionSortIndicator('transactionAmount')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedTransactions.map(task => {
+                  const category = categories.find(c => c.id === task.categoryId);
+                  const categoryName = category?.name || 'Uncategorized';
+                  const amount = task.transactionAmount || 0;
+                  return (
+                    <tr key={task.id}>
+                      <td>{task.text}</td>
+                      <td>{new Date(task.openDate).toLocaleDateString()}</td>
+                      <td>{categoryName}</td>
+                      <td className={`amount-column ${amount > 0 ? 'income' : 'expense'}`}>
+                        {amount > 0 ? '+' : '-'}${Math.abs(amount).toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </>
       )}

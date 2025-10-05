@@ -6,6 +6,7 @@ import { Checklist } from './Checklist';
 import { DescriptionEditor } from './Editors';
 import { useAppContext } from '../contexts/AppContext';
 import { SimpleAccordion } from './SidebarComponents';
+import './styles/Finances.css';
 
 export function AddNewTaskForm() {
   const {
@@ -16,7 +17,7 @@ export function AddNewTaskForm() {
   } = useAppContext();
 
   const selectedTaskType = (settings.taskTypes || []).find(type => type.id === newTask.taskType);
-  const visibleFields = selectedTaskType ? selectedTaskType.fields : [];
+  const visibleFields = selectedTaskType ? selectedTaskType.fields : Object.keys(newTask);
 
   const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
@@ -95,6 +96,54 @@ export function AddNewTaskForm() {
         })()}</div>
       </label>}
       {shouldShow('company') && <label><h4>Company:</h4><input type="text" value={newTask.company} onChange={(e) => setNewTask({ ...newTask, company: e.target.value })} /></label>}
+      {shouldShow('transactionAmount') && (
+        <label><h4>Transaction:</h4>
+          <div className="transaction-input-group">
+            <input
+              type="number"
+              placeholder="0.00"
+              value={newTask.transactionAmount ? Math.abs(newTask.transactionAmount) : ''}
+              onChange={(e) => {
+                const rawAmount = parseFloat(e.target.value) || 0;
+                const type = rawAmount === 0 ? 'none' : (newTask.transactionType === 'none' ? 'expense' : newTask.transactionType);
+                const finalAmount = type === 'expense' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
+                setNewTask(prev => ({ ...prev, transactionAmount: finalAmount, transactionType: type }));
+              }}
+            />
+            <div className="transaction-type-toggle">
+              <button
+                className={`none-btn ${(newTask.transactionType === 'none' || !newTask.transactionAmount) ? 'active' : ''}`}
+                onClick={() => setNewTask(prev => ({ ...prev, transactionType: 'none', transactionAmount: 0 }))}>
+                None
+              </button>
+              <button
+                className={`expense-btn ${newTask.transactionType === 'expense' && newTask.transactionAmount !== 0 ? 'active' : ''}`}
+                onClick={() => {
+                  const currentAmount = Math.abs(newTask.transactionAmount || 1);
+                  setNewTask(prev => ({ ...prev, transactionType: 'expense', transactionAmount: -currentAmount }));
+                }}>
+                Expense
+              </button>
+              <button
+                className={`income-btn ${newTask.transactionType === 'income' && newTask.transactionAmount !== 0 ? 'active' : ''}`}
+                onClick={() => {
+                  const currentAmount = Math.abs(newTask.transactionAmount || 1);
+                  setNewTask(prev => ({ ...prev, transactionType: 'income', transactionAmount: currentAmount }));
+                }}>
+                Income
+              </button>
+            </div>
+          </div>
+        </label>
+      )}
+      {shouldShow('accountId') && newTask.transactionAmount !== 0 && (
+        <label><h4>Account:</h4>
+          <select value={newTask.accountId || ''} onChange={(e) => setNewTask({ ...newTask, accountId: Number(e.target.value) || undefined })}>
+            <option value="">-- None --</option>
+            {settings.accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+          </select>
+        </label>
+      )}
       {shouldShow('payRate') && <label><h4>Pay Rate ($/hr):</h4><input type="number" value={newTask.payRate || 0} onChange={(e) => setNewTask({ ...newTask, payRate: Number(e.target.value) })} /></label>}
       {shouldShow('websiteUrl') && <label><h4>Website URL:</h4><input type="text" placeholder="https://company.com" value={newTask.websiteUrl} onChange={(e) => setNewTask({ ...newTask, websiteUrl: e.target.value })} /></label>}
       {shouldShow('imageLinks') && <label><h4>Image Links:</h4>

@@ -149,6 +149,9 @@
     margin: 0 !important;
     padding: 8px 12px !important;
 }
+.sidebar .category-manager-list + button.add-link-btn {
+    width: 100% !important;
+}
 .sub {
     margin-left: 10px;
 }

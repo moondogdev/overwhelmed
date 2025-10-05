@@ -23,10 +23,14 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
   const [toastMessage, setToastMessage] = useState('');
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
+  const [selectedYear, setSelectedYear] = useState<'all' | number>('all');
   // New state for bulk add options
   const [bulkAddCategoryId, setBulkAddCategoryId] = useState<number | 'default'>('default');
   const [bulkAddPriority, setBulkAddPriority] = useState<'High' | 'Medium' | 'Low'>('Medium');
   const [bulkAddCompleteBy, setBulkAddCompleteBy] = useState<string>('');
+  const [bulkAddTransactionType, setBulkAddTransactionType] = useState<'none' | 'income' | 'expense'>('none');
+  const [bulkAddYear, setBulkAddYear] = useState<number>(new Date().getFullYear());
+  const [bulkAddAccountId, setBulkAddAccountId] = useState<number | undefined>(undefined);
 
   const [newTask, setNewTask] = useState<Partial<Task>>({
     text: '',
@@ -43,6 +47,8 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
     manualTimeRunning: false,
     manualTimeStart: 0,
     payRate: 0,
+    transactionAmount: 0,
+    transactionType: 'none',
     isRecurring: false,
     isDailyRecurring: false,
     isWeeklyRecurring: false,
@@ -97,7 +103,11 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
     isWorkSessionManagerOpen, setIsWorkSessionManagerOpen,
     focusAddTaskInput, selectedTaskIds, setSelectedTaskIds, handleToggleTaskSelection,
     bulkAddCategoryId, setBulkAddCategoryId, bulkAddPriority, setBulkAddPriority,
+    selectedYear, setSelectedYear,
     bulkAddCompleteBy, setBulkAddCompleteBy,
+    bulkAddTransactionType, setBulkAddTransactionType,
+    bulkAddYear, setBulkAddYear,
+    bulkAddAccountId, setBulkAddAccountId,
     toastMessage,
     showToast,
   };

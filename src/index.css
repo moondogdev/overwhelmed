@@ -11,6 +11,9 @@ body {
   background-color: #282c34;
   color: white;
 }
+button {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,    Arial, sans-serif;
+}
 a {
   cursor: pointer;
 }
@@ -160,6 +163,11 @@ button {
     flex-direction: row;
     align-items: center;
     margin: 10px 0;
+    flex-wrap: wrap;
+}
+.checkbox-label .checkbox-label-text + p {
+    display: block;
+    width: 100%;
 }
 .checkbox-label.flexed-column input[type="checkbox" i] {
     width: auto;

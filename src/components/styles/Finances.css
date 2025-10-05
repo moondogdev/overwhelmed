@@ -1,0 +1,79 @@
+/* --- Transaction Input Group (Add/Edit Task Form) --- */
+.transaction-input-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.transaction-input-group input[type="number"] {
+    flex-grow: 1;
+}
+
+.transaction-type-toggle {
+    display: flex;
+    border: 1px solid #555;
+    border-radius: 5px;
+    overflow: hidden; /* Ensures border-radius is applied to child buttons */
+}
+
+.transaction-type-toggle button {
+    background-color: #3a3f4b;
+    color: #ccc;
+    border: none;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.transaction-type-toggle button:first-of-type {
+    border-right: 1px solid #555;
+}
+
+.transaction-type-toggle button.active {
+    color: white;
+    font-weight: bold;
+}
+
+.transaction-type-toggle .expense-btn.active {
+    background-color: #dc3545; /* Red for expense */
+}
+.transaction-type-toggle .income-btn.active {
+    background-color: #28a745; /* Green for income */
+}
+
+.transaction-type-toggle .none-btn.active {
+    background-color: #6c757d; /* A neutral gray for 'None' */
+}
+
+/* --- Transaction Pill (Task Header) --- */
+.transaction-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: bold;
+    margin-left: 8px;
+    color: white;
+}
+
+.transaction-pill .fas {
+    margin-right: 5px;
+}
+
+.transaction-pill.income {
+    background-color: #28a745; /* Green for income */
+}
+
+.transaction-pill.expense {
+    background-color: #dc3545; /* Red for expense */
+}
+
+/* Dropdown Menu Scrolling */
+.dropdown-menu {
+  max-height: 300px; /* Set a reasonable max height */
+  overflow-y: auto; /* Enable vertical scrolling when content exceeds max-height */
+  border: 1px solid #555; /* Add a border to better define the scrollable area */
+  background-color: #282c34; /* Ensure it has a solid background */
+}

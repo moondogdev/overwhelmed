@@ -84,6 +84,8 @@ export interface Task {
   completionStatus?: 'completed' | 'skipped'; // To distinguish between completed and skipped tasks
   manualTime?: number; // Manually tracked time in ms
   payRate?: number; // Dollars per hour
+  transactionAmount?: number; // For financial tracking. Positive for income, negative for expense.
+  transactionType?: 'income' | 'expense' | 'none'; // UI toggle for the transaction amount
   isRecurring?: boolean;
   isDailyRecurring?: boolean;
   isWeeklyRecurring?: boolean;
@@ -96,6 +98,7 @@ export interface Task {
   isSilenced?: boolean; // To hide overdue toast without snoozing
   manualTimeRunning?: boolean;
   taskType?: string; // New property for task types
+  accountId?: number; // New property for financial accounts
   startsTaskIdOnComplete?: number; // ID of the task to start when this one is completed
   linkedTaskOffset?: number;
   manualTimeStart?: number; // Timestamp when manual timer was started
@@ -125,6 +128,12 @@ export interface Category {
   name: string;
   parentId?: number; // If present, this is a sub-category
   color?: string; // Add color property
+  autoCategorizationKeywords?: string[]; // Keywords for auto-categorization
+}
+
+export interface Account {
+  id: number;
+  name: string;
 }
 
 export interface TaskType {
@@ -140,7 +149,7 @@ export interface ExternalLink {
 }
 
 export interface PrioritySortConfig {
-  [key: string]: { key: keyof Task | 'timeOpen', direction: 'ascending' | 'descending' } | null;
+  [key:string]: { key: keyof Task | 'timeOpen' | 'price', direction: 'asc' | 'desc' } | null;
 }
 
 export interface Settings {
@@ -160,6 +169,9 @@ export interface Settings {
   activeBrowserIndex: number;
   categories: Category[];
   externalLinks: ExternalLink[];
+  accounts: Account[]; // Add accounts to settings
+  activeAccountId?: number | 'all'; // Persist active account filter
+  activeTransactionTypeFilter?: 'all' | 'income' | 'expense'; // New filter for income/expense
   currentView: 'meme' | 'list' | 'reports' | 'inbox';
   activeCategoryId?: number | 'all';
   activeSubCategoryId?: number | 'all';
@@ -186,6 +198,7 @@ export interface Settings {
     [key in InboxMessage['type']]?: boolean;
   };
   checklistTemplates?: ChecklistTemplate[];
+  autoCategorizeOnBulkAdd?: boolean; // New setting for auto-categorization
 }
 
 export interface AccordionProps {

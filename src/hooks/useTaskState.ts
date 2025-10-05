@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Task, InboxMessage, ChecklistItem, ChecklistSection, Settings, TimeLogSession, TimeLogEntry } from '../types';
+import { Task, InboxMessage, ChecklistItem, ChecklistSection, Settings, TimeLogSession, TimeLogEntry, RichTextBlock } from '../types';
 import { formatTime, formatTimestamp } from '../utils';
 
 interface UseTaskStateProps {
@@ -31,6 +31,21 @@ export function useTaskState({
   const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [updateTimers, setUpdateTimers] = useState<{ [key: number]: NodeJS.Timeout }>({});
   const tasksRefForDebounce = useRef(tasks);
+
+  // --- NEW: ID Management System ---
+  const nextId = useRef(0);
+  useEffect(() => {
+    const allTasks = [...initialTasks, ...initialCompletedTasks];
+    if (allTasks.length > 0) {
+      // Find the highest existing ID and start the counter from the next number.
+      const maxId = Math.max(...allTasks.map(t => t.id));
+      nextId.current = maxId + 1;
+    } else {
+      nextId.current = 1; // Start from 1 if there are no tasks.
+    }
+  }, [initialTasks, initialCompletedTasks]); // Re-initialize if the initial data set changes.
+
+  const getNextId = () => nextId.current++;
 
   // New refs to hold the latest state for background processes like auto-save
   const tasksRef = useRef(tasks);
@@ -84,7 +99,7 @@ export function useTaskState({
 
       newRecurringTask = {
         ...taskToComplete,
-        id: Date.now() + Math.random(),
+        id: getNextId(),
         createdAt: newOpenDate, // The new task is "created" now.
         openDate: newOpenDate,
         completedDuration: undefined,
@@ -130,7 +145,7 @@ export function useTaskState({
   }, [tasks, completedTasks, setInboxMessages, showToast]);
 
   const handleDuplicateTask = useCallback((taskToCopy: Task) => {
-    const newTask: Task = { ...taskToCopy, id: Date.now() + Math.random(), openDate: Date.now(), createdAt: Date.now(), completedDuration: undefined };
+    const newTask: Task = { ...taskToCopy, id: getNextId(), openDate: Date.now(), createdAt: Date.now(), completedDuration: undefined };
     setTasks(prevTasks => [newTask, ...prevTasks]);
     setInboxMessages(prev => [{ id: Date.now() + Math.random(), type: 'created', text: `Task duplicated: "${newTask.text}"`, timestamp: Date.now(), taskId: newTask.id }, ...prev]);
     showToast('Task duplicated!');
@@ -161,7 +176,7 @@ export function useTaskState({
 
     const newTaskObject: Task = {
       ...newTask,
-      id: Date.now() + Math.random(),
+      id: getNextId(),
       text: newTask.text.trim(),
       openDate: newTask.openDate || Date.now(),
       x: 0, 
@@ -206,6 +221,8 @@ export function useTaskState({
       manualTimeRunning: false,
       manualTimeStart: 0,
       payRate: 0,
+      transactionAmount: 0,
+      transactionType: 'none',
       isRecurring: false,
       isDailyRecurring: false,
       isWeeklyRecurring: false,
@@ -264,10 +281,10 @@ export function useTaskState({
     showToast('All open tasks cleared!');
   }, [showToast]);
 
-  const handleBulkAdd = useCallback((options: { categoryId: number | 'default', priority: 'High' | 'Medium' | 'Low', completeBy?: string }) => {
+  const handleBulkAdd = useCallback((options: { categoryId: number | 'default', priority: 'High' | 'Medium' | 'Low', completeBy?: string, transactionType?: 'none' | 'income' | 'expense', accountId?: number }, contextYear?: number) => {
     if (bulkAddText.trim() === "") return;
 
-    const tasksToAdd = bulkAddText.split(/[\n,]+/).map(t => t.trim()).filter(t => t);
+    const tasksToAdd = bulkAddText.split(/[\n,]+/).map(line => line.trim()).filter(line => line);
     if (tasksToAdd.length === 0) return;
 
     let targetCategoryId: number | undefined;
@@ -282,19 +299,78 @@ export function useTaskState({
 
     const completeByTimestamp = options.completeBy ? new Date(options.completeBy).getTime() : undefined;
 
-    const newTasks = tasksToAdd.map(text => {
+    const newTasks = tasksToAdd.map(line => {
+      let text = line;
+      let transactionAmount = 0;
+      let transactionType: 'income' | 'expense' | 'none' = options.transactionType || 'none';
+
+      // --- NEW: Date/Time Parsing ---
+      let openDate = Date.now(); // Default to now
+      // This regex finds the FIRST occurrence of a date-like string (MM/DD/YY or MM/DD).
+      const dateRegex = /(\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?)/;
+      const dateMatch = line.match(dateRegex);
+
+      if (dateMatch) {
+        const dateString = dateMatch[0];
+        // Extract just the month and day part, ignoring any year in the string.
+        const monthDayMatch = dateString.match(/(\d{1,2}[\/-]\d{1,2})/);
+        
+        if (monthDayMatch) {
+          const monthDay = monthDayMatch[0];
+          // Unconditionally use the year from the "For Year" dropdown.
+          const yearToUse = contextYear || new Date().getFullYear();
+          const finalDateString = `${monthDay}/${yearToUse}`;
+          const parsedDate = new Date(finalDateString);
+          
+        if (!isNaN(parsedDate.getTime())) {
+          openDate = parsedDate.getTime();
+          text = text.replace(dateString, '').trim(); // Remove date from title
+        }
+        }
+      }
+
+      // This regex looks for a number at the end of the string that optionally has one or two decimal places.
+      // This allows it to capture values like `160`, `160.0`, and `160.00`.
+      // It's anchored to the end ($) to reliably find transaction amounts from statements.
+      const moneyRegex = /((?:[+-]?\s*\$?)\s*(\d+(?:\.\d{1,2})?))$/;
+      const match = moneyRegex.exec(text); // Use `text` which may have already been cleaned
+
+      if (match) {
+        const fullMatch = match[1]; // e.g., "-$5.75"
+        const amount = parseFloat(match[2]); // e.g., 5.75
+        text = text.replace(fullMatch, '').trim(); // Remove the monetary value from the task title
+
+        // Determine amount and type based on explicit signs or dropdown default
+        if (fullMatch.includes('-')) {
+          transactionAmount = -Math.abs(amount);
+          transactionType = 'expense';
+        } else if (fullMatch.includes('+')) {
+          transactionAmount = Math.abs(amount);
+          transactionType = 'income';
+        } else if (options.transactionType === 'income') {
+          transactionAmount = Math.abs(amount);
+          transactionType = 'income';
+        } else if (options.transactionType === 'expense') {
+          transactionAmount = -Math.abs(amount);
+          transactionType = 'expense';
+        }
+      }
+
       const newTaskObject: Task = {
-        id: Date.now() + Math.random(),
+        id: getNextId(),
         text,
         x: 0, y: 0,
         categoryId: targetCategoryId,
         priority: options.priority,
         completeBy: completeByTimestamp,
         manualTime: 0,
+        accountId: options.accountId, // Assign the selected account
         manualTimeRunning: false,
         manualTimeStart: 0,
-        openDate: Date.now(),
-        width: 0,
+        transactionAmount, // Parsed monetary value
+        transactionType, // Assign the determined transaction type
+        openDate: openDate, // Parsed date or now
+        width: 0, 
         height: 0,
         createdAt: Date.now(),
         pausedDuration: 0,
@@ -312,6 +388,11 @@ export function useTaskState({
 
     setTasks(prev => [...prev, ...newTasks]);
     setBulkAddText(""); // Clear the textarea
+
+    // If auto-categorization is enabled, run it on the new tasks.
+    if (settings.autoCategorizeOnBulkAdd) {
+      handleAutoCategorize(newTasks.map(t => t.id));
+    }
   }, [bulkAddText, setBulkAddText, settings.activeCategoryId, settings.activeSubCategoryId, setInboxMessages, setTasks]);
 
   const handleBulkDelete = useCallback((taskIds: number[]) => {
@@ -396,20 +477,115 @@ export function useTaskState({
     showToast(`${taskIds.length} tasks moved to "${categoryName}".`);
   }, [setTasks, showToast, settings.categories]);
 
-  const formatChecklistForCsv = (checklist: (ChecklistSection | ChecklistItem)[] | undefined): string => {
-    if (!checklist || checklist.length === 0) return '';
+  const handleBulkSetAccount = useCallback((taskIds: number[], accountId: number) => {
+    if (taskIds.length === 0) return;
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        taskIds.includes(task.id) ? { ...task, accountId } : task
+      )
+    );
+    const accountName = settings.accounts.find(a => a.id === accountId)?.name || 'an account';
+    showToast(`${taskIds.length} tasks assigned to "${accountName}".`);
+  }, [setTasks, showToast, settings.accounts]);
 
+  const handleAutoCategorize = useCallback((taskIdsToProcess: number[], subCategoryIdToProcess?: number) => {
+    const transactionsCategory = settings.categories.find(c => c.name === 'Transactions');
+    if (!transactionsCategory) {
+      showToast('"Transactions" category not found.', 3000);
+      return;
+    }
+
+    let subCategoriesWithKeywords = settings.categories.filter(
+      c => c.parentId === transactionsCategory.id && c.autoCategorizationKeywords && c.autoCategorizationKeywords.length > 0
+    );
+
+    if (subCategoryIdToProcess) {
+      subCategoriesWithKeywords = subCategoriesWithKeywords.filter(c => c.id === subCategoryIdToProcess);
+    }
+
+    if (subCategoriesWithKeywords.length === 0) {
+      showToast('No matching sub-categories with keywords are set up under "Transactions".', 3000);
+      return;
+    }
+
+    let categorizedCount = 0;
+    const transactionSubCategoryIds = settings.categories.filter(c => c.parentId === transactionsCategory.id).map(c => c.id);
+    const allTransactionCategoryIds = [transactionsCategory.id, ...transactionSubCategoryIds];
+
+    const updatedTasks = tasks.map(task => {
+      // Only process tasks that are in the currently visible filtered list AND belong to the Transactions category tree.
+      if (
+        taskIdsToProcess.includes(task.id) &&
+        task.categoryId &&
+        allTransactionCategoryIds.includes(task.categoryId)
+      ) {
+        const taskText = task.text.toLowerCase();
+        for (const subCategory of subCategoriesWithKeywords) {
+          // If the task is already in the correct sub-category, skip it.
+          if (task.categoryId === subCategory.id) continue;
+
+          for (const keyword of (subCategory.autoCategorizationKeywords || [])) {
+            if (taskText.includes(keyword.toLowerCase().trim())) {
+              categorizedCount++;
+              return { ...task, categoryId: subCategory.id }; // Assign to the first matching sub-category
+            }
+          }
+        }
+      }
+      return task; // Return unchanged if no match
+    });
+
+    setTasks(updatedTasks);
+    if (categorizedCount > 0) {
+      showToast(`Successfully auto-categorized ${categorizedCount} transaction(s).`);
+    } else {
+      showToast('No transactions matched the defined keywords.');
+    }
+  }, [tasks, settings.categories, setTasks, showToast]);
+
+  const handleSyncTransactionTypes = useCallback(() => {
+    let updatedCount = 0;
+
+    const syncType = (task: Task): Task => {
+      if (task.transactionAmount && task.transactionAmount !== 0) {
+        const newType = task.transactionAmount > 0 ? 'income' : 'expense';
+        if (task.transactionType !== newType) {
+          updatedCount++;
+          return { ...task, transactionType: newType };
+        }
+      } else if ((!task.transactionAmount || task.transactionAmount === 0) && task.transactionType !== 'none') {
+        // Also correct tasks that have a type but amount is 0 or missing
+        updatedCount++;
+        return { ...task, transactionType: 'none' };
+      }
+      return task;
+    };
+
+    setTasks(prevTasks => prevTasks.map(syncType));
+    setCompletedTasks(prevCompleted => prevCompleted.map(syncType));
+
+    showToast(updatedCount > 0 ? `Synced ${updatedCount} transaction type(s).` : 'All transaction types are already up to date.');
+
+  }, [setTasks, setCompletedTasks, showToast]);
+
+  const formatChecklistForCsv = (checklist: (ChecklistSection | RichTextBlock | ChecklistItem)[] | undefined): string => {
+    if (!checklist || checklist.length === 0) return '';
+  
     // Handle legacy format
     if ('isCompleted' in checklist[0]) {
       return (checklist as ChecklistItem[])
         .map(item => `${item.isCompleted ? '[x]' : '[ ]'} ${item.text}`)
         .join('\n');
     }
-
-    return (checklist as ChecklistSection[]).map(section => {
-      const header = `### ${section.title}`;
-      const items = section.items.map(item => `${item.isCompleted ? '[x]' : '[ ]'} ${item.text}`).join('\n');
-      return `${header}\n${items}\n`;
+  
+    // Handle modern format with sections and rich text blocks
+    return (checklist as (ChecklistSection | RichTextBlock)[]).map(block => {
+      if ('items' in block) { // It's a ChecklistSection
+        const header = `### ${block.title}`;
+        const items = block.items.map((item: ChecklistItem) => `${item.isCompleted ? '[x]' : '[ ]'} ${item.text}`).join('\n');
+        return `${header}\n${items}`;
+      }
+      return `[Rich Text]: ${block.content.replace(/<[^>]*>?/gm, ' ')}`; // It's a RichTextBlock, strip HTML for CSV
     }).join('\n');
   };
 
@@ -677,6 +853,9 @@ export function useTaskState({
     handleBulkSetPriority,
     handleBulkSetDueDate,
     handleBulkSetCategory,
+    handleBulkSetAccount,
+    handleSyncTransactionTypes,
+    handleAutoCategorize,
     handleBulkDownloadAsCsv,
     handleCopyTaskAsCsv,
     handleBulkCopyAsCsv,

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Task, Settings, Category } from '../types';
 import { formatTime, getContrastColor, calculateNextOccurrence, formatTimestamp } from '../utils';
 
+import './styles/Finances.css';
 export function Dropdown({ trigger, children }: { trigger: React.ReactNode, children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -188,6 +189,12 @@ export function TaskAccordionHeader({
   isSelected: boolean,
   onToggleSelection: (taskId: number) => void,
 }) {
+  const isTransaction = useMemo(() => {
+    if (!task.categoryId) return false;
+    const category = settings.categories.find(c => c.id === task.categoryId);
+    const parentCategory = category?.parentId ? settings.categories.find(c => c.id === category.parentId) : category;
+    return parentCategory?.name === 'Transactions';
+  }, [task.categoryId, settings.categories]);
   return (
     <>
       <div className="accordion-title-container">
@@ -200,7 +207,7 @@ export function TaskAccordionHeader({
           title="Select this task for bulk actions"
         />
         <span className="accordion-main-title">{task.text}</span>        
-        {(() => {
+        {!isTransaction && (() => {
           if (!task.categoryId) return null;
           const category = settings.categories.find(c => c.id === task.categoryId);
           if (!category) return null;
@@ -234,11 +241,61 @@ export function TaskAccordionHeader({
             </>
           );
         })()}
-        <span className={`priority-indicator priority-${(task.priority || 'Medium').toLowerCase()}`} title={`Priority: ${task.priority || 'Medium'}`}>
-          <span className="priority-dot"></span>
-        </span>
+        {!isTransaction && task.accountId && (() => {
+          const account = settings.accounts.find(acc => acc.id === task.accountId);
+          if (!account) return null;
+          return (
+            <span
+              className="category-pill account-pill"
+              title={`Account: ${account.name}`}
+            ><i className="fas fa-university"></i> {account.name}</span>
+          );
+        })()}
+        {!isTransaction && (
+          <span className={`priority-indicator priority-${(task.priority || 'Medium').toLowerCase()}`} title={`Priority: ${task.priority || 'Medium'}`}>
+            <span className="priority-dot"></span>
+          </span>
+        )}
       </div>
       <div className="accordion-subtitle">
+        {isTransaction && (
+          <>
+            {(() => {
+              if (!task.categoryId) return null;
+              const category = settings.categories.find(c => c.id === task.categoryId);
+              if (!category) return null;
+              const parentCategory = category.parentId ? settings.categories.find(c => c.id === category.parentId) : null;
+              return (
+                <>
+                  {parentCategory && (
+                    <span 
+                      className="category-pill parent-category-pill" 
+                      onClick={(e) => onCategoryClick(e, parentCategory.id, undefined)}
+                      style={{ backgroundColor: parentCategory.color || '#555', color: getContrastColor(parentCategory.color) }}
+                    >
+                      {parentCategory.name}
+                    </span>
+                  )}
+                  <span 
+                    className="category-pill child-category-pill" 
+                    onClick={(e) => onCategoryClick(e, category.id, parentCategory?.id)}
+                    style={{ backgroundColor: category.color || '#555', color: getContrastColor(category.color) }}
+                  >
+                    {category.name}
+                  </span>
+                </>
+              );
+            })()}
+            {task.accountId && (() => {
+              const account = settings.accounts.find(acc => acc.id === task.accountId);
+              if (!account) return null;
+              return (
+                <span className="category-pill account-pill" title={`Account: ${account.name}`}>
+                  <i className="fas fa-university"></i> {account.name}</span>
+              );
+            })()}
+          </>
+        )}
         {task.completeBy && (
           <>
             <span className="due-date-pill">
@@ -254,6 +311,18 @@ export function TaskAccordionHeader({
               <TimeLeft task={task} onUpdate={onUpdate || (() => {})} onNotify={onNotify || (() => {})} settings={settings} />
             </span>
           </>
+        )}
+        {!task.completeBy && task.transactionAmount && task.transactionAmount !== 0 && (
+          <span className="due-date-pill">
+            <i className="fas fa-calendar-alt"></i>
+            Date: {new Date(task.openDate).toLocaleDateString()}
+          </span>
+        )}
+        {task.transactionAmount && task.transactionAmount !== 0 && (
+          <span className={`transaction-pill ${task.transactionAmount > 0 ? 'income' : 'expense'}`}>
+            <i className={`fas ${task.transactionAmount > 0 ? 'fa-arrow-up' : 'fa-arrow-down'}`}></i>
+            ${Math.abs(task.transactionAmount).toFixed(2)}
+          </span>
         )}
         {(() => {
           let recurringText = '';

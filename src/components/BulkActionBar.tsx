@@ -6,7 +6,7 @@ import { Dropdown } from './TaskComponents';
 export function BulkActionBar() {
   const { 
     selectedTaskIds, setSelectedTaskIds, handleBulkDelete, handleBulkSetCategory, 
-    handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen, handleBulkCopyAsCsv, handleBulkDownloadAsCsv,
+    handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen, handleBulkCopyAsCsv, handleBulkDownloadAsCsv, handleBulkSetAccount,
     settings, tasks, completedTasks 
   } = useAppContext();
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -30,6 +30,11 @@ export function BulkActionBar() {
   const handleCategoryChange = (categoryId: number) => {
     handleBulkSetCategory(selectedTaskIds, categoryId);
     // Clear selection after action
+    setSelectedTaskIds([]);
+  };
+
+  const handleAccountChange = (accountId: number) => {
+    handleBulkSetAccount(selectedTaskIds, accountId);
     setSelectedTaskIds([]);
   };
 
@@ -58,6 +63,14 @@ export function BulkActionBar() {
     if (allCompleted) return 'completed';
     return 'mixed';
   }, [selectedTaskIds, tasks, completedTasks]);
+
+  const isTransactionsView = useMemo(() => {
+    const parentCategory = settings.categories.find(c => c.name === 'Transactions');
+    if (!parentCategory) return false;
+    if (settings.activeCategoryId === parentCategory.id) return true;
+    const activeCat = settings.categories.find(c => c.id === settings.activeCategoryId);
+    return activeCat?.parentId === parentCategory.id;
+  }, [settings.activeCategoryId, settings.categories]);
 
   if (selectedTaskIds.length === 0) {
     return null;
@@ -109,6 +122,18 @@ export function BulkActionBar() {
             )
           })}
         </Dropdown>
+        {isTransactionsView && (
+          <Dropdown trigger={
+            <button className="icon-button" title="Change Account">
+              <i className="fas fa-university"></i>
+            </button>
+          }>
+            <button className="category-dropdown-item parent" onClick={() => handleAccountChange(0)}>-- None --</button>
+            {settings.accounts.map(account => (
+              <button key={account.id} className="category-dropdown-item" onClick={() => handleAccountChange(account.id)}>{account.name}</button>
+            ))}
+          </Dropdown>
+        )}
         <div className="bulk-action-group">
           <button
             className="icon-button"

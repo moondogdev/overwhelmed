@@ -353,6 +353,12 @@ Please keep this consistent to keep the maintainer from having to make frequent 
 
 ### Log of Issues and Lessons
 
+#### [1.0.24] - Decomposing Monolithic Hooks
+-   **Issue**: The `useChecklist.ts` hook had grown into a massive, monolithic file containing all state, event handlers, and side effects for the entire checklist feature. This made it extremely difficult to debug, maintain, and add new functionality without risking unintended side effects.
+-   **Lesson**: This was a practical application of `Rule 70.0: Refactoring Monolithic Components`. The solution was to systematically decompose the large hook into a suite of smaller, single-responsibility hooks (`useChecklistState`, `useChecklistItemManagement`, `useChecklistHierarchy`, `useChecklistIPC`, etc.). The original `useChecklist` hook was transformed into a clean "orchestrator" whose only job is to initialize these smaller hooks and wire them together. This architectural pattern is crucial for managing complexity in a growing React application.
+
+---
+
 #### [1.0.23] - Keyboard Events on Non-Interactive Elements
 -   **Issue**: We needed to capture `Tab` and `Shift+Tab` key presses on a `div` representing a checklist item to implement indent/outdent keyboard shortcuts. By default, `div` elements cannot receive focus and therefore do not fire keyboard events.
 -   **Lesson**: To make a non-interactive element like a `div` or `span` capable of receiving keyboard focus and events, you must add the `tabIndex={0}` attribute to it. This adds the element to the natural tab order of the page, allowing it to be focused and to trigger `onKeyDown` handlers. This is a crucial accessibility pattern for creating keyboard-navigable custom components. See `Rule 74.0` for a full explanation.

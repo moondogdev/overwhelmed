@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Task, Settings, TaskType, AccordionProps } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { Task, Settings, TaskType, AccordionProps, Account } from '../types';
 import { useAppContext } from '../contexts/AppContext';
 import { PromptModal } from './Editors';
 import './styles/Accordion.css';
@@ -46,8 +46,11 @@ export function LiveClock() {
 
 export function TaskTypeManager() {
     const { settings, setSettings } = useAppContext();
+    const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+    const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     const allPossibleFields: (keyof Task)[] = [
-        'text', 'url', 'priority', 'categoryId', 'openDate', 'completeBy', 'company', 'websiteUrl', 'imageLinks', 'payRate', 'isRecurring', 'isDailyRecurring', 'isWeeklyRecurring', 'isMonthlyRecurring', 'isYearlyRecurring', 'isAutocomplete', 'description', 'attachments', 'checklist', 'notes'
+        'text', 'url', 'priority', 'categoryId', 'openDate', 'completeBy', 'company', 'websiteUrl', 'imageLinks', 'payRate', 'transactionAmount', 'transactionType', 'isRecurring', 'isDailyRecurring', 'isWeeklyRecurring', 'isMonthlyRecurring', 'isYearlyRecurring', 'isAutocomplete', 'description', 'attachments', 'checklist', 'notes'
     ];
 
     const handleUpdateTaskType = (updatedType: TaskType) => {
@@ -66,9 +69,15 @@ export function TaskTypeManager() {
     };
 
     const handleDeleteTaskType = (typeId: string) => {
-        if (window.confirm('Are you sure you want to delete this task type?')) {
+        if (confirmingDeleteId === typeId) {
             const newTypes = (settings.taskTypes || []).filter(t => t.id !== typeId);
             setSettings(prev => ({ ...prev, taskTypes: newTypes }));
+            setConfirmingDeleteId(null);
+            if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+        } else {
+            setConfirmingDeleteId(typeId);
+            if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+            confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteId(null), 3000);
         }
     };
 
@@ -95,8 +104,8 @@ export function TaskTypeManager() {
                             disabled={type.id === 'default'} // Don't allow renaming the default type
                         />
                         {type.id !== 'default' && (
-                            <button className="remove-link-btn" onClick={() => handleDeleteTaskType(type.id)}>
-                                <i className="fas fa-minus"></i>
+                            <button className={`remove-link-btn ${confirmingDeleteId === type.id ? 'confirm-delete' : ''}`} onClick={() => handleDeleteTaskType(type.id)}>
+                                <i className={`fas ${confirmingDeleteId === type.id ? 'fa-check' : 'fa-minus'}`}></i>
                             </button>
                         )}
                     </div>
@@ -117,6 +126,52 @@ export function TaskTypeManager() {
             <button className="add-link-btn" onClick={handleAddTaskType}>
                 <i className="fas fa-plus"></i> Add Task Type
             </button>
+        </SimpleAccordion>
+    );
+}
+
+export function AccountManager() {
+    const { settings, setSettings } = useAppContext();
+    const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
+    const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handleAddAccount = () => {
+        const newAccount: Account = { id: Date.now(), name: 'New Account' };
+        setSettings(prev => ({ ...prev, accounts: [...prev.accounts, newAccount] }));
+    };
+
+    const handleUpdateAccount = (id: number, name: string) => {
+        setSettings(prev => ({
+            ...prev,
+            accounts: prev.accounts.map(acc => acc.id === id ? { ...acc, name } : acc)
+        }));
+    };
+
+    const handleDeleteAccount = (id: number) => {
+        if (confirmingDeleteId === id) {
+            setSettings(prev => ({ ...prev, accounts: prev.accounts.filter(acc => acc.id !== id) }));
+            setConfirmingDeleteId(null);
+            if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+        } else {
+            setConfirmingDeleteId(id);
+            if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+            confirmTimeoutRef.current = setTimeout(() => setConfirmingDeleteId(null), 3000);
+        }
+    };
+
+    return (
+        <SimpleAccordion title="Account Manager">
+            <div className="category-manager-list">
+                {settings.accounts.map(account => (
+                    <div key={account.id} className="category-manager-item">
+                        <input type="text" defaultValue={account.name} onBlur={(e) => handleUpdateAccount(account.id, e.target.value)} />
+                        <button className={`remove-link-btn ${confirmingDeleteId === account.id ? 'confirm-delete' : ''}`} onClick={() => handleDeleteAccount(account.id)}>
+                            <i className={`fas ${confirmingDeleteId === account.id ? 'fa-check' : 'fa-minus'}`}></i>
+                        </button>
+                    </div>
+                ))}
+            </div>
+            <button className="add-link-btn" onClick={handleAddAccount}><i className="fas fa-plus"></i> Add Account</button>
         </SimpleAccordion>
     );
 }
