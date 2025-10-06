@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import "./index.css";
 import { AppLayout } from './components/AppLayout';
@@ -28,6 +28,7 @@ function App() {
   const snoozeTimeSelectRef = useRef<HTMLSelectElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);  
   const activeChecklistRef = useRef<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; } | null>(null);  
+  const contentAreaRef = useRef<HTMLDivElement>(null);
 
   // --- UI, Settings, and Task State (managed by custom hooks) ---
   // We need `setSettings` for `uiState`, but `showToast` from `uiState` for `settingsState`.
@@ -47,7 +48,7 @@ function App() {
   const taskState = useTaskState({
     setInboxMessages, showToast, newTask, setNewTask, bulkAddText, setBulkAddText, settings,
   });
-  const { tasks, setTasks, completedTasks, setCompletedTasks, handleCompleteTask: originalHandleCompleteTask, removeTask, handleTaskUpdate, handleChecklistCompletion, handleClearAll, handleCopyList, handleTogglePause, tasksRef, completedTasksRef, handleBulkAdd, handleBulkDelete, handleBulkSetCategory, handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen, handleCopyTaskAsCsv, handleBulkCopyAsCsv, handleBulkDownloadAsCsv } = taskState;
+  const { tasks, setTasks, completedTasks, setCompletedTasks, handleCompleteTask: originalHandleCompleteTask, removeTask, handleTaskUpdate, handleChecklistCompletion, handleClearAll, handleCopyList, tasksRef, completedTasksRef, handleBulkAdd, handleBulkDelete, handleBulkSetCategory, handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen, handleCopyTaskAsCsv, handleBulkCopyAsCsv, handleBulkDownloadAsCsv, handleAutoTaxCategorize, handleBulkSetAccount, handleSetTaxCategory, handleBulkSetTaxCategory, handleSyncIds, handleBulkSetIncomeType, handleAutoTagIncomeTypes } = taskState;
 
   // --- Global Timer State (managed by custom hook) ---
   const globalTimerState = useGlobalTimer({
@@ -87,9 +88,21 @@ function App() {
     return categoryIdsToShow.includes(task.categoryId);
   });
 
+  const nonTransactionTasksCount = useMemo(() => {
+    const transactionsCategory = settings.categories.find(c => c.name === 'Transactions');
+    if (!transactionsCategory) {
+      return tasks.length;
+    }
+    const transactionSubCategoryIds = settings.categories.filter(c => c.parentId === transactionsCategory.id).map(c => c.id);
+    const allTransactionCategoryIds = new Set([transactionsCategory.id, ...transactionSubCategoryIds]);
+
+    return tasks.filter(task => !task.categoryId || !allTransactionCategoryIds.has(task.categoryId)).length;
+  }, [tasks, settings.categories]);
+
+
   // --- Navigation State (managed by custom hook) ---
   const navigationState = useNavigation({
-    tasks, filteredTasks, settings, setSettings,
+    tasks, filteredTasks, settings, setSettings, contentAreaRef
   });
 
   // --- Data Persistence Logic (managed by custom hook) ---
@@ -129,6 +142,14 @@ function App() {
       setTimeout(() => globalTimerState.handleNextTask(), 100);
     }
   };
+
+  // This effect runs once on startup to disable the browser's default scroll restoration.
+  // This gives our application full control over the scroll position, fixing the jump-on-navigate bug.
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+  }, []);
 
   // =================================================================================
   // II. RENDER LOGIC
@@ -172,13 +193,19 @@ function App() {
     handleCopyTaskAsCsv,
     handleBulkCopyAsCsv,
     handleBulkSetCategory,
+    handleBulkSetIncomeType,
+    handleAutoTagIncomeTypes,
     handleBulkDelete,
+    handleSetTaxCategory,
+    handleSyncIds,
+    handleBulkSetTaxCategory,
+    createManualBackup: dataPersistenceState.createManualBackup,
+    handleBulkSetAccount,
+    handleAutoTaxCategorize,
     handleAccordionToggle,
     focusAddTaskInput,
-    handleToggleTaskSelection,
-    handleChecklistCompletion,
+    handleToggleTaskSelection,    handleChecklistCompletion,
     handleGlobalToggleTimer,
-    handleTogglePause,
     handleSilenceTask,
     handleUnsilenceTask,
     handleSkipAllOverdue,
@@ -198,6 +225,7 @@ function App() {
     handlePostAndResetLog,
     handleResetAllLogEntries,
     handleStartTaskFromSession,
+    nonTransactionTasksCount,
     filteredTasks,
     // Pass remaining refs
     searchInputRef, sortSelectRef, snoozeTimeSelectRef, activeChecklistRef, newTaskTitleInputRef,    
@@ -206,7 +234,7 @@ function App() {
 
   return (
     <AppContext.Provider value={appContextValue}>
-      <AppLayout />      
+      <AppLayout contentAreaRef={contentAreaRef} />
     </AppContext.Provider>
   );
 }

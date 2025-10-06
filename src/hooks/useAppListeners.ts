@@ -77,8 +77,8 @@ export function useAppListeners({
 
   // Effect to handle commands from the ticket context menu
   useEffect(() => {
-    const handleMenuCommand = (payload: { command: string, taskId: number, categoryId?: number }) => {
-      const { command, taskId, categoryId } = payload;
+    const handleMenuCommand = (payload: { command: string, taskId: number, categoryId?: number, taxCategoryId?: number, incomeType?: 'w2' | 'business' | 'reimbursement' }) => {
+      const { command, taskId, categoryId, taxCategoryId, incomeType } = payload;
       const targetTask = [...taskState.tasks, ...taskState.completedTasks].find(w => w.id === taskId);
       if (!targetTask) return;
 
@@ -101,6 +101,14 @@ export function useAppListeners({
         case 'duplicate':
           taskState.handleDuplicateTask(targetTask);
           break;
+        case 'copy_title': {
+          const taskToCopy = taskState.tasks.find(t => t.id === payload.taskId) || taskState.completedTasks.find(t => t.id === payload.taskId);
+          if (taskToCopy) {
+            navigator.clipboard.writeText(taskToCopy.text);
+            uiState.showToast('Task title copied!');
+          }
+          break;
+        }
         case 'copy_as_row':
           taskState.handleCopyTaskAsCsv(taskId);
           break;
@@ -117,6 +125,16 @@ export function useAppListeners({
         case 'set_category':
           if (categoryId) taskState.handleTaskUpdate({ ...targetTask, categoryId: categoryId });
           uiState.showToast(`Task category updated!`);
+          break;
+        case 'set_tax_category':          
+          taskState.handleSetTaxCategory(taskId, taxCategoryId);
+          break;
+        case 'set_income_type':
+          taskState.handleTaskUpdate({ ...targetTask, incomeType: incomeType });
+          let typeName = 'W-2 Wage';
+          if (incomeType === 'business') typeName = 'Business Earning';
+          if (incomeType === 'reimbursement') typeName = 'Reimbursement';
+          uiState.showToast(`Income type set to ${typeName}.`);
           break;
         case 'go_to_next':
           navigationState.handleGoToNextTask(taskId);

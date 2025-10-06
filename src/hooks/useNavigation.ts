@@ -6,19 +6,33 @@ interface UseNavigationProps {
   filteredTasks: Task[]; // Add filteredTasks to props
   settings: Settings;
   setSettings: React.Dispatch<React.SetStateAction<Settings>>;
+  contentAreaRef: React.RefObject<HTMLDivElement>;
 }
 
-export function useNavigation({ tasks, filteredTasks, settings, setSettings }: UseNavigationProps) {
+export function useNavigation({ tasks, filteredTasks, settings, setSettings, contentAreaRef }: UseNavigationProps) {
   const [viewHistory, setViewHistory] = useState(['meme']);
   const [historyIndex, setHistoryIndex] = useState(0);
 
-  const navigateToView = useCallback((view: 'meme' | 'list' | 'reports' | 'inbox') => {
+  const navigateToView = useCallback((view: 'meme' | 'list' | 'reports' | 'inbox' | 'transactions', options?: { initialTab?: 'summary' | 'earnings' | 'activity' | 'raw' | 'history' | 'finances' | 'taxes' }) => {
+    contentAreaRef.current?.scrollTo(0, 0); // Scroll to top immediately on navigation
     const newHistory = viewHistory.slice(0, historyIndex + 1);
     newHistory.push(view);
     setViewHistory(newHistory);
     setHistoryIndex(newHistory.length - 1);
-    setSettings(prev => ({ ...prev, currentView: view }));
-  }, [viewHistory, historyIndex, setSettings]);
+    setSettings(prev => {
+      // If navigating to the main list view, always reset the category to 'all'.
+      if (view === 'list') {
+        return { 
+          ...prev, 
+          currentView: view, 
+          initialReportTab: options?.initialTab, 
+          activeCategoryId: 'all', 
+          activeSubCategoryId: 'all' 
+        };
+      }
+      return { ...prev, currentView: view, initialReportTab: options?.initialTab };
+    });
+  }, [viewHistory, historyIndex, setSettings, contentAreaRef]);
 
   const navigateToTask = useCallback((taskId: number, sectionId?: number) => {
     const task = tasks.find(t => t.id === taskId);

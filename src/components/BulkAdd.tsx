@@ -8,7 +8,8 @@ export function BulkAdd() {
     bulkAddText, setBulkAddText, handleBulkAdd,
     bulkAddCategoryId, setBulkAddCategoryId,
     bulkAddPriority, setBulkAddPriority,
-    bulkAddCompleteBy, setBulkAddCompleteBy, 
+    bulkAddCompleteBy, setBulkAddCompleteBy,
+    bulkAddTaxCategoryId, setBulkAddTaxCategoryId,
     bulkAddTransactionType, setBulkAddTransactionType, bulkAddAccountId, setBulkAddAccountId,
     bulkAddYear, setBulkAddYear,
     settings
@@ -62,6 +63,15 @@ export function BulkAdd() {
             </select>
           </label>
         )}
+        {bulkAddTransactionType !== 'none' && (
+          <label>
+            Tax Category:
+            <select value={bulkAddTaxCategoryId || ''} onChange={(e) => setBulkAddTaxCategoryId(e.target.value ? Number(e.target.value) : undefined)}>
+              <option value="">-- None --</option>
+              {(settings.taxCategories || []).map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+            </select>
+          </label>
+        )}
       </div>
       {bulkAddTransactionType !== 'none' && (
         <label>
@@ -77,7 +87,7 @@ export function BulkAdd() {
         onChange={(e) => setBulkAddText(e.target.value)}
         rows={5}
       />
-      <button onClick={() => handleBulkAdd({ categoryId: bulkAddCategoryId, priority: bulkAddPriority, completeBy: bulkAddCompleteBy, transactionType: bulkAddTransactionType, accountId: bulkAddAccountId }, bulkAddYear)}>Add Tasks</button>
+      <button onClick={() => handleBulkAdd({ categoryId: bulkAddCategoryId, priority: bulkAddPriority, completeBy: bulkAddCompleteBy, transactionType: bulkAddTransactionType, accountId: bulkAddAccountId, taxCategoryId: bulkAddTaxCategoryId }, bulkAddYear)}>Add Tasks</button>
     </SimpleAccordion>
   );
 }

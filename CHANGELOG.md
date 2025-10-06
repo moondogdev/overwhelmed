@@ -4,28 +4,51 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
+## Budgeting System
+-   ### **Phase 1: Foundational Budgeting Model**
+    -   **Data Model**:
+        -   Add a `budgets` array to the `Settings` interface.
+        -   Define a `Budget` interface: `{ id: number; name: string; categoryIds: number[]; amount: number; period: 'monthly' | 'yearly'; }`.
+    -   **UI**:
+        -   Create a `BudgetManager` in the sidebar to allow users to create, edit, and delete budgets.
+        -   For each budget, users should be able to set a name, a monetary amount, a period (monthly/yearly), and associate it with one or more expense categories.
+-   ### **Phase 2: Budget Tracking & Reporting**
+    -   **Reporting**: In the "Finances" tab of the `ReportsView`, add a new "Budgets" section.
+    -   For each defined budget, display a progress bar showing `(total spent in associated categories for the period) / (budgeted amount)`.
+    -   Display the amount remaining or the amount over budget.
+    -   Allow the user to filter the report view by the time period of the budget (e.g., show this month's data for a monthly budget).
+-   ### **Phase 3: Notifications & Insights**
+    -   **Notifications**: Create new `InboxMessage` types for budget alerts.
+    -   Trigger notifications when a budget reaches 75%, 90%, and 100% of its limit for the current period.
+    -   **Insights**: In the "Reports" view, provide simple insights, such as "You are on track for your 'Groceries' budget this month" or "Warning: You have exceeded your 'Entertainment' budget."
+
+---
+
 ## Future Features
 -   ### **Finances**:
     -   **Phase 4: Advanced Features**
 
--   ### **Taxes & Budgeting**:
-    -   **Phase 1: Tax Helper Data Model & UI**
-        -   **Data Model**:
-            -   Add a new `taxCategoryId?: number` property to the `Task` interface.
-            -   Create a new `TaxCategory` interface with `id`, `name`, and `keywords: string[]`.
-            -   Add `taxCategories: TaxCategory[]` to the `Settings` interface.
-        -   **Management UI**:
-            -   Create a new `TaxCategoryManager.tsx` component in the sidebar. This will allow users to create/rename/delete tax categories and define their associated keywords, similar to the existing `TransactionAutocategorizeSettings`.
-        -   **Assignment UI**:
-            -   In `AddNewTaskForm.tsx` and the `TabbedView.tsx` edit mode, add a "Tax Category" dropdown that appears for any task with a transaction amount. This allows for manual assignment.
-    -   **Phase 2: Auto-Tagging Logic & Filtering**
-        -   **Auto-Tagging Handler**: Create a new `handleAutoTaxCategorize` handler in `useTaskState.ts`. This function will iterate through selected tasks and assign a `taxCategoryId` based on keyword matches in the task title, without changing the primary `categoryId`.
-        -   **Auto-Tagging UI**: In `ListView.tsx`, when viewing transactions, add a new UI section (similar to the current auto-categorize UI) that shows potential matches and allows users to trigger `handleAutoTaxCategorize` for all visible items.
-        -   **Filtering**: In `ListView.tsx`, add a new filter dropdown to the "Transactions" view to allow users to filter transactions by the new `taxCategoryId`.
-    -   **Phase 3: Reporting & Export**
-        -   **Reporting**: In `ReportsView.tsx`, add a new chart/table to the "Finances" tab that specifically groups and sums expenses by `taxCategoryId`, providing a clear overview of all deductible items.
-        -   **Export**: Update the CSV/TSV export functions (`handleBulkDownloadAsCsv`, `handleCopyTaskAsCsv`) to include a new "Tax Category" column.
- 
+-   ### **Automated Transaction Importing (via Plaid Integration)**
+    -   **Phase 1: Research & Backend Setup**:
+        -   Research and select a third-party financial data aggregator (e.g., Plaid, Yodlee).
+        -   Set up a secure backend server (e.g., using Node.js/Express or a serverless function) to manage API keys and user access tokens.
+        -   Create a simple database to securely store the `access_token` for each user, linking it to their Overwhelmed instance.
+    -   **Phase 2: Client-Side Integration**:
+        -   Integrate the aggregator's front-end widget (e.g., Plaid Link) into the Overwhelmed application.
+        -   Add a "Connect Bank Account" button that launches the widget.
+        -   Implement the client-side logic to receive the temporary `public_token` from the widget and send it to our backend to be exchanged for a permanent `access_token`.
+    -   **Phase 3: Data Fetching & Syncing**:
+        -   On the backend, create a scheduled job (e.g., a cron job) that runs periodically (e.g., daily).
+        -   The job will iterate through all stored `access_token`s and fetch any new transactions from the aggregator's API since the last check.
+        -   Store the new, standardized transaction data in our database.
+    -   **Phase 4: App Synchronization**:
+        -   When the Overwhelmed app starts, it will make an authenticated API call to our backend to request new transactions.
+        -   The backend will return any new transactions it has stored.
+        -   The app will then process these transactions and add them to the user's task list, ready for categorization.
+
+-   ### **Transactions**:
+    -   Clean up transaction UI further. Simplify accordion details.
+
 -   ### **Table View**: 
     -   Implement a new "Table View" for tasks, similar to a spreadsheet.
     -   Allow for inline editing of task properties (title, due date, priority, etc.) directly from the table cells.
@@ -51,7 +74,6 @@ All notable changes to this project will be documented in this file. See `## Log
 -   ### **Settings & Data Management**: 
     -   Build a full, dedicated "Settings" view instead of having them in the sidebar.
     -   Implement "Export Settings" and "Import Settings" functionality to allow users to save, load, and share their application configuration independently of their task data.
--   Implement "Import Tasks" and "Export Tasks" to allow for merging task data from different project files without overwriting settings.
 
 -   ### **Calendar**: 
     -   Task view in Calendar form. Can start new task on a specific due date by using the calendar
@@ -75,8 +97,31 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
+## Deprecation Roadmap
+
+-   ### **Deprecate MemeView**:
+    -   **Phase 1: Data Model & State Cleanup**
+        -   Remove canvas-specific properties (`x`, `y`, `width`, `height`) from the `Task` interface in `types.ts`.
+        -   Remove these properties from the `newTask` initial state in `useUIState.ts` and from the `newTaskObject` creation logic in `useTaskState.ts`.
+    -   **Phase 2: Main Process & IPC Cleanup**
+        -   Remove the `handleFileSave` IPC handler from `index.ts` as it's only used for saving the canvas image.
+        -   Remove the corresponding `saveFile` function from `preload.ts` and `declarations.d.ts`.
+    -   **Phase 3: UI & Navigation Cleanup**
+        -   Delete the `MemeView.tsx` component file.
+        -   Delete the `MemeViewSettings.tsx` component file and remove it from `Sidebar.tsx`.
+        -   In `AppLayout.tsx`, remove the case for rendering `MemeView`.
+        -   In `AppHeader.tsx`, remove the navigation button for "Meme View".
+    -   **Phase 4: Final Configuration Changes**
+        -   In `types.ts`, remove `'meme'` from the literal type for `Settings['currentView']`.
+        -   In `config.ts`, change the `defaultSettings.currentView` to `'list'`.
+        -   In `useNavigation.ts`, update the initial `viewHistory` to start with `['list']`.
+        -   In `types.ts` and `config.ts`, remove all settings related to the MemeView (e.g., `fontFamily`, `shadowColor`, `overlayColor`, etc.).
+
+---
+
 ## Log of Changes
 
+- **[1.0.29] - 2025-10-06: Tax Workflow & Reporting Polish**: feat(taxes): Enhance tax workflow with new actions, filters, and reporting UI.
 - **[1.0.28] - 2025-10-05: Financial Tracking & Reporting**: feat(finances): Implement comprehensive financial tracking and reporting.
 - **[1.0.27] - 2025-10-04: Checklist Hook Refactor**: refactor(checklist): Decompose monolithic `useChecklist` hook into smaller, single-responsibility hooks.
 - **[1.0.26] - 2025-10-04: Advanced Checklist Structuring & Organization**: feat(checklist): Implement content blocks, hierarchical sorting, nesting, bulk actions, and named hyperlinks.
@@ -109,7 +154,30 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
-## [1.0.28] - 2025-10-04: Financial Tracking & Reporting
+## [1.0.29] - 2025-10-05: Tax Workflow & Reporting Polish
+**feat(taxes): Enhance tax workflow with new actions, filters, and reporting UI.**
+
+This update introduces a series of quality-of-life improvements to the tax and transaction management workflows, making categorization faster and reporting clearer.
+
+#### Features & UI Improvements:
+-   **Centralized Auto-Tagging Actions**: The "Auto-Tag for Taxes" and "Auto-Tag Income" buttons have been added directly to the `Tax Category Manager` in the sidebar, allowing users to run categorization rules while managing keywords.
+-   **Filter by Income Tag**: A new filter has been added to the "Transactions" view. When filtering by "Income," users can now further drill down by specific income tags (W-2, Business, Reimbursement) or find items that are still "Untagged."
+-   **Streamlined Keyword Workflow**:
+    -   A new "Copy Titles as Keywords" button has been added to the "Transactions" view header. This copies the titles of all visible transactions as a comma-separated list, perfect for pasting directly into a category's keyword field.
+    -   A "Copy Title" option has been added to the right-click context menu on individual tasks for quick and easy text grabbing.
+-   **Unified "Uncategorize All"**: An "Uncategorize All" button is now available for both Tax Categories and Income Types in the main list view and the sidebar manager, providing a consistent way to reset tags.
+-   **Polished Tax Reports**:
+    -   The yearly tax report has been redesigned with a single, unified header that provides a clean summary of total income, expenses, and the estimated net.
+    -   The layout of tables within the tax report has been improved, ensuring the "Description" column properly expands to fill available space for better readability.
+-   **Sidebar Refactor**: The `TaxCategoryManager` in the sidebar was refactored to be aware of the main list view's filters. The auto-tagging buttons now show accurate counts based on the currently visible tasks, making the feature more intuitive and context-aware.
+-   **Architectural Refactor**: The sidebar's structure has been extracted from `AppLayout.tsx` into its own dedicated `Sidebar.tsx` component, improving code organization and modularity.
+
+#### Summary
+This update delivers a suite of targeted enhancements that make the process of tagging transactions, managing keywords, and reviewing financial reports a much more efficient and pleasant experience.
+
+---
+
+## [1.0.28] - 2025-10-05: Financial Tracking & Reporting
 **feat(finances): Implement comprehensive financial tracking and reporting.**
 
 This is a major feature release that introduces a full suite of tools for tracking income and expenses directly within tasks, along with a powerful new reporting dashboard to visualize financial data.

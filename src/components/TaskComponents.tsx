@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Task, Settings, Category } from '../types';
 import { formatTime, getContrastColor, calculateNextOccurrence, formatTimestamp } from '../utils';
 
@@ -99,42 +99,6 @@ export function TimeOpen({ startDate }: { startDate: number }) {
   return <span className={className}>{timeOpen}</span>;
 }
 
-export function Stopwatch({ task, onTogglePause }: { task: Task, onTogglePause: (id: number) => void }) {
-  const [elapsedTime, setElapsedTime] = useState(0);
-
-  useEffect(() => {
-    const calculateElapsedTime = () => {
-      if (task.isPaused) {
-        return task.pausedDuration || 0;
-      }
-      const now = Date.now();
-      const elapsed = (task.pausedDuration || 0) + (now - task.createdAt);
-      return elapsed;
-    };
-
-    setElapsedTime(calculateElapsedTime());
-
-    if (task.isPaused) {
-      return; // Don't start the interval if paused
-    }
-
-    const interval = setInterval(() => {
-      setElapsedTime(calculateElapsedTime());
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [task.isPaused, task.createdAt, task.pausedDuration]);
-
-  return (
-    <div className="stopwatch-container">
-      <span className="stopwatch">{formatTime(elapsedTime)}</span>
-      <button onClick={() => onTogglePause(task.id)} className="pause-btn">
-        {task.isPaused ? '▶' : '❚❚'}
-      </button>
-    </div>
-  );
-}
-
 export function ManualStopwatch({ task, onUpdate }: { task: Task, onUpdate: (updatedTask: Task) => void }) {
   const [displayTime, setDisplayTime] = useState(task.manualTime || 0);
 
@@ -185,12 +149,15 @@ export function TaskAccordionHeader({
   isSelected,
   onToggleSelection
 }: { 
-  task: Task, settings: Settings, onCategoryClick: (e: React.MouseEvent, catId: number, parentId?: number) => void, onUpdate?: (updatedTask: Task) => void, onNotify?: (task: Task) => void, allTasks: Task[]
+  task: Task, settings: Settings, onCategoryClick: (e: React.MouseEvent, catId: number, parentId?: number) => void, onUpdate?: (updatedTask: Task, options?: { action: string }) => void, onNotify?: (task: Task) => void, allTasks: Task[]
   isSelected: boolean,
   onToggleSelection: (taskId: number) => void,
 }) {
+  const [confirmingUncategorize, setConfirmingUncategorize] = useState(false);
+  const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const isTransaction = useMemo(() => {
-    if (!task.categoryId) return false;
+    if (!task.categoryId) return false;    
     const category = settings.categories.find(c => c.id === task.categoryId);
     const parentCategory = category?.parentId ? settings.categories.find(c => c.id === category.parentId) : category;
     return parentCategory?.name === 'Transactions';
@@ -294,6 +261,62 @@ export function TaskAccordionHeader({
                   <i className="fas fa-university"></i> {account.name}</span>
               );
             })()}
+            {task.taxCategoryId && (() => {
+              const taxCategory = settings.taxCategories?.find(tc => tc.id === task.taxCategoryId);
+              if (!taxCategory) return null;
+              return (
+                <span 
+                  className={`category-pill tax-category-pill clickable-pill ${confirmingUncategorize ? 'confirm-delete' : ''}`} 
+                  title={confirmingUncategorize ? 'Click again to confirm removal' : `Tax Category: ${taxCategory.name} (Click to remove)`}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent accordion toggle
+                    if (confirmingUncategorize) {
+                      if (onUpdate) {
+                        onUpdate({ ...task, taxCategoryId: undefined }, { action: 'tax-uncategorize' });
+                      }
+                      setConfirmingUncategorize(false);
+                      if (confirmTimeoutRef.current) {
+                        clearTimeout(confirmTimeoutRef.current);
+                      }
+                    } else {
+                      setConfirmingUncategorize(true);
+                      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+                      confirmTimeoutRef.current = setTimeout(() => setConfirmingUncategorize(false), 3000);
+                    }
+                  }}
+                >
+                  <i className={`fas ${confirmingUncategorize ? 'fa-check' : 'fa-tags'}`}></i> 
+                  {confirmingUncategorize ? 'Confirm?' : taxCategory.name}
+                </span>
+              );
+            })()}
+            {task.incomeType && (task.transactionType === 'income' || (task.payRate || 0) > 0) && (() => {
+              let pillText = '';
+              let pillClass = '';
+              let iconClass = 'fa-file-invoice-dollar'; // Default icon
+
+              switch (task.incomeType) {
+                case 'w2':
+                  pillText = 'W-2 Wage';
+                  pillClass = 'w2-wage-pill';
+                  break;
+                case 'business':
+                  pillText = 'Business Earning';
+                  pillClass = 'business-earning-pill';
+                  break;
+                case 'reimbursement':
+                  pillText = 'Reimbursement';
+                  pillClass = 'reimbursement-pill';
+                  iconClass = 'fa-receipt'; // A more fitting icon for reimbursements
+                  break;
+              }
+              if (!pillText) return null;
+              return (
+                <span className={`category-pill income-type-pill ${pillClass}`} title={`Income Type: ${pillText}`}>
+                  <i className={`fas ${iconClass}`}></i> {pillText}
+                </span>
+              );
+            })()}
           </>
         )}
         {task.completeBy && (
@@ -373,7 +396,7 @@ export function TaskAccordion({
   onUpdate,
   onNotify
 }: { 
-  title: React.ReactNode, children: React.ReactNode, isOpen: boolean, onToggle: () => void, task: Task, settings: Settings, completedTasks: Task[], onUpdate?: (task: Task) => void, onNotify?: (task: Task) => void 
+  title: React.ReactNode, children: React.ReactNode, isOpen: boolean, onToggle: () => void, task: Task, settings: Settings, completedTasks: Task[], onUpdate?: (task: Task, options?: { action: string }) => void, onNotify?: (task: Task) => void
 }) {
   const [content, headerActions] = React.Children.toArray(children);
 
@@ -387,7 +410,21 @@ export function TaskAccordion({
             e.preventDefault();
             const isInEditMode = settings.activeTaskTabs?.[task.id] === 'edit';
             const hasCompletedTasks = completedTasks.length > 0;
-            window.electronAPI.showTaskContextMenu({ taskId: task.id, x: e.clientX, y: e.clientY, isInEditMode, hasCompletedTasks, categories: settings.categories });
+            
+            const category = settings.categories.find(c => c.id === task.categoryId);
+            const parentCategory = category?.parentId ? settings.categories.find(c => c.id === category.parentId) : category;
+            const isTransaction = parentCategory?.name === 'Transactions';
+            const isIncome = (task.transactionAmount || 0) > 0 || ((task.payRate || 0) > 0);
+
+            window.electronAPI.showTaskContextMenu({ 
+              taskId: task.id, 
+              x: e.clientX, y: e.clientY, 
+              isInEditMode, hasCompletedTasks, 
+              categories: settings.categories,
+              taxCategories: isTransaction ? settings.taxCategories : undefined, // Only send tax categories for transactions
+              isIncome: isIncome,
+              incomeType: task.incomeType,
+            });
           }}
         >
           <span className="accordion-icon"><i className={`fas ${isOpen ? 'fa-minus' : 'fa-plus'}`}></i></span>

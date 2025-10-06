@@ -225,6 +225,28 @@ ipcMain.handle('export-backup', async (_event, { backupPath, backupName }) => {
   } catch (error) { console.error('Failed to export backup:', error); }
 });
 
+ipcMain.handle('print-to-pdf', async (event, options) => {
+  const webContents = event.sender;
+  const year = options.year || new Date().getFullYear();
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Save Tax Report as PDF',    
+    defaultPath: `tax-report-${year}-${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`,
+    filters: [{ name: 'PDF Documents', extensions: ['pdf'] }]
+  });
+
+  if (!canceled && filePath) {
+    try {
+      const pdfData = await webContents.printToPDF({
+        printBackground: true,
+        pageSize: 'Letter'
+      });
+      fs.writeFileSync(filePath, pdfData);
+      shell.openPath(filePath); // Open the saved PDF for the user
+    } catch (error) { console.error('Failed to print to PDF:', error); }
+  }
+});
+
+
 const createWindow = (): void => {
   // Load the previous window state with fallback to defaults
   const mainWindowState = windowStateKeeper({
@@ -371,7 +393,7 @@ app.whenReady().then(() => {
     isDirty = dirtyState;
   });
   ipcMain.on('show-task-context-menu', (event, payload) => {
-    const { taskId, x, y, hasCompletedTasks, isInEditMode, categories } = payload;
+    const { taskId, x, y, hasCompletedTasks, isInEditMode, categories, taxCategories, isIncome, incomeType } = payload;
     const webContents = event.sender;
 
     // Build hierarchical category submenu
@@ -394,6 +416,20 @@ app.whenReady().then(() => {
         ]
       };
     });
+
+    // Build tax category submenu if available
+    const taxCategorySubmenu = (taxCategories || []).map((taxCat: any) => ({
+      label: taxCat.name,
+      click: () => webContents.send('context-menu-command', { command: 'set_tax_category', taskId, taxCategoryId: taxCat.id })
+    }));
+
+    if (taxCategorySubmenu.length > 0) {
+      taxCategorySubmenu.push({ type: 'separator' });
+      taxCategorySubmenu.push({
+        label: 'Remove Tax Category',
+        click: () => webContents.send('context-menu-command', { command: 'set_tax_category', taskId, taxCategoryId: undefined })
+      });
+    }
     const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [];
 
     // Dynamically add 'View' or 'Edit' based on the current mode
@@ -428,10 +464,49 @@ app.whenReady().then(() => {
         label: 'Set Category',
         submenu: categorySubmenu
       },
+      {
+        label: 'Set Tax Category',
+        visible: taxCategorySubmenu.length > 0, // Only show if it's a transaction task
+        submenu: taxCategorySubmenu
+      },
+      {
+        label: 'Set Income Type',
+        visible: isIncome, // Only show for income tasks
+        submenu: [
+          {
+            label: 'W-2 Wage',
+            type: 'radio',
+            checked: (incomeType || 'w2') === 'w2',
+            click: () => webContents.send('context-menu-command', { command: 'set_income_type', taskId, incomeType: 'w2' })
+          },
+          {
+            label: 'Business Earning',
+            type: 'radio',
+            checked: incomeType === 'business',
+            click: () => webContents.send('context-menu-command', { command: 'set_income_type', taskId, incomeType: 'business' })
+          },
+          {
+            label: 'Reimbursement / Non-Taxable',
+            type: 'radio',
+            checked: incomeType === 'reimbursement',
+            click: () => webContents.send('context-menu-command', { command: 'set_income_type', taskId, incomeType: 'reimbursement' })
+          },
+          { type: 'separator' },
+          {
+            label: 'Remove Income Type',
+            type: 'radio',
+            click: () => webContents.send('context-menu-command', { command: 'set_income_type', taskId, incomeType: undefined })
+          }
+        ]
+      },
       { type: 'separator' },
       {
         label: 'Copy as Row',
         click: () => webContents.send('context-menu-command', { command: 'copy_as_row', taskId }),
+      },
+      {
+        label: 'Copy Title',
+        click: () => webContents.send('context-menu-command', { command: 'copy_title', taskId }),
       },
       {
         label: 'Complete Task',

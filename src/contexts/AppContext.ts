@@ -54,6 +54,12 @@ export interface AppContextType {
   setBulkAddTransactionType: React.Dispatch<React.SetStateAction<'none' | 'income' | 'expense'>>;
   bulkAddAccountId: number | undefined;
   setBulkAddAccountId: React.Dispatch<React.SetStateAction<number | undefined>>;
+  bulkAddTaxCategoryId: number | undefined;
+  setBulkAddTaxCategoryId: React.Dispatch<React.SetStateAction<number | undefined>>;
+  activeTaxCategoryId: number | 'all';
+  setActiveTaxCategoryId: React.Dispatch<React.SetStateAction<number | 'all'>>;
+  taxStatusFilter: 'all' | 'tagged' | 'untagged';
+  setTaxStatusFilter: React.Dispatch<React.SetStateAction<'all' | 'tagged' | 'untagged'>>;
   bulkAddYear: number;
   setBulkAddYear: React.Dispatch<React.SetStateAction<number>>;
   selectedTaskIds: number[];
@@ -64,6 +70,11 @@ export interface AppContextType {
   setSelectedYear: React.Dispatch<React.SetStateAction<'all' | number>>;
   isWorkSessionManagerOpen: boolean;
   setIsWorkSessionManagerOpen: (isOpen: boolean) => void;
+  visibleTaskIds: number[];
+  setVisibleTaskIds: React.Dispatch<React.SetStateAction<number[]>>;
+  focusTaxBulkAdd: boolean;
+  setFocusTaxBulkAdd: React.Dispatch<React.SetStateAction<boolean>>;
+  nonTransactionTasksCount: number;
 
   // Refs
   historyIndex: number;
@@ -87,8 +98,7 @@ export interface AppContextType {
   handleTaskUpdate: (task: Task) => void;
   handleAccordionToggle: (id: number) => void;
   handleReopenTask: (task: Task) => void;
-  handleDuplicateTask: (task: Task) => void;
-  handleTogglePause: (id: number) => void;
+  handleDuplicateTask: (task: Task) => void;  
   handleCopyTaskAsCsv: (taskId: number) => void;
   handleEditChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   handleEditKeyDown: (event: React.KeyboardEvent<HTMLInputElement>, taskId: number) => void;
@@ -130,9 +140,9 @@ export interface AppContextType {
   handleGoToPreviousTask: (currentTaskId: number) => void;
   handleGoToNextTask: (currentTaskId: number) => void;
   navigateToTask: (taskId: number, sectionId?: number) => void;
-  handleSaveProject: () => void;
-  navigateToView: (view: 'meme' | 'list' | 'reports' | 'inbox') => void;  
-  handleBulkAdd: (options: { categoryId: number | 'default'; priority: 'High' | 'Medium' | 'Low'; completeBy?: string; transactionType?: 'none' | 'income' | 'expense', accountId?: number }, contextYear?: number) => void;
+  handleSaveProject: () => void;  
+  navigateToView: (view: 'meme' | 'list' | 'reports' | 'inbox' | 'transactions', options?: { initialTab?: 'summary' | 'earnings' | 'activity' | 'raw' | 'history' | 'finances' | 'taxes' }) => void;
+  handleBulkAdd: (options: { categoryId: number | 'default'; priority: 'High' | 'Medium' | 'Low'; completeBy?: string; transactionType?: 'none' | 'income' | 'expense', accountId?: number, taxCategoryId?: number }, contextYear?: number) => void;
   handleBulkDelete: (taskIds: number[]) => void;
   handleBulkReopen: (taskIds: number[]) => void;
   handleBulkComplete: (taskIds: number[]) => void;
@@ -140,12 +150,18 @@ export interface AppContextType {
   handleBulkSetDueDate: (taskIds: number[], completeBy: number) => void;
   handleBulkDownloadAsCsv: (taskIds: number[]) => void;
   handleBulkCopyAsCsv: (taskIds: number[]) => void;
+  handleSetTaxCategory: (taskId: number, taxCategoryId: number | undefined) => void;
+  handleBulkSetTaxCategory: (taskIds: number[], taxCategoryId: number | undefined) => void;
+  handleBulkSetIncomeType: (taskIds: number[], incomeType: 'w2' | 'business' | 'reimbursement' | undefined) => void;
   handleBulkSetAccount: (taskIds: number[], accountId: number) => void;
+  handleSyncIds: () => void;
   handleAutoCategorize: (taskIdsToProcess: number[], subCategoryIdToProcess?: number) => void;
-  handleSyncTransactionTypes: () => void;
+  handleAutoTagIncomeTypes: (taskIdsToProcess: number[], incomeTypeToProcess?: 'w2' | 'business' | 'reimbursement') => void;
+  handleSyncTransactionTypes: () => void;  
   handleBulkSetCategory: (taskIds: number[], categoryId: number) => void;
   handleExport: () => void;
   handleImport: () => void;
+  handleAutoTaxCategorize: (taskIdsToProcess: number[], taxCategoryIdToProcess?: number) => void;
   handleResetSettings: () => void;
   handleFontScaleChange: (scale: 'small' | 'medium' | 'large') => void;  
   applyDefaultShadow: () => void;
@@ -163,6 +179,7 @@ export interface AppContextType {
   handleEmptyTrash: () => void;
   handleTrashAllArchived: () => void;
   handleDismissAllInboxMessages: () => void;
+  createManualBackup: (backupName: string) => Promise<{ success: boolean; path: string; }>;
 }
 
 // We provide a default value of `null` and will handle the null check in components.

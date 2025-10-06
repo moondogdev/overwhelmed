@@ -241,27 +241,25 @@ export function TabbedView({
                 {activeTab === 'ticket' && (
                     <div className="ticket-display-view">
                         <h3 onContextMenu={handleTaskContextMenu}>{task.text} (ID: {task.id})</h3>
-                        {isTransaction ? (
+                        {isTransaction ? 
                             <>
                                 <p><strong>Main Category:</strong> Transactions</p>
                                 {task.categoryId && <p><strong>Sub-Category:</strong> {settings.categories.find(c => c.id === task.categoryId)?.name || 'Uncategorized'}</p>}
                                 {task.accountId && <p><strong>Account:</strong> {settings.accounts.find(a => a.id === task.accountId)?.name || 'N/A'}</p>}
+                                {task.taxCategoryId && <p><strong>Tax Category:</strong> {settings.taxCategories?.find(tc => tc.id === task.taxCategoryId)?.name || 'N/A'}</p>}
                                 {task.transactionType && task.transactionType !== 'none' && <p><strong>Transaction Type:</strong> <span style={{ textTransform: 'capitalize' }}>{task.transactionType}</span></p>}
                                 {task.transactionAmount && <p><strong>Transaction Amount:</strong> <span className={task.transactionAmount > 0 ? 'income-text' : 'expense-text'}>${Math.abs(task.transactionAmount).toFixed(2)}</span></p>}
                                 <p><strong>Date:</strong> {formatTimestamp(task.openDate)}</p>
-                            </>
-                        ) : (
-                            <>
+                            </> : <>
                                 {task.url && <p><strong>URL:</strong> <span className="link-with-copy"><a href="#" onClick={(e) => { e.preventDefault(); window.electronAPI.openExternalLink({ url: task.url || '', browserPath: settings.browsers[settings.activeBrowserIndex]?.path }); }}>{task.url}</a><button className="icon-button copy-btn" title="Copy URL" onClick={() => { navigator.clipboard.writeText(task.url || ''); showToast('URL copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
                                 <p><strong>Category:</strong> {settings.categories.find(c => c.id === task.categoryId)?.name || 'Uncategorized'}</p>
                                 <p><strong>Priority:</strong> {task.priority || 'Medium'}</p>
                                 <p><strong>Open Date:</strong> {formatTimestamp(task.openDate)}</p>
                             </>
-                        )}
-                        <p><strong>Time Open:</strong> <TimeOpen startDate={task.createdAt} /></p>
+                        }
+                        {!isTransaction && <p><strong>Time Open:</strong> <TimeOpen startDate={task.createdAt} /></p>}
                         {task.completeBy && <p><strong>Complete By:</strong> {formatTimestamp(task.completeBy)}</p>}
-                        {task.completeBy && <p><strong>Time Left:</strong> <TimeLeft task={task} onUpdate={onUpdate} onNotify={handleTimerNotify} settings={settings} /></p>}
-                        {task.company && <p><strong>Company:</strong> <span className="link-with-copy">{task.company}<button className="icon-button copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(task.company || ''); showToast('Company copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
+                        {task.completeBy && <p><strong>Time Left:</strong> <TimeLeft task={task} onUpdate={onUpdate} onNotify={handleTimerNotify} settings={settings} /></p>}{task.company && <p><strong>Company:</strong> <span className="link-with-copy">{task.company}<button className="icon-button copy-btn" title="Copy Company" onClick={() => { navigator.clipboard.writeText(task.company || ''); showToast('Company copied!'); }}><i className="fas fa-copy"></i></button></span></p>}
                         {!isTransaction && (
                           <div className="work-timer-container"><strong>Work Timer:</strong>
                               <TimeTrackerLog
@@ -326,6 +324,12 @@ export function TabbedView({
                                 </div>
                             </div>
                         )}
+                        
+                            <button className="add-link-btn" onClick={async () => {
+                                const newFile = await window.electronAPI.manageFile({ action: 'select' });
+                                if (newFile) { handleFieldChange('attachments', [...(task.attachments || []), newFile]); }
+                            }}><i className="fas fa-plus"></i> Attach File</button>
+                        
                         {!isTransaction && tabHeaders}
                         <div className="description-container" onContextMenu={(e) => {
                             const selection = window.getSelection();
@@ -402,73 +406,80 @@ export function TabbedView({
                                 <div className="rich-text-block-view" dangerouslySetInnerHTML={{ __html: task.description || '<p><i>No description. Double-click to add one.</i></p>' }} onDoubleClick={() => setEditingField('description')} />
                             )}
                         </div>
-                        <div className="description-container" ref={notesRef}>
-                            <div className="description-header">
-                                <strong>Notes:</strong>
-                                <div className="header-actions">
-                                    {editingField !== 'notes' && <button className="icon-button" onClick={() => setEditingField('notes')} title="Edit Notes"><i className="fas fa-pencil-alt"></i></button>}
-                                    <button className="icon-button copy-btn" title="Copy Notes Text" onClick={handleCopyNotes}><i className="fas fa-copy"></i></button>
-                                    <button className="icon-button copy-btn" title="Copy Notes HTML" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(task.notes || ''); showToast('Notes HTML copied!'); }}><i className="fas fa-code"></i></button>
+                        {!isTransaction && (
+                            <>
+                                <div className="description-container" ref={notesRef} onContextMenu={handleTaskContextMenu}>
+                                    <div className="description-header">
+                                        <strong>Notes:</strong>
+                                        <div className="header-actions">
+                                            {editingField !== 'notes' && <button className="icon-button" onClick={() => setEditingField('notes')} title="Edit Notes"><i className="fas fa-pencil-alt"></i></button>}
+                                            <button className="icon-button copy-btn" title="Copy Notes Text" onClick={handleCopyNotes}><i className="fas fa-copy"></i></button>
+                                            <button className="icon-button copy-btn" title="Copy Notes HTML" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(task.notes || ''); showToast('Notes HTML copied!'); }}><i className="fas fa-code"></i></button>
+                                        </div>
+                                    </div>
+                                    {editingField === 'notes' ? (
+                                        <DescriptionEditor
+                                            description={task.notes || ''}
+                                            onDescriptionChange={(html) => handleFieldChange('notes', html)}
+                                            settings={settings}
+                                            onSettingsChange={onSettingsChange || setSettings}
+                                            editorKey={`task-notes-${task.id}`}
+                                            onBlur={() => setEditingField(null)}
+                                            editorRef={notesEditorRef}
+                                        />
+                                    ) : (
+                                        <div className="rich-text-block-view" dangerouslySetInnerHTML={{ __html: task.notes || '<p><i>No notes. Double-click to add some.</i></p>' }} onDoubleClick={() => setEditingField('notes')} />
+                                    )}
                                 </div>
-                            </div>
-                            {editingField === 'notes' ? (
-                                <DescriptionEditor
-                                    description={task.notes || ''}
-                                    onDescriptionChange={(html) => handleFieldChange('notes', html)}
-                                    settings={settings}
-                                    onSettingsChange={onSettingsChange || setSettings}
-                                    editorKey={`task-notes-${task.id}`}
-                                    onBlur={() => setEditingField(null)}
-                                    editorRef={notesEditorRef}
-                                />
-                            ) : (
-                                <div className="rich-text-block-view" dangerouslySetInnerHTML={{ __html: task.notes || '<p><i>No notes. Double-click to add some.</i></p>' }} onDoubleClick={() => setEditingField('notes')} />
-                            )}
-                        </div>
-                        <div className="description-container" ref={responsesRef}>
-                            <div className="description-header">
-                                <strong>Responses:</strong>
-                                <div className="header-actions">
-                                    {editingField !== 'responses' && <button className="icon-button" onClick={() => setEditingField('responses')} title="Edit Responses"><i className="fas fa-pencil-alt"></i></button>}
-                                    <button className="icon-button copy-btn" title="Copy Responses Text" onClick={handleCopyResponses}><i className="fas fa-copy"></i></button>
-                                    <button className="icon-button copy-btn" title="Copy Responses HTML" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(task.responses || ''); showToast('Responses HTML copied!'); }}><i className="fas fa-code"></i></button>
+                                <div className="description-container" ref={responsesRef} onContextMenu={handleTaskContextMenu}>
+                                    <div className="description-header">
+                                        <strong>Responses:</strong>
+                                        <div className="header-actions">
+                                            {editingField !== 'responses' && <button className="icon-button" onClick={() => setEditingField('responses')} title="Edit Responses"><i className="fas fa-pencil-alt"></i></button>}
+                                            <button className="icon-button copy-btn" title="Copy Responses Text" onClick={handleCopyResponses}><i className="fas fa-copy"></i></button>
+                                            <button className="icon-button copy-btn" title="Copy Responses HTML" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(task.responses || ''); showToast('Responses HTML copied!'); }}><i className="fas fa-code"></i></button>
+                                        </div>
+                                    </div>
+                                    {editingField === 'responses' ? (
+                                        <DescriptionEditor
+                                            description={task.responses || ''}
+                                            onDescriptionChange={(html) => handleFieldChange('responses', html)}
+                                            settings={settings}
+                                            onSettingsChange={onSettingsChange || setSettings}
+                                            editorKey={`task-responses-${task.id}`}
+                                            onBlur={() => setEditingField(null)}
+                                            editorRef={responsesEditorRef}
+                                        />
+                                    ) : (
+                                        <div className="rich-text-block-view" dangerouslySetInnerHTML={{ __html: task.responses || '<p><i>No responses. Double-click to add some.</i></p>' }} onDoubleClick={() => setEditingField('responses')} />
+                                    )}
                                 </div>
-                            </div>
-                            {editingField === 'responses' ? (
-                                <DescriptionEditor
-                                    description={task.responses || ''}
-                                    onDescriptionChange={(html) => handleFieldChange('responses', html)}
-                                    settings={settings}
-                                    onSettingsChange={onSettingsChange || setSettings}
-                                    editorKey={`task-responses-${task.id}`}
-                                    onBlur={() => setEditingField(null)}
-                                    editorRef={responsesEditorRef}
-                                />
-                            ) : (
-                                <div className="rich-text-block-view" dangerouslySetInnerHTML={{ __html: task.responses || '<p><i>No responses. Double-click to add some.</i></p>' }} onDoubleClick={() => setEditingField('responses')} />
-                            )}
-                        </div>
+                            </>
+                        )}
                     </div>
                 )}
-                {activeTab === 'edit' && !task.completedDuration && (
-                    <div className="task-item-details-form">
+                {activeTab === 'edit' && !task.completedDuration && <div className="task-item-details-form">
                         <label><h4>Task Title (ID: {task.id}):</h4>
                             <input type="text" value={task.text} onChange={(e) => handleFieldChange('text', e.target.value)} />
                         </label>
+                        {!isTransaction && (
+                            <label><h4>Task Title URL:</h4>
+                                <input type="text" value={task.url || ''} onChange={(e) => handleFieldChange('url', e.target.value)} placeholder="https://example.com" />
+                            </label>
+                        )}
                         <label><h4>Category:</h4>
                             <select value={task.categoryId || ''} onChange={(e) => handleFieldChange('categoryId', Number(e.target.value))}>
                                 <CategoryOptions categories={settings.categories} />
                             </select>
                         </label>
-                        <label><h4>Task Title URL:</h4>
-                            <input type="text" value={task.url || ''} onChange={(e) => handleFieldChange('url', e.target.value)} placeholder="https://example.com" />
-                        </label>
-                        <label><h4>Priority:</h4><select value={task.priority || 'Medium'} onChange={(e) => handleFieldChange('priority', e.target.value as any)}>
-                            <option value="High">High</option>
-                            <option value="Medium">Medium</option>
-                            <option value="Low">Low</option>
-                        </select>
-                        </label>
+                        {!isTransaction && (
+                            <label><h4>Priority:</h4><select value={task.priority || 'Medium'} onChange={(e) => handleFieldChange('priority', e.target.value as any)}>
+                                <option value="High">High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                            </label>
+                        )}
                         <label><h4>Open Date:</h4>
                             <div className="date-input-group">
                                 <input type="datetime-local" value={formatTimestampForInput(task.openDate)} onChange={(e) => handleFieldChange('openDate', parseInputTimestamp(e.target.value))} />
@@ -491,37 +502,50 @@ export function TabbedView({
                                 </div>
                             </div>
                         </label>
-                        <label><h4>Complete By:</h4>
-                            <div className="date-input-group">
-                                <input type="datetime-local" value={formatTimestampForInput(task.completeBy)} onChange={(e) => handleFieldChange('completeBy', parseInputTimestamp(e.target.value))} />
-                                <div className="button-group">{(() => {
-                                    const addTime = (amount: number, unit: 'minutes' | 'hours' | 'days') => {
-                                        const baseTime = task.completeBy ? new Date(task.completeBy) : new Date();
-                                        if (unit === 'minutes') baseTime.setMinutes(baseTime.getMinutes() + amount);
-                                        if (unit === 'hours') baseTime.setHours(baseTime.getHours() + amount);
-                                        if (unit === 'days') baseTime.setDate(baseTime.getDate() + amount);
-                                        handleFieldChange('completeBy', baseTime.getTime());
-                                    };
-                                    return <><button className="icon-button" onClick={() => handleFieldChange('completeBy', undefined)} title="Clear Date"><i className="fas fa-times"></i></button>
-                                        <button onClick={() => handleFieldChange('completeBy', new Date().getTime())} title="Set to Now">NOW</button>
-                                        <button onClick={() => {
+                        {!isTransaction && (
+                            <label><h4>Complete By:</h4>
+                                <div className="date-input-group">
+                                    <input type="datetime-local" value={formatTimestampForInput(task.completeBy)} onChange={(e) => handleFieldChange('completeBy', parseInputTimestamp(e.target.value))} />
+                                    <div className="button-group">{(() => {
+                                        const addTime = (amount: number, unit: 'minutes' | 'hours' | 'days') => {
                                             const baseTime = task.completeBy ? new Date(task.completeBy) : new Date();
-                                            baseTime.setMinutes(0, 0, 0); 
+                                            if (unit === 'minutes') baseTime.setMinutes(baseTime.getMinutes() + amount);
+                                            if (unit === 'hours') baseTime.setHours(baseTime.getHours() + amount);
+                                            if (unit === 'days') baseTime.setDate(baseTime.getDate() + amount);
                                             handleFieldChange('completeBy', baseTime.getTime());
-                                        }} title="Round to Hour">:00</button>
-                                        <button onClick={() => addTime(15, 'minutes')}>+15m</button> <button onClick={() => addTime(30, 'minutes')}>+30m</button>
-                                        <button onClick={() => addTime(1, 'hours')}>+1h</button> <button onClick={() => addTime(2, 'hours')}>+2h</button>
-                                        <button onClick={() => addTime(1, 'days')}>+1d</button> <button onClick={() => addTime(3, 'days')}>+3d</button>
-                                    </>;
-                                })()}</div>
-                            </div>
-                        </label>
+                                        };
+                                        return <><button className="icon-button" onClick={() => handleFieldChange('completeBy', undefined)} title="Clear Date"><i className="fas fa-times"></i></button>
+                                            <button onClick={() => handleFieldChange('completeBy', new Date().getTime())} title="Set to Now">NOW</button>
+                                            <button onClick={() => {
+                                                const baseTime = task.completeBy ? new Date(task.completeBy) : new Date();
+                                                baseTime.setMinutes(0, 0, 0); 
+                                                handleFieldChange('completeBy', baseTime.getTime());
+                                            }} title="Round to Hour">:00</button>
+                                            <button onClick={() => addTime(15, 'minutes')}>+15m</button> <button onClick={() => addTime(30, 'minutes')}>+30m</button>
+                                            <button onClick={() => addTime(1, 'hours')}>+1h</button> <button onClick={() => addTime(2, 'hours')}>+2h</button>
+                                            <button onClick={() => addTime(1, 'days')}>+1d</button> <button onClick={() => addTime(3, 'days')}>+3d</button>
+                                        </>;
+                                    })()}</div>
+                                </div>
+                            </label>
+                        )}
                         <label><h4>Company:</h4>
                             <input type="text" value={task.company || ''} onChange={(e) => handleFieldChange('company', e.target.value)} />
                         </label>
-                        <label><h4>Pay Rate ($/hr):</h4>
-                            <input type="number" value={task.payRate || 0} onChange={(e) => handleFieldChange('payRate', Number(e.target.value))} />
-                        </label>
+                        {!isTransaction && (
+                            <label><h4>Pay Rate ($/hr):</h4>
+                                <input type="number" value={task.payRate || 0} onChange={(e) => handleFieldChange('payRate', Number(e.target.value))} />
+                            </label>
+                        )}
+                        {((!isTransaction && (task.payRate || 0) > 0) || (task.transactionType === 'income')) && (
+                            <label><h4>Income Type:</h4>
+                                <select value={task.incomeType || 'w2'} onChange={(e) => handleFieldChange('incomeType', e.target.value as 'w2' | 'business' | 'reimbursement')}>
+                                    <option value="w2">W-2 Wage</option>
+                                    <option value="business">Business Earning</option>
+                                    <option value="reimbursement">Reimbursement / Non-Taxable</option>
+                                </select>
+                            </label>
+                        )}
                         <label><h4>Transaction:</h4>
                           <div className="transaction-input-group">
                             <input
@@ -558,22 +582,34 @@ export function TabbedView({
                             </select>
                           </label>
                         )}
-                        <label><h4>Website URL:</h4>
-                            <input type="text" value={task.websiteUrl || ''} onChange={(e) => handleFieldChange('websiteUrl', e.target.value)} placeholder="https://company.com" />
-                        </label>
-                        <label><h4>Image Links:</h4>
-                            {(task.imageLinks || []).map((link, index) => (
-                                <div key={index} className="image-link-edit">
-                                    <input type="text" value={link} onChange={(e) => {
-                                        const newLinks = [...(task.imageLinks || [])];
-                                        newLinks[index] = e.target.value;
-                                        handleFieldChange('imageLinks', newLinks);
-                                    }} /><button className="icon-button" onClick={() => handleFieldChange('imageLinks', (task.imageLinks || []).filter((_, i) => i !== index))}><i className="fas fa-minus"></i></button>
-                                </div>
-                            ))}
-                        </label><button className="add-link-btn" onClick={() => handleFieldChange('imageLinks', [...(task.imageLinks || []), ''])}>
-                            <i className="fas fa-plus"></i> Add Image Link
-                        </button>
+                        {task.transactionAmount !== 0 && (
+                          <label><h4>Tax Category:</h4>
+                            <select value={task.taxCategoryId || ''} onChange={(e) => handleFieldChange('taxCategoryId', Number(e.target.value) || undefined)}>
+                              <option value="">-- None --</option>
+                              {(settings.taxCategories || []).map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                            </select>
+                          </label>
+                        )}
+                        {!isTransaction && (
+                            <>
+                                <label><h4>Website URL:</h4>
+                                    <input type="text" value={task.websiteUrl || ''} onChange={(e) => handleFieldChange('websiteUrl', e.target.value)} placeholder="https://company.com" />
+                                </label>
+                                <label><h4>Image Links:</h4>
+                                    {(task.imageLinks || []).map((link, index) => (
+                                        <div key={index} className="image-link-edit">
+                                            <input type="text" value={link} onChange={(e) => {
+                                                const newLinks = [...(task.imageLinks || [])];
+                                                newLinks[index] = e.target.value;
+                                                handleFieldChange('imageLinks', newLinks);
+                                            }} /><button className="icon-button" onClick={() => handleFieldChange('imageLinks', (task.imageLinks || []).filter((_, i) => i !== index))}><i className="fas fa-minus"></i></button>
+                                        </div>
+                                    ))}
+                                </label><button className="add-link-btn" onClick={() => handleFieldChange('imageLinks', [...(task.imageLinks || []), ''])}>
+                                    <i className="fas fa-plus"></i> Add Image Link
+                                </button>
+                            </>
+                        )}
                         <label><h4>Attachments:</h4>
                             {(task.attachments || []).map((file, index) => (
                                 <div key={index} className="attachment-edit">
@@ -630,73 +666,79 @@ export function TabbedView({
                             onSettingsChange={onSettingsChange || setSettings}
                             editorKey={`edit-description-${task.id}`} 
                         />
-                        <div className="description-container">
-                            <strong>Notes:</strong>
-                            <DescriptionEditor
-                                description={task.notes || ''}
-                                onDescriptionChange={(html) => handleFieldChange('notes', html)}
-                                settings={settings}                                
-                                onSettingsChange={onSettingsChange || setSettings}
-                                editorKey={`edit-notes-${task.id}`} 
-                            />
-                        </div>
-                        <div className="description-container">
-                            <strong>Responses:</strong>
-                            <DescriptionEditor
-                                description={task.responses || ''}
-                                onDescriptionChange={(html) => handleFieldChange('responses', html)}
-                                settings={settings}
-                                onSettingsChange={onSettingsChange || setSettings}
-                                editorKey={`edit-responses-${task.id}`} 
-                            />
-                        </div>
-                        <label className="checkbox-label flexed-column">
-                            <input type="checkbox" checked={task.isRecurring || false} onChange={(e) => handleFieldChange('isRecurring', e.target.checked)} />
-                            <span className="checkbox-label-text">Re-occurring Task</span>
-                        </label>
-                        <label className="checkbox-label flexed-column">
-                            <input type="checkbox" checked={task.isDailyRecurring || false} onChange={(e) => handleFieldChange('isDailyRecurring', e.target.checked)} />
-                            <span className="checkbox-label-text">Repeat Daily</span>
-                        </label>
-                        <label className="checkbox-label flexed-column">
-                            <input type="checkbox" checked={task.isWeeklyRecurring || false} onChange={(e) => handleFieldChange('isWeeklyRecurring', e.target.checked)} />
-                            <span className="checkbox-label-text">Repeat Weekly</span>
-                        </label>
-                        <label className="checkbox-label flexed-column">
-                            <input type="checkbox" checked={task.isMonthlyRecurring || false} onChange={(e) => handleFieldChange('isMonthlyRecurring', e.target.checked)} />
-                            <span className="checkbox-label-text">Repeat Monthly</span>
-                        </label>
-                        <label className="checkbox-label flexed-column">
-                            <input type="checkbox" checked={task.isYearlyRecurring || false} onChange={(e) => handleFieldChange('isYearlyRecurring', e.target.checked)} />
-                            <span className="checkbox-label-text">Repeat Yearly</span>
-                        </label>
-                        <label className="checkbox-label flexed-column">
-                            <input type="checkbox" checked={task.isAutocomplete || false} onChange={(e) => handleFieldChange('isAutocomplete', e.target.checked)} />
-                            <span className="checkbox-label-text">Autocomplete on Deadline</span>
-                        </label>
-                        <label><h4>Starts Task on Complete:</h4>
-                            <select
-                                value={task.startsTaskIdOnComplete || ''}
-                                onChange={(e) => handleFieldChange('startsTaskIdOnComplete', e.target.value ? Number(e.target.value) : undefined)}
-                            >
-                                <option value="">-- None --</option>
-                                {tasks
-                                    .filter(t => t.id !== task.id) 
-                                    .map(t => (
-                                        <option key={t.id} value={t.id}>{t.text}</option>
-                                    ))}
-                            </select>
-                        </label>
-                        <label><h4>Offset next task by (minutes):</h4>
-                            <input
-                                type="number"
-                                value={(task.linkedTaskOffset || 0) / 60000} // Display as minutes
-                                onChange={(e) => handleFieldChange('linkedTaskOffset', Number(e.target.value) * 60000)} // Store as ms
-                                placeholder="0"
-                            />
-                        </label>
-                    </div>
-                )}
+                        {!isTransaction && (
+                            <>
+                                <div className="description-container">
+                                    <strong>Notes:</strong>
+                                    <DescriptionEditor
+                                        description={task.notes || ''}
+                                        onDescriptionChange={(html) => handleFieldChange('notes', html)}
+                                        settings={settings}                                
+                                        onSettingsChange={onSettingsChange || setSettings}
+                                        editorKey={`edit-notes-${task.id}`} 
+                                    />
+                                </div><div className="description-container">
+                                    <strong>Responses:</strong>
+                                    <DescriptionEditor
+                                        description={task.responses || ''}
+                                        onDescriptionChange={(html) => handleFieldChange('responses', html)}
+                                        settings={settings}
+                                        onSettingsChange={onSettingsChange || setSettings}
+                                        editorKey={`edit-responses-${task.id}`} 
+                                    />
+                                </div>
+                            </>
+                        )}
+                        {!isTransaction && (
+                            <>
+                                <label className="checkbox-label flexed-column">
+                                    <input type="checkbox" checked={task.isRecurring || false} onChange={(e) => handleFieldChange('isRecurring', e.target.checked)} />
+                                    <span className="checkbox-label-text">Re-occurring Task</span>
+                                </label>
+                                <label className="checkbox-label flexed-column">
+                                    <input type="checkbox" checked={task.isDailyRecurring || false} onChange={(e) => handleFieldChange('isDailyRecurring', e.target.checked)} />
+                                    <span className="checkbox-label-text">Repeat Daily</span>
+                                </label>
+                                <label className="checkbox-label flexed-column">
+                                    <input type="checkbox" checked={task.isWeeklyRecurring || false} onChange={(e) => handleFieldChange('isWeeklyRecurring', e.target.checked)} />
+                                    <span className="checkbox-label-text">Repeat Weekly</span>
+                                </label>
+                                <label className="checkbox-label flexed-column">
+                                    <input type="checkbox" checked={task.isMonthlyRecurring || false} onChange={(e) => handleFieldChange('isMonthlyRecurring', e.target.checked)} />
+                                    <span className="checkbox-label-text">Repeat Monthly</span>
+                                </label>
+                                <label className="checkbox-label flexed-column">
+                                    <input type="checkbox" checked={task.isYearlyRecurring || false} onChange={(e) => handleFieldChange('isYearlyRecurring', e.target.checked)} />
+                                    <span className="checkbox-label-text">Repeat Yearly</span>
+                                </label>
+                                <label className="checkbox-label flexed-column">
+                                    <input type="checkbox" checked={task.isAutocomplete || false} onChange={(e) => handleFieldChange('isAutocomplete', e.target.checked)} />
+                                    <span className="checkbox-label-text">Autocomplete on Deadline</span>
+                                </label>
+                                <label><h4>Starts Task on Complete:</h4>
+                                    <select
+                                        value={task.startsTaskIdOnComplete || ''}
+                                        onChange={(e) => handleFieldChange('startsTaskIdOnComplete', e.target.value ? Number(e.target.value) : undefined)}
+                                    >
+                                        <option value="">-- None --</option>
+                                        {tasks
+                                            .filter(t => t.id !== task.id) 
+                                            .map(t => (
+                                                <option key={t.id} value={t.id}>{t.text}</option>
+                                            ))}
+                                    </select>
+                                </label>
+                                <label><h4>Offset next task by (minutes):</h4>
+                                    <input
+                                        type="number"
+                                        value={(task.linkedTaskOffset || 0) / 60000} // Display as minutes
+                                        onChange={(e) => handleFieldChange('linkedTaskOffset', Number(e.target.value) * 60000)} // Store as ms
+                                        placeholder="0"
+                                    />
+                                </label>
+                            </>
+                        )}
+                    </div>}
             </div>
             <div className="shortcut-key" style={{ marginTop: '15px', textAlign: 'center', fontSize: '0.8em', color: '#aaa' }}>
                 <span>Shortcuts: </span>

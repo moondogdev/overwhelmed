@@ -1,4 +1,4 @@
-import { Category, InboxMessage, TimeLogEntry, TimeLogSession } from './types';
+import { Category, InboxMessage, TimeLogEntry, TimeLogSession, TaskContextMenuPayload } from './types';
 
 declare global {
   interface Window {
@@ -17,11 +17,12 @@ declare global {
       deleteBackup: (filePath: string) => Promise<{ success: boolean, error?: string }>;
       exportBackup: (payload: { backupPath: string, backupName: string }) => Promise<void>;
       openBackupsFolder: () => void;
+      printToPdf: (options: any) => Promise<void>;
       send: (channel: string, data?: any) => void;
       on: (channel: string, callback: (...args: any[]) => void) => (() => void) | undefined;
       manageFile: (args: { action: 'select' } | { action: 'open', filePath: string; fileName: string }) => Promise<{ name: string, path: string } | null>;
       downloadImage: (url: string) => Promise<void>;
-      showTaskContextMenu: (payload: { taskId: number, x: number, y: number, isInEditMode: boolean, hasCompletedTasks: boolean, categories: Category[] }) => void;
+      showTaskContextMenu: (payload: TaskContextMenuPayload) => void;
       showSelectionContextMenu: (payload: { selectionText: string, x: number, y: number }) => void;
       showToastContextMenu: (payload: { taskId: number, x: number, y: number, isInEditMode: boolean }) => void;
       showInboxItemContextMenu: (payload: { message: InboxMessage, x: number, y: number }) => void;

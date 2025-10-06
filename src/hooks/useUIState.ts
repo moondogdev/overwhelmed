@@ -31,7 +31,12 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
   const [bulkAddTransactionType, setBulkAddTransactionType] = useState<'none' | 'income' | 'expense'>('none');
   const [bulkAddYear, setBulkAddYear] = useState<number>(new Date().getFullYear());
   const [bulkAddAccountId, setBulkAddAccountId] = useState<number | undefined>(undefined);
+  const [activeTaxCategoryId, setActiveTaxCategoryId] = useState<number | 'all'>('all');
+  const [bulkAddTaxCategoryId, setBulkAddTaxCategoryId] = useState<number | undefined>(undefined);
+  const [taxStatusFilter, setTaxStatusFilter] = useState<'all' | 'tagged' | 'untagged'>('all');
+  const [focusTaxBulkAdd, setFocusTaxBulkAdd] = useState(false);
 
+  const [visibleTaskIds, setVisibleTaskIds] = useState<number[]>([]);
   const [newTask, setNewTask] = useState<Partial<Task>>({
     text: '',
     url: '',
@@ -108,6 +113,11 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
     bulkAddTransactionType, setBulkAddTransactionType,
     bulkAddYear, setBulkAddYear,
     bulkAddAccountId, setBulkAddAccountId,
+    bulkAddTaxCategoryId, setBulkAddTaxCategoryId,
+    activeTaxCategoryId, setActiveTaxCategoryId,
+    taxStatusFilter, setTaxStatusFilter,
+    visibleTaskIds, setVisibleTaskIds,
+    focusTaxBulkAdd, setFocusTaxBulkAdd,
     toastMessage,
     showToast,
   };

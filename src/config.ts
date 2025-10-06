@@ -34,6 +34,7 @@ export const defaultSettings: Settings = {
   ],
   activeCategoryId: 'all',
   activeTransactionTypeFilter: 'all', // Default to showing all transaction types
+  incomeTypeFilter: 'all', // Default to showing all income types
   activeSubCategoryId: 'all',
   warningTime: 60, // Default to 60 minutes
   isSidebarVisible: true,
@@ -62,4 +63,10 @@ export const defaultSettings: Settings = {
     'timer-alert': true,
   },
   autoCategorizeOnBulkAdd: false, // Default to off
+  incomeTypeKeywords: { // Initialize income type keywords
+    w2: [],
+    business: [],
+    reimbursement: [],
+  },
+  taxCategories: [], // Initialize tax categories
 };

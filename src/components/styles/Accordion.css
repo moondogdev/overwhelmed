@@ -65,7 +65,13 @@
 .account-pill .fas {
   opacity: 0.8;
 }
-
+.tax-category-pill {
+  background-color: #8e44ad; /* A distinct purple */
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 .accordion-main-title {
   font-size: 1em;
   font-weight: bold;

@@ -78,8 +78,6 @@ export interface Task {
   height?: number;
   openDate: number; // Use a separate field for the editable open date
   createdAt: number; // Timestamp of when the Task was created
-  isPaused?: boolean;
-  pausedDuration?: number;
   completedDuration?: number; // The final duration when completed
   completionStatus?: 'completed' | 'skipped'; // To distinguish between completed and skipped tasks
   manualTime?: number; // Manually tracked time in ms
@@ -99,12 +97,14 @@ export interface Task {
   manualTimeRunning?: boolean;
   taskType?: string; // New property for task types
   accountId?: number; // New property for financial accounts
+  incomeType?: 'w2' | 'business' | 'reimbursement'; // New property to classify earnings
   startsTaskIdOnComplete?: number; // ID of the task to start when this one is completed
   linkedTaskOffset?: number;
   manualTimeStart?: number; // Timestamp when manual timer was started
   timeLog?: TimeLogEntry[];
   timeLogSessions?: TimeLogSession[];
   timeLogTitle?: string;
+  taxCategoryId?: number; // New property for tax categorization
 }
 
 export interface InboxMessage {
@@ -129,6 +129,12 @@ export interface Category {
   parentId?: number; // If present, this is a sub-category
   color?: string; // Add color property
   autoCategorizationKeywords?: string[]; // Keywords for auto-categorization
+}
+
+export interface TaxCategory {
+  id: number;
+  name: string;
+  keywords: string[];
 }
 
 export interface Account {
@@ -172,11 +178,13 @@ export interface Settings {
   accounts: Account[]; // Add accounts to settings
   activeAccountId?: number | 'all'; // Persist active account filter
   activeTransactionTypeFilter?: 'all' | 'income' | 'expense'; // New filter for income/expense
-  currentView: 'meme' | 'list' | 'reports' | 'inbox';
+  incomeTypeFilter?: 'all' | 'w2' | 'business' | 'reimbursement' | 'untagged';
+  currentView: 'meme' | 'list' | 'reports' | 'inbox' | 'transactions';
   activeCategoryId?: number | 'all';
   activeSubCategoryId?: number | 'all';
   warningTime: number; // in minutes
   isSidebarVisible: boolean;
+  initialReportTab?: 'summary' | 'earnings' | 'activity' | 'raw' | 'history' | 'finances' | 'taxes';
   openAccordionIds: number[]; // Persist open accordions
   activeTaskTabs: { [key: number]: 'ticket' | 'edit' }; // Persist active tab per task
   workSessionQueue: number[];
@@ -199,9 +207,27 @@ export interface Settings {
   };
   checklistTemplates?: ChecklistTemplate[];
   autoCategorizeOnBulkAdd?: boolean; // New setting for auto-categorization
+  incomeTypeKeywords?: {
+    w2: string[];
+    business: string[];
+    reimbursement: string[];
+  };
+  taxCategories?: TaxCategory[]; // New setting for tax categories
 }
 
 export interface AccordionProps {
   title: React.ReactNode;
   children: React.ReactNode;
+}
+
+export interface TaskContextMenuPayload {
+  taskId: number;
+  x: number;
+  y: number;
+  isInEditMode: boolean;
+  hasCompletedTasks: boolean;
+  categories: Category[];
+  taxCategories?: TaxCategory[];
+  isIncome?: boolean;
+  incomeType?: 'w2' | 'business' | 'reimbursement';
 }

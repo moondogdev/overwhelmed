@@ -231,9 +231,17 @@ export function useDataPersistence({
     }
   }, [setTasks, setSettings]);
 
+  const createManualBackup = useCallback(async (backupName: string) => {
+    // This function just calls the main process API.
+    // The main process has access to the store to create the backup.
+    const result = await window.electronAPI.createManualBackup(backupName);
+    return result;
+  }, []);
+
   return { 
     handleSaveProject, 
     handleExport, 
-    handleImport 
+    handleImport,
+    createManualBackup,
   };
 }

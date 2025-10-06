@@ -77,3 +77,24 @@
   border: 1px solid #555; /* Add a border to better define the scrollable area */
   background-color: #282c34; /* Ensure it has a solid background */
 }
+
+/* --- Income Type Pills --- */
+.income-type-pill {
+  font-size: 0.8em;
+  font-weight: bold;
+  color: white;
+}
+
+.income-type-pill .fas {
+  margin-right: 5px;
+}
+
+.w2-wage-pill {
+  background-color: #3498db; /* A professional blue */
+}
+.business-earning-pill {
+  background-color: #f1c40f; /* A golden yellow for business */
+}
+.reimbursement-pill {
+  background-color: #95a5a6; /* A neutral gray for non-taxable items */
+}

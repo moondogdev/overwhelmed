@@ -2,6 +2,7 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { TaskContextMenuPayload } from './types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   saveFile: (dataUrl: string) => ipcRenderer.invoke('dialog:saveFile', dataUrl),
@@ -18,8 +19,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteBackup: (filePath: string) => ipcRenderer.invoke('delete-backup', filePath),
   exportBackup: (payload: { backupPath: string, backupName: string }) => ipcRenderer.invoke('export-backup', payload),
   openBackupsFolder: () => ipcRenderer.send('open-backups-folder'),
+  printToPdf: (options: any) => ipcRenderer.invoke('print-to-pdf', options),
   send: (channel: string, data?: any) => ipcRenderer.send(channel, data),
-  showTaskContextMenu: (payload: { taskId: number, x: number, y: number, isInEditMode: boolean, hasCompletedTasks: boolean, categories: any[] }) => ipcRenderer.send('show-task-context-menu', payload),
+  showTaskContextMenu: (payload: TaskContextMenuPayload) => ipcRenderer.send('show-task-context-menu', payload),
   showSelectionContextMenu: (payload: { selectionText: string, x: number, y: number }) => ipcRenderer.send('show-selection-context-menu', payload),
   showToastContextMenu: (payload: { taskId: number, x: number, y: number, isInEditMode: boolean }) => ipcRenderer.send('show-toast-context-menu', payload),
   showInboxItemContextMenu: (payload: { message: any, x: number, y: number }) => ipcRenderer.send('show-inbox-item-context-menu', payload),

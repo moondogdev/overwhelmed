@@ -27,12 +27,17 @@ interface StandaloneProps {
   handleBulkSetDueDate: (taskIds: number[], completeBy: number) => void;
   handleBulkDownloadAsCsv: (taskIds: number[]) => void;
   handleBulkCopyAsCsv: (taskIds: number[]) => void;
+  handleSetTaxCategory: (taskId: number, taxCategoryId: number | undefined) => void;
+  handleBulkSetTaxCategory: (taskIds: number[], taxCategoryId: number | undefined) => void;
+  handleAutoTagIncomeTypes: (taskIdsToProcess: number[], incomeTypeToProcess?: 'w2' | 'business' | 'reimbursement') => void;  handleBulkSetIncomeType: (taskIds: number[], incomeType: 'w2' | 'business' | 'reimbursement' | undefined) => void;
   handleBulkSetAccount: (taskIds: number[], accountId: number) => void;
+  handleSyncIds: () => void;
+  handleAutoTaxCategorize: (taskIdsToProcess: number[], taxCategoryIdToProcess?: number) => void;
+  createManualBackup: (backupName: string) => Promise<{ success: boolean; path: string; }>;
   handleBulkSetCategory: (taskIds: number[], categoryId: number) => void;
   handleToggleTaskSelection: (taskId: number) => void;
   handleChecklistCompletion: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
-  handleGlobalToggleTimer: (taskId: number, entryId: number, entry?: TimeLogEntry, newTimeLog?: TimeLogEntry[]) => void;
-  handleTogglePause: (taskId: number) => void;
+  handleGlobalToggleTimer: (taskId: number, entryId: number, entry?: TimeLogEntry, newTimeLog?: TimeLogEntry[]) => void;  
   handleCopyTaskAsCsv: (taskId: number) => void;
   handleGlobalResetTimer: (taskId: number, entryId: number) => void;
   handlePrimeTask: (taskId: number) => void;
@@ -58,6 +63,7 @@ interface StandaloneProps {
   snoozeTimeSelectRef: React.RefObject<HTMLSelectElement>;
   activeChecklistRef: React.RefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
   filteredTasks: Task[];
+  nonTransactionTasksCount: number;
   newTaskTitleInputRef: React.RefObject<HTMLInputElement>;
   setSelectedTaskIds: React.Dispatch<React.SetStateAction<number[]>>;
 }

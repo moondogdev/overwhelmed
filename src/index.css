@@ -458,3 +458,6 @@ button {
   font-size: 0.7em;
   color: #888;
 }
+.content-area {
+    margin-bottom: 100px;
+}

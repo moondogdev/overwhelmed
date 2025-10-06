@@ -34,16 +34,17 @@ export function useTaskState({
 
   // --- NEW: ID Management System ---
   const nextId = useRef(0);
+  // This effect now runs whenever the tasks change, ensuring the counter is always ahead of the highest existing ID.
   useEffect(() => {
-    const allTasks = [...initialTasks, ...initialCompletedTasks];
+    const allTasks = [...tasks, ...completedTasks];
     if (allTasks.length > 0) {
-      // Find the highest existing ID and start the counter from the next number.
-      const maxId = Math.max(...allTasks.map(t => t.id));
+      // Use reduce for safety, and Math.floor to handle legacy float-based IDs.
+      const maxId = allTasks.reduce((max, task) => Math.max(max, Math.floor(task.id)), 0);
       nextId.current = maxId + 1;
     } else {
       nextId.current = 1; // Start from 1 if there are no tasks.
     }
-  }, [initialTasks, initialCompletedTasks]); // Re-initialize if the initial data set changes.
+  }, [tasks, completedTasks]); // Re-calculates when tasks are loaded, added, or synced.
 
   const getNextId = () => nextId.current++;
 
@@ -54,11 +55,7 @@ export function useTaskState({
   tasksRefForDebounce.current = tasks;
 
   const handleCompleteTask = useCallback((taskToComplete: Task, status: 'completed' | 'skipped' = 'completed') => {
-    const finalDuration = taskToComplete.isPaused
-      ? taskToComplete.pausedDuration
-      : (taskToComplete.pausedDuration || 0) + (Date.now() - taskToComplete.createdAt);
-
-    const completedTask = { ...taskToComplete, completedDuration: finalDuration, completionStatus: status };
+    const completedTask = { ...taskToComplete, completedDuration: Date.now() - taskToComplete.createdAt, completionStatus: status };
 
     setCompletedTasks(prev => [completedTask, ...prev]);
     setTasks(prev => prev.filter(task => task.id !== taskToComplete.id));
@@ -179,12 +176,10 @@ export function useTaskState({
       id: getNextId(),
       text: newTask.text.trim(),
       openDate: newTask.openDate || Date.now(),
-      x: 0, 
-      y: 0,
+      x: 0, y: 0,
       width: 0,
       height: 0,
       createdAt: Date.now(),
-      pausedDuration: 0,
       manualTime: 0,
       manualTimeRunning: false,
       manualTimeStart: 0,
@@ -281,7 +276,7 @@ export function useTaskState({
     showToast('All open tasks cleared!');
   }, [showToast]);
 
-  const handleBulkAdd = useCallback((options: { categoryId: number | 'default', priority: 'High' | 'Medium' | 'Low', completeBy?: string, transactionType?: 'none' | 'income' | 'expense', accountId?: number }, contextYear?: number) => {
+  const handleBulkAdd = useCallback((options: { categoryId: number | 'default', priority: 'High' | 'Medium' | 'Low', completeBy?: string, transactionType?: 'none' | 'income' | 'expense', accountId?: number, taxCategoryId?: number }, contextYear?: number) => {
     if (bulkAddText.trim() === "") return;
 
     const tasksToAdd = bulkAddText.split(/[\n,]+/).map(line => line.trim()).filter(line => line);
@@ -364,6 +359,7 @@ export function useTaskState({
         priority: options.priority,
         completeBy: completeByTimestamp,
         manualTime: 0,
+        taxCategoryId: options.taxCategoryId, // Assign the selected tax category
         accountId: options.accountId, // Assign the selected account
         manualTimeRunning: false,
         manualTimeStart: 0,
@@ -372,8 +368,7 @@ export function useTaskState({
         openDate: openDate, // Parsed date or now
         width: 0, 
         height: 0,
-        createdAt: Date.now(),
-        pausedDuration: 0,
+        createdAt: Date.now(),        
         checklist: [],
       };
       return newTaskObject;
@@ -416,8 +411,7 @@ export function useTaskState({
 
     const now = Date.now();
     const completedTasksToAdd = tasksToComplete.map(task => {
-        const finalDuration = task.isPaused ? task.pausedDuration : (task.pausedDuration || 0) + (now - task.createdAt);
-        return { ...task, completedDuration: finalDuration, completionStatus: 'completed' as 'completed' | 'skipped' };
+        return { ...task, completedDuration: now - task.createdAt, completionStatus: 'completed' as 'completed' | 'skipped' };
     });
 
     setTasks(prev => prev.filter(task => !taskIds.includes(task.id)));
@@ -488,6 +482,77 @@ export function useTaskState({
     showToast(`${taskIds.length} tasks assigned to "${accountName}".`);
   }, [setTasks, showToast, settings.accounts]);
 
+  const handleBulkSetTaxCategory = useCallback((taskIds: number[], taxCategoryId: number | undefined) => {
+    if (taskIds.length === 0) return;
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        taskIds.includes(task.id) ? { ...task, taxCategoryId } : task
+      )
+    );
+    const taxCategoryName = settings.taxCategories?.find(tc => tc.id === taxCategoryId)?.name;
+    const message = taxCategoryId !== undefined ? `Tagged ${taskIds.length} tasks with tax category "${taxCategoryName}".` : `Removed tax category from ${taskIds.length} tasks.`;
+
+    showToast(message);
+  }, [setTasks, showToast, settings.taxCategories]);
+
+  const handleBulkSetIncomeType = useCallback((taskIds: number[], incomeType: 'w2' | 'business' | 'reimbursement' | undefined) => {
+    if (taskIds.length === 0) return;
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        taskIds.includes(task.id) ? { ...task, incomeType } : task
+      )
+    );
+    if (incomeType) {
+      const typeName = incomeType === 'w2' ? 'W-2 Wage' : incomeType === 'business' ? 'Business Earning' : 'Reimbursement';
+      showToast(`${taskIds.length} tasks' income type set to "${typeName}".`);
+    } else {
+      showToast(`Income type removed from ${taskIds.length} tasks.`);
+    }
+  }, [setTasks, showToast]);
+
+  const handleAutoTagIncomeTypes = useCallback((taskIdsToProcess: number[], incomeTypeToProcess?: 'w2' | 'business' | 'reimbursement') => {
+    const incomeKeywords = settings.incomeTypeKeywords;
+    if (!incomeKeywords || (!incomeKeywords.w2.length && !incomeKeywords.business.length && !incomeKeywords.reimbursement.length)) {
+      showToast('No income type keywords are set up.', 3000);
+      return;
+    }
+
+    const typesToProcess: ('w2' | 'business' | 'reimbursement')[] = incomeTypeToProcess ? [incomeTypeToProcess] : ['w2', 'business', 'reimbursement'];
+    let taggedCount = 0;
+
+    const updatedTasks = tasks.map(task => {
+      if (taskIdsToProcess.includes(task.id) && (task.transactionAmount || 0) > 0 && !task.incomeType) {
+        const taskText = task.text.toLowerCase();
+        for (const type of typesToProcess) {
+          const keywords = incomeKeywords[type] || [];
+          if (keywords.some(kw => taskText.includes(kw.toLowerCase().trim()))) {
+            taggedCount++;
+            return { ...task, incomeType: type };
+          }
+        }
+      }
+      return task;
+    });
+
+    setTasks(updatedTasks);
+    if (taggedCount > 0) {
+      const typeName = incomeTypeToProcess ? ` as "${incomeTypeToProcess}"` : '';
+      showToast(`Successfully auto-tagged ${taggedCount} income transaction(s)${typeName}.`);
+    } else {
+      showToast('No income transactions matched the defined keywords.');
+    }
+  }, [tasks, settings.incomeTypeKeywords, setTasks, showToast]);
+
+  const handleSetTaxCategory = useCallback((taskId: number, taxCategoryId: number | undefined) => {
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        task.id === taskId ? { ...task, taxCategoryId } : task
+      )
+    );
+    const taxCategoryName = settings.taxCategories?.find(tc => tc.id === taxCategoryId)?.name;
+    showToast(taxCategoryId !== undefined ? `Task tagged with "${taxCategoryName}".` : 'Tax category removed.');
+  }, [setTasks, showToast, settings.taxCategories]);
+
   const handleAutoCategorize = useCallback((taskIdsToProcess: number[], subCategoryIdToProcess?: number) => {
     const transactionsCategory = settings.categories.find(c => c.name === 'Transactions');
     if (!transactionsCategory) {
@@ -542,6 +607,41 @@ export function useTaskState({
       showToast('No transactions matched the defined keywords.');
     }
   }, [tasks, settings.categories, setTasks, showToast]);
+
+  const handleAutoTaxCategorize = useCallback((taskIdsToProcess: number[], taxCategoryIdToProcess?: number) => {
+    let taxCategoriesToProcess = settings.taxCategories || [];
+    if (taxCategoriesToProcess.length === 0) {
+      showToast('No tax categories with keywords are set up.', 3000);
+      return;
+    }
+
+    if (taxCategoryIdToProcess) {
+      taxCategoriesToProcess = taxCategoriesToProcess.filter(tc => tc.id === taxCategoryIdToProcess);
+    }
+
+    let categorizedCount = 0;
+
+    const updatedTasks = tasks.map(task => {
+      // Only process tasks that are in the currently visible filtered list
+      if (taskIdsToProcess.includes(task.id)) {
+        const taskText = task.text.toLowerCase();
+
+        // Find the first matching tax category
+        const matchingTaxCategory = taxCategoriesToProcess.find(taxCat => 
+          (taxCat.keywords || []).some(keyword => taskText.includes(keyword.toLowerCase().trim()))
+        );
+
+        if (matchingTaxCategory && task.taxCategoryId !== matchingTaxCategory.id) {
+          categorizedCount++;
+          return { ...task, taxCategoryId: matchingTaxCategory.id };
+        }
+      }
+      return task; // Return unchanged if no match or not in the process list
+    });
+
+    setTasks(updatedTasks);
+    showToast(categorizedCount > 0 ? `Successfully auto-tagged ${categorizedCount} transaction(s) for taxes.` : 'No transactions matched the defined tax keywords.');
+  }, [tasks, settings.taxCategories, setTasks, showToast]);
 
   const handleSyncTransactionTypes = useCallback(() => {
     let updatedCount = 0;
@@ -619,6 +719,9 @@ export function useTaskState({
         parentCategoryName = category.name;
       }
     }
+    const taxCategory = settings.taxCategories?.find(tc => tc.id === taskToCopy.taxCategoryId);
+    const taxCategoryName = taxCategory ? taxCategory.name : '';
+
     const linkedTask = taskToCopy.startsTaskIdOnComplete ? tasks.find(t => t.id === taskToCopy.startsTaskIdOnComplete) : null;
     const linkedTaskName = linkedTask ? linkedTask.text : '';
     const linkedTaskOffsetMinutes = taskToCopy.linkedTaskOffset ? taskToCopy.linkedTaskOffset / 60000 : 0;
@@ -629,7 +732,7 @@ export function useTaskState({
 
     const rowData = [
       taskToCopy.id, escape(taskToCopy.text), escape(taskToCopy.url), 
-      escape(parentCategoryName), escape(subCategoryName), 
+      escape(parentCategoryName), escape(subCategoryName), escape(taxCategoryName),
       taskToCopy.priority || 'Medium',
       formatTimestamp(taskToCopy.openDate), taskToCopy.completeBy ? formatTimestamp(taskToCopy.completeBy) : 'N/A',
       formatTime(taskToCopy.manualTime || 0), taskToCopy.payRate || 0, earnings,
@@ -648,7 +751,7 @@ export function useTaskState({
 
     // For a single row, we typically don't include the header.
     navigator.clipboard.writeText(rowData);
-    showToast('Task row copied to clipboard!');
+    showToast('Task row copied to clipboard!');    
   }, [tasks, settings.categories, showToast]);
 
   const handleBulkDownloadAsCsv = useCallback((taskIds: number[]) => {
@@ -664,7 +767,7 @@ export function useTaskState({
     }
 
     const headers = [
-      "ID", "Task", "Task URL", "Parent Category", "Sub-Category", "Priority", "Open Date", "Due Date",
+      "ID", "Task", "Task URL", "Parent Category", "Sub-Category", "Tax Category", "Priority", "Open Date", "Due Date",
       "Time Tracked (HH:MM:SS)", "Pay Rate ($/hr)", "Earnings ($)", "Company", "Website URL", "Image Links", "Attachments",
       "Is Recurring", "Repeat Daily", "Repeat Weekly", "Repeat Monthly", "Repeat Yearly", "Autocomplete on Deadline",
       "Links to Task ID", "Linked Task Name", "Linked Task Offset (minutes)",
@@ -684,6 +787,8 @@ export function useTaskState({
           parentCategoryName = category.name;
         }
       }
+      const taxCategory = settings.taxCategories?.find(tc => tc.id === task.taxCategoryId);
+      const taxCategoryName = taxCategory ? taxCategory.name : '';
       const linkedTask = task.startsTaskIdOnComplete ? tasks.find(t => t.id === task.startsTaskIdOnComplete) : null;
       const linkedTaskName = linkedTask ? linkedTask.text : '';
       const linkedTaskOffsetMinutes = task.linkedTaskOffset ? task.linkedTaskOffset / 60000 : 0;
@@ -693,7 +798,7 @@ export function useTaskState({
 
       return [
         task.id, escapeCsv(task.text), escapeCsv(task.url), 
-        escapeCsv(parentCategoryName), escapeCsv(subCategoryName), 
+        escapeCsv(parentCategoryName), escapeCsv(subCategoryName), escapeCsv(taxCategoryName),
         task.priority || 'Medium',
         formatTimestamp(task.openDate), task.completeBy ? formatTimestamp(task.completeBy) : 'N/A',
         formatTime(task.manualTime || 0), task.payRate || 0, earnings, escapeCsv(task.company), escapeCsv(task.websiteUrl),
@@ -707,7 +812,7 @@ export function useTaskState({
       ].join(',');
     });
     window.electronAPI.saveCsv([headers.join(','), ...rows].join('\n'));
-  }, [tasks, settings.categories, showToast]);
+  }, [tasks, settings.categories, settings.taxCategories, showToast]);
 
   const handleBulkCopyAsCsv = useCallback((taskIds: number[]) => {
     if (taskIds.length === 0) {
@@ -722,7 +827,7 @@ export function useTaskState({
     }
 
     const headers = [
-      "ID", "Task", "Task URL", "Parent Category", "Sub-Category", "Priority", "Open Date", "Due Date",
+      "ID", "Task", "Task URL", "Parent Category", "Sub-Category", "Tax Category", "Priority", "Open Date", "Due Date",
       "Time Tracked (HH:MM:SS)", "Pay Rate ($/hr)", "Earnings ($)", "Company", "Website URL", "Image Links", "Attachments",
       "Is Recurring", "Repeat Daily", "Repeat Weekly", "Repeat Monthly", "Repeat Yearly", "Autocomplete on Deadline",
       "Links to Task ID", "Linked Task Name", "Linked Task Offset (minutes)",
@@ -742,6 +847,8 @@ export function useTaskState({
           parentCategoryName = category.name;
         }
       }
+      const taxCategory = settings.taxCategories?.find(tc => tc.id === task.taxCategoryId);
+      const taxCategoryName = taxCategory ? taxCategory.name : '';
       const linkedTask = task.startsTaskIdOnComplete ? tasks.find(t => t.id === task.startsTaskIdOnComplete) : null;
       const linkedTaskName = linkedTask ? linkedTask.text : '';
       const linkedTaskOffsetMinutes = task.linkedTaskOffset ? task.linkedTaskOffset / 60000 : 0;
@@ -752,7 +859,7 @@ export function useTaskState({
 
       return [
         task.id, escape(task.text), escape(task.url), 
-        escape(parentCategoryName), escape(subCategoryName), 
+        escape(parentCategoryName), escape(subCategoryName), escape(taxCategoryName),
         task.priority || 'Medium',
         formatTimestamp(task.openDate), task.completeBy ? formatTimestamp(task.completeBy) : 'N/A',
         formatTime(task.manualTime || 0), task.payRate || 0, earnings, escape(task.company), escape(task.websiteUrl),
@@ -769,15 +876,12 @@ export function useTaskState({
 
     navigator.clipboard.writeText([headers.join('\t'), ...rows].join('\n'));
     showToast(`${tasksToCopy.length} task(s) copied to clipboard!`);
-  }, [tasks, settings.categories, showToast]);
+  }, [tasks, settings.categories, settings.taxCategories, showToast]);
 
   const handleCopyList = useCallback(() => {
     const reportHeader = "Open Tasks Report\n===================\n";
     const reportBody = tasks.map(task => {
-      const now = Date.now();
-      const currentDuration = task.isPaused
-        ? (task.pausedDuration || 0)
-        : (task.pausedDuration || 0) + (now - task.createdAt);
+      const currentDuration = Date.now() - task.createdAt;
       return `- ${task.text}\n    - Date Opened: ${formatTimestamp(task.createdAt)}\n    - Current Timer: ${formatTime(currentDuration)}`;
     }).join('\n\n');
 
@@ -787,25 +891,43 @@ export function useTaskState({
     }).catch(err => {
       console.error('Failed to copy list: ', err);
     });
-  }, [tasks, showToast]);
+  }, [tasks, showToast]);  
 
-  const handleTogglePause = useCallback((taskId: number) => {
-    setTasks(prevTasks => prevTasks.map(task => {
-      if (task.id === taskId) {
-        if (task.isPaused) {
-          // Resuming: adjust createdAt to account for the time it was paused
-          const now = Date.now();
-          const newCreatedAt = now - (task.pausedDuration || 0);
-          return { ...task, isPaused: false, createdAt: newCreatedAt, pausedDuration: 0 };
-        } else {
-          // Pausing: calculate and store the elapsed duration
-          const elapsed = (task.pausedDuration || 0) + (Date.now() - task.createdAt);
-          return { ...task, isPaused: true, pausedDuration: elapsed };
+  const handleSyncIds = useCallback(() => {
+    const idMap = new Map<number, number>();
+    let newIdCounter = 1;
+
+    const reIdTasks = (taskArray: Task[]): Task[] => {
+      return taskArray.map(task => {
+        const newId = newIdCounter++;
+        idMap.set(task.id, newId);
+        return { ...task, id: newId };
+      });
+    };
+
+    const newTasks = reIdTasks(tasks);
+    const newCompletedTasks = reIdTasks(completedTasks);
+
+    const updateLinkedIds = (taskArray: Task[]): Task[] => {
+      return taskArray.map(task => {
+        if (task.startsTaskIdOnComplete && idMap.has(task.startsTaskIdOnComplete)) {
+          return { ...task, startsTaskIdOnComplete: idMap.get(task.startsTaskIdOnComplete) };
         }
-      }
-      return task;
-    }));
-  }, [setTasks]);
+        return task;
+      });
+    };
+
+    const finalTasks = updateLinkedIds(newTasks);
+    const finalCompletedTasks = updateLinkedIds(newCompletedTasks);
+
+    // After re-indexing, immediately update the counter to the next available ID.
+    nextId.current = newIdCounter;
+
+    setTasks(finalTasks);
+    setCompletedTasks(finalCompletedTasks);
+
+    showToast('All task IDs have been synchronized successfully!', 3000);
+  }, [tasks, completedTasks, setTasks, setCompletedTasks, showToast]);
 
   const moveTask = useCallback((taskIdToMove: number, targetTaskId: number) => {
     setTasks(prevTasks => {
@@ -854,13 +976,18 @@ export function useTaskState({
     handleBulkSetDueDate,
     handleBulkSetCategory,
     handleBulkSetAccount,
+    handleSetTaxCategory,
+    handleBulkSetIncomeType,
+    handleAutoTagIncomeTypes,
+    handleBulkSetTaxCategory,
     handleSyncTransactionTypes,
     handleAutoCategorize,
+    handleAutoTaxCategorize,
     handleBulkDownloadAsCsv,
     handleCopyTaskAsCsv,
     handleBulkCopyAsCsv,
-    handleCopyList,
-    handleTogglePause,
+    handleSyncIds,
+    handleCopyList,    
     moveTask,
     tasksRef, // Expose the ref
     completedTasksRef, // Expose the ref

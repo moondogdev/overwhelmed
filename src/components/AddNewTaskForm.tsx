@@ -144,7 +144,24 @@ export function AddNewTaskForm() {
           </select>
         </label>
       )}
+      {shouldShow('taxCategoryId') && newTask.transactionAmount !== 0 && (
+        <label><h4>Tax Category:</h4>
+          <select value={newTask.taxCategoryId || ''} onChange={(e) => setNewTask({ ...newTask, taxCategoryId: Number(e.target.value) || undefined })}>
+            <option value="">-- None --</option>
+            {(settings.taxCategories || []).map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+          </select>
+        </label>
+      )}
       {shouldShow('payRate') && <label><h4>Pay Rate ($/hr):</h4><input type="number" value={newTask.payRate || 0} onChange={(e) => setNewTask({ ...newTask, payRate: Number(e.target.value) })} /></label>}
+      {((shouldShow('payRate') && (newTask.payRate || 0) > 0) || (shouldShow('transactionAmount') && newTask.transactionType === 'income')) && (
+        <label><h4>Income Type:</h4>
+          <select value={newTask.incomeType || 'w2'} onChange={(e) => setNewTask({ ...newTask, incomeType: e.target.value as 'w2' | 'business' | 'reimbursement' })}>
+            <option value="w2">W-2 Wage</option>
+            <option value="business">Business Earning</option>
+            <option value="reimbursement">Reimbursement / Non-Taxable</option>
+          </select>
+        </label>
+      )}
       {shouldShow('websiteUrl') && <label><h4>Website URL:</h4><input type="text" placeholder="https://company.com" value={newTask.websiteUrl} onChange={(e) => setNewTask({ ...newTask, websiteUrl: e.target.value })} /></label>}
       {shouldShow('imageLinks') && <label><h4>Image Links:</h4>
         {(newTask.imageLinks || []).map((link, index) => (

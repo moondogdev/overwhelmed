@@ -6,8 +6,8 @@ import { Dropdown } from './TaskComponents';
 export function BulkActionBar() {
   const { 
     selectedTaskIds, setSelectedTaskIds, handleBulkDelete, handleBulkSetCategory, 
-    handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen, handleBulkCopyAsCsv, handleBulkDownloadAsCsv, handleBulkSetAccount,
-    settings, tasks, completedTasks 
+    handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen, handleBulkCopyAsCsv, handleBulkDownloadAsCsv, handleBulkSetAccount, handleBulkSetTaxCategory, handleBulkSetIncomeType,
+    settings, tasks, completedTasks, visibleTaskIds
   } = useAppContext();
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
@@ -27,21 +27,24 @@ export function BulkActionBar() {
     setSelectedTaskIds([]);
   };
 
+  const handleSelectAll = () => {
+    setSelectedTaskIds(prev => [...new Set([...prev, ...visibleTaskIds])]);
+  };
+
   const handleCategoryChange = (categoryId: number) => {
     handleBulkSetCategory(selectedTaskIds, categoryId);
-    // Clear selection after action
-    setSelectedTaskIds([]);
   };
 
   const handleAccountChange = (accountId: number) => {
     handleBulkSetAccount(selectedTaskIds, accountId);
-    setSelectedTaskIds([]);
   };
+
+  const handleTaxCategoryChange = (taxCategoryId: number | undefined) => {
+    handleBulkSetTaxCategory(selectedTaskIds, taxCategoryId);
+  }
 
   const handlePriorityChange = (priority: 'High' | 'Medium' | 'Low') => {
     handleBulkSetPriority(selectedTaskIds, priority);
-    // Clear selection after action
-    setSelectedTaskIds([]);
   };
 
   const handleCompleteClick = () => {
@@ -72,6 +75,16 @@ export function BulkActionBar() {
     return activeCat?.parentId === parentCategory.id;
   }, [settings.activeCategoryId, settings.categories]);
 
+  const selectionIsIncomeRelated = useMemo(() => {
+    if (selectedTaskIds.length === 0) return false;
+    const allSelectedTasks = [...tasks, ...completedTasks].filter(t => selectedTaskIds.includes(t.id));
+    return allSelectedTasks.some(t => (t.transactionAmount || 0) > 0 || (t.payRate || 0) > 0);
+  }, [selectedTaskIds, tasks, completedTasks]);
+
+  const handleIncomeTypeChange = (incomeType: 'w2' | 'business' | 'reimbursement' | undefined) => {
+    handleBulkSetIncomeType(selectedTaskIds, incomeType);
+  };
+
   if (selectedTaskIds.length === 0) {
     return null;
   }
@@ -80,7 +93,6 @@ export function BulkActionBar() {
     if (dueDate) {
       const timestamp = new Date(dueDate).getTime();
       handleBulkSetDueDate(selectedTaskIds, timestamp);
-      setSelectedTaskIds([]); // Clear selection
       setIsDatePickerVisible(false); // Hide picker
       setDueDate(''); // Reset date
     }
@@ -100,6 +112,9 @@ export function BulkActionBar() {
     <div className="bulk-action-bar">
       <div className="bulk-action-info">
         <span>{selectedTaskIds.length} task(s) selected</span>
+        <button onClick={handleSelectAll} className="deselect-all-btn" title="Select all visible tasks">
+          <i className="fas fa-check-square"></i> Select All
+        </button>
         <button onClick={handleDeselectAll} className="deselect-all-btn">
           <i className="fas fa-times"></i> Deselect All
         </button>
@@ -132,6 +147,33 @@ export function BulkActionBar() {
             {settings.accounts.map(account => (
               <button key={account.id} className="category-dropdown-item" onClick={() => handleAccountChange(account.id)}>{account.name}</button>
             ))}
+          </Dropdown>
+        )}
+        {isTransactionsView && (
+          <Dropdown trigger={
+            <button className="icon-button" title="Change Tax Category">
+              <i className="fas fa-tags"></i>
+            </button>
+          }>
+            <button className="category-dropdown-item parent" onClick={() => handleTaxCategoryChange(undefined)}>-- None --</button>
+            {(settings.taxCategories || []).map(taxCat => (
+              <button key={taxCat.id} className="category-dropdown-item" onClick={() => handleTaxCategoryChange(taxCat.id)}>
+                {taxCat.name}
+              </button>
+            ))}
+          </Dropdown>
+        )}
+        {selectionIsIncomeRelated && (
+          <Dropdown trigger={
+            <button className="icon-button" title="Change Income Type">
+              <i className="fas fa-file-invoice-dollar"></i>
+            </button>
+          }>
+            <button className="category-dropdown-item" onClick={() => handleIncomeTypeChange('w2')}>W-2 Wage</button>
+            <button className="category-dropdown-item" onClick={() => handleIncomeTypeChange('business')}>Business Earning</button>
+            <button className="category-dropdown-item" onClick={() => handleIncomeTypeChange('reimbursement')}>Reimbursement / Non-Taxable</button>
+            <div className="dropdown-separator"></div>
+            <button className="category-dropdown-item" onClick={() => handleIncomeTypeChange(undefined)}>-- Remove Income Type --</button>
           </Dropdown>
         )}
         <div className="bulk-action-group">
