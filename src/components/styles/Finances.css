@@ -57,6 +57,11 @@
     margin-left: 8px;
     color: white;
 }
+.transfer-btn.active {
+  background-color: #ffc107; /* A distinct yellow/gold for transfers */
+  color: #212529;
+}
+
 
 .transaction-pill .fas {
     margin-right: 5px;
@@ -70,6 +75,10 @@
     background-color: #dc3545; /* Red for expense */
 }
 
+.transaction-pill.transfer {
+  background-color: #ffc107; /* A distinct yellow/gold for transfers */
+  color: #212529;
+}
 /* Dropdown Menu Scrolling */
 .dropdown-menu {
   max-height: 300px; /* Set a reasonable max height */

@@ -276,7 +276,7 @@ export function useTaskState({
     showToast('All open tasks cleared!');
   }, [showToast]);
 
-  const handleBulkAdd = useCallback((options: { categoryId: number | 'default', priority: 'High' | 'Medium' | 'Low', completeBy?: string, transactionType?: 'none' | 'income' | 'expense', accountId?: number, taxCategoryId?: number }, contextYear?: number) => {
+  const handleBulkAdd = useCallback((options: { categoryId: number | 'default', priority: 'High' | 'Medium' | 'Low', completeBy?: string, transactionType?: 'none' | 'income' | 'expense' | 'transfer', accountId?: number, taxCategoryId?: number }, contextYear: number) => {
     if (bulkAddText.trim() === "") return;
 
     const tasksToAdd = bulkAddText.split(/[\n,]+/).map(line => line.trim()).filter(line => line);
@@ -297,7 +297,7 @@ export function useTaskState({
     const newTasks = tasksToAdd.map(line => {
       let text = line;
       let transactionAmount = 0;
-      let transactionType: 'income' | 'expense' | 'none' = options.transactionType || 'none';
+      let transactionType: 'income' | 'expense' | 'none' | 'transfer' = options.transactionType || 'none';
 
       // --- NEW: Date/Time Parsing ---
       let openDate = Date.now(); // Default to now
@@ -313,7 +313,7 @@ export function useTaskState({
         if (monthDayMatch) {
           const monthDay = monthDayMatch[0];
           // Unconditionally use the year from the "For Year" dropdown.
-          const yearToUse = contextYear || new Date().getFullYear();
+          const yearToUse = contextYear;
           const finalDateString = `${monthDay}/${yearToUse}`;
           const parsedDate = new Date(finalDateString);
           
@@ -348,6 +348,9 @@ export function useTaskState({
         } else if (options.transactionType === 'expense') {
           transactionAmount = -Math.abs(amount);
           transactionType = 'expense';
+        } else if (options.transactionType === 'transfer') {
+          transactionAmount = amount; // Keep the sign as is for transfers
+          transactionType = 'transfer';
         }
       }
 
@@ -510,6 +513,31 @@ export function useTaskState({
     }
   }, [setTasks, showToast]);
 
+  const handleBulkSetOpenDate = useCallback((taskIds: number[], openDate: number) => {
+    if (taskIds.length === 0) return;
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        taskIds.includes(task.id) ? { ...task, openDate } : task
+      )
+    );
+    showToast(`${taskIds.length} tasks updated with new open date.`);
+  }, [setTasks, showToast]);
+
+  const handleBulkSetYear = useCallback((taskIds: number[], year: number) => {
+    if (taskIds.length === 0) return;
+    setTasks(prevTasks =>
+      prevTasks.map(task => {
+        if (taskIds.includes(task.id)) {
+          const originalDate = new Date(task.openDate);
+          originalDate.setFullYear(year);
+          return { ...task, openDate: originalDate.getTime() };
+        }
+        return task;
+      })
+    );
+    showToast(`${taskIds.length} tasks' year updated to ${year}.`);
+  }, [setTasks, showToast]);
+
   const handleAutoTagIncomeTypes = useCallback((taskIdsToProcess: number[], incomeTypeToProcess?: 'w2' | 'business' | 'reimbursement') => {
     const incomeKeywords = settings.incomeTypeKeywords;
     if (!incomeKeywords || (!incomeKeywords.w2.length && !incomeKeywords.business.length && !incomeKeywords.reimbursement.length)) {
@@ -542,6 +570,29 @@ export function useTaskState({
       showToast('No income transactions matched the defined keywords.');
     }
   }, [tasks, settings.incomeTypeKeywords, setTasks, showToast]);
+
+  const handleBulkSetTransactionType = useCallback((taskIds: number[], transactionType: 'income' | 'expense' | 'none' | 'transfer') => {
+    if (taskIds.length === 0) return;
+    setTasks(prevTasks =>
+      prevTasks.map(task => {
+        if (taskIds.includes(task.id)) {
+          let newAmount = task.transactionAmount || 0;
+          if (transactionType === 'income') {
+            newAmount = Math.abs(newAmount);
+          } else if (transactionType === 'expense') {
+            newAmount = -Math.abs(newAmount);
+          } else if (transactionType === 'none') {
+            newAmount = 0;
+          }
+          // For 'transfer', we don't change the amount, just the type.
+          // If it was -500, it stays -500. If it was +500, it stays +500.
+          return { ...task, transactionType, transactionAmount: newAmount };
+        }
+        return task;
+      })
+    );
+    showToast(`${taskIds.length} tasks' transaction type updated.`);
+  }, [setTasks, showToast]);
 
   const handleSetTaxCategory = useCallback((taskId: number, taxCategoryId: number | undefined) => {
     setTasks(prevTasks =>
@@ -978,6 +1029,9 @@ export function useTaskState({
     handleBulkSetAccount,
     handleSetTaxCategory,
     handleBulkSetIncomeType,
+    handleBulkSetYear,
+    handleBulkSetOpenDate,
+    handleBulkSetTransactionType,
     handleAutoTagIncomeTypes,
     handleBulkSetTaxCategory,
     handleSyncTransactionTypes,

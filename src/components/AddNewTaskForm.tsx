@@ -106,8 +106,15 @@ export function AddNewTaskForm() {
               onChange={(e) => {
                 const rawAmount = parseFloat(e.target.value) || 0;
                 const type = rawAmount === 0 ? 'none' : (newTask.transactionType === 'none' ? 'expense' : newTask.transactionType);
-                const finalAmount = type === 'expense' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
-                setNewTask(prev => ({ ...prev, transactionAmount: finalAmount, transactionType: type }));
+                let finalAmount = rawAmount;
+                if (newTask.transactionType === 'expense') {
+                    finalAmount = -Math.abs(rawAmount);
+                } else if (newTask.transactionType === 'income') {
+                    finalAmount = Math.abs(rawAmount);
+                }
+
+                // When type is 'transfer', let the user's input sign be respected.
+                setNewTask(prev => ({ ...prev, transactionAmount: finalAmount, transactionType: type as any}));
               }}
             />
             <div className="transaction-type-toggle">
@@ -115,6 +122,14 @@ export function AddNewTaskForm() {
                 className={`none-btn ${(newTask.transactionType === 'none' || !newTask.transactionAmount) ? 'active' : ''}`}
                 onClick={() => setNewTask(prev => ({ ...prev, transactionType: 'none', transactionAmount: 0 }))}>
                 None
+              </button>
+              <button
+                className={`transfer-btn ${newTask.transactionType === 'transfer' && newTask.transactionAmount !== 0 ? 'active' : ''}`}
+                onClick={() => {
+                  const currentAmount = newTask.transactionAmount || -1; // Default to negative for new transfers
+                  setNewTask(prev => ({ ...prev, transactionType: 'transfer', transactionAmount: currentAmount }));
+                }}>
+                Transfer
               </button>
               <button
                 className={`expense-btn ${newTask.transactionType === 'expense' && newTask.transactionAmount !== 0 ? 'active' : ''}`}

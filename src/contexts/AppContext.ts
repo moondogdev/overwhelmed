@@ -50,8 +50,8 @@ export interface AppContextType {
   setBulkAddPriority: React.Dispatch<React.SetStateAction<'High' | 'Medium' | 'Low'>>;
   bulkAddCompleteBy: string;
   setBulkAddCompleteBy: React.Dispatch<React.SetStateAction<string>>;
-  bulkAddTransactionType: 'none' | 'income' | 'expense';
-  setBulkAddTransactionType: React.Dispatch<React.SetStateAction<'none' | 'income' | 'expense'>>;
+  bulkAddTransactionType: 'none' | 'income' | 'expense' | 'transfer';
+  setBulkAddTransactionType: React.Dispatch<React.SetStateAction<'none' | 'income' | 'expense' | 'transfer'>>;
   bulkAddAccountId: number | undefined;
   setBulkAddAccountId: React.Dispatch<React.SetStateAction<number | undefined>>;
   bulkAddTaxCategoryId: number | undefined;
@@ -66,8 +66,6 @@ export interface AppContextType {
   setSelectedTaskIds: React.Dispatch<React.SetStateAction<number[]>>;
   isAddTaskOpen: boolean;
   setIsAddTaskOpen: (isOpen: boolean) => void;
-  selectedYear: 'all' | number;
-  setSelectedYear: React.Dispatch<React.SetStateAction<'all' | number>>;
   isWorkSessionManagerOpen: boolean;
   setIsWorkSessionManagerOpen: (isOpen: boolean) => void;
   visibleTaskIds: number[];
@@ -142,14 +140,17 @@ export interface AppContextType {
   navigateToTask: (taskId: number, sectionId?: number) => void;
   handleSaveProject: () => void;  
   navigateToView: (view: 'meme' | 'list' | 'reports' | 'inbox' | 'transactions', options?: { initialTab?: 'summary' | 'earnings' | 'activity' | 'raw' | 'history' | 'finances' | 'taxes' }) => void;
-  handleBulkAdd: (options: { categoryId: number | 'default'; priority: 'High' | 'Medium' | 'Low'; completeBy?: string; transactionType?: 'none' | 'income' | 'expense', accountId?: number, taxCategoryId?: number }, contextYear?: number) => void;
+  handleBulkAdd: (options: { categoryId: number | 'default'; priority: 'High' | 'Medium' | 'Low'; completeBy?: string; transactionType?: 'none' | 'income' | 'expense' | 'transfer', accountId?: number, taxCategoryId?: number }, contextYear: number) => void;
   handleBulkDelete: (taskIds: number[]) => void;
   handleBulkReopen: (taskIds: number[]) => void;
   handleBulkComplete: (taskIds: number[]) => void;
   handleBulkSetPriority: (taskIds: number[], priority: 'High' | 'Medium' | 'Low') => void;
+  handleBulkSetYear: (taskIds: number[], year: number) => void;
+  handleBulkSetOpenDate: (taskIds: number[], openDate: number) => void;
   handleBulkSetDueDate: (taskIds: number[], completeBy: number) => void;
   handleBulkDownloadAsCsv: (taskIds: number[]) => void;
   handleBulkCopyAsCsv: (taskIds: number[]) => void;
+  handleBulkSetTransactionType: (taskIds: number[], transactionType: 'income' | 'expense' | 'none' | 'transfer') => void;
   handleSetTaxCategory: (taskId: number, taxCategoryId: number | undefined) => void;
   handleBulkSetTaxCategory: (taskIds: number[], taxCategoryId: number | undefined) => void;
   handleBulkSetIncomeType: (taskIds: number[], incomeType: 'w2' | 'business' | 'reimbursement' | undefined) => void;

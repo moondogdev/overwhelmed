@@ -189,6 +189,8 @@ function App() {
     handleBulkComplete,
     handleBulkSetPriority,
     handleBulkSetDueDate,
+    handleBulkSetYear: taskState.handleBulkSetYear,
+    handleBulkSetOpenDate: taskState.handleBulkSetOpenDate,
     handleBulkDownloadAsCsv,
     handleCopyTaskAsCsv,
     handleBulkCopyAsCsv,

@@ -82,8 +82,8 @@ export interface Task {
   completionStatus?: 'completed' | 'skipped'; // To distinguish between completed and skipped tasks
   manualTime?: number; // Manually tracked time in ms
   payRate?: number; // Dollars per hour
-  transactionAmount?: number; // For financial tracking. Positive for income, negative for expense.
-  transactionType?: 'income' | 'expense' | 'none'; // UI toggle for the transaction amount
+  transactionAmount?: number; // For financial tracking. Positive for income, negative for expense.  
+  transactionType?: 'income' | 'expense' | 'none' | 'transfer'; // UI toggle for the transaction amount
   isRecurring?: boolean;
   isDailyRecurring?: boolean;
   isWeeklyRecurring?: boolean;
@@ -129,12 +129,45 @@ export interface Category {
   parentId?: number; // If present, this is a sub-category
   color?: string; // Add color property
   autoCategorizationKeywords?: string[]; // Keywords for auto-categorization
+  deductiblePercentage?: number; // New: For transaction sub-categories
 }
 
 export interface TaxCategory {
   id: number;
   name: string;
   keywords: string[];
+  deductiblePercentage?: number;
+}
+
+export interface W2Data {
+  wages: number;
+  federalWithholding: number;
+  socialSecurityWithholding: number;
+  medicareWithholding: number;
+  taxpayerPin?: string;
+  employerEin?: string;
+  employerName?: string;
+  employerAddress?: string;
+  employeeName?: string;
+  employeeAddress?: string;
+}
+
+export interface DepreciableAsset {
+  id: number;
+  description: string;
+  dateAcquired: string;
+  cost: number;
+  purchasedNew?: boolean;
+  dateSold?: string;
+  businessUsePercentage?: number;
+  assetCategory?: 'computer_etc' | 'equipment' | 'real_estate' | 'other';
+  assetType?: 'computer' | 'cell_phone' | 'photo_video' | 'copier';
+  priorYear179Expense?: number;
+  recoveryPeriod?: '5-year' | '7-year';
+  priorYearDepreciation?: number;
+  priorYearAmtDepreciation?: number;
+  priorYearBonusDepreciationTaken?: boolean;
+  currentYearDepreciation?: number;
 }
 
 export interface Account {
@@ -177,14 +210,17 @@ export interface Settings {
   externalLinks: ExternalLink[];
   accounts: Account[]; // Add accounts to settings
   activeAccountId?: number | 'all'; // Persist active account filter
-  activeTransactionTypeFilter?: 'all' | 'income' | 'expense'; // New filter for income/expense
+  activeTransactionTypeFilter?: 'all' | 'income' | 'expense' | 'transfer'; // New filter for income/expense
   incomeTypeFilter?: 'all' | 'w2' | 'business' | 'reimbursement' | 'untagged';
   currentView: 'meme' | 'list' | 'reports' | 'inbox' | 'transactions';
   activeCategoryId?: number | 'all';
   activeSubCategoryId?: number | 'all';
   warningTime: number; // in minutes
-  isSidebarVisible: boolean;
+  sidebarState?: 'visible' | 'focused' | 'hidden';
+  isMiniPlayerVisible?: boolean;
   initialReportTab?: 'summary' | 'earnings' | 'activity' | 'raw' | 'history' | 'finances' | 'taxes';
+  activeReportTab?: 'summary' | 'earnings' | 'activity' | 'raw' | 'history' | 'finances' | 'taxes';
+  selectedReportYear?: number | null;
   openAccordionIds: number[]; // Persist open accordions
   activeTaskTabs: { [key: number]: 'ticket' | 'edit' }; // Persist active tab per task
   workSessionQueue: number[];
@@ -213,6 +249,41 @@ export interface Settings {
     reimbursement: string[];
   };
   taxCategories?: TaxCategory[]; // New setting for tax categories
+  w2Data?: { [year: number]: W2Data };
+  // Vehicle & Mileage Information
+  vehicleMakeModel?: string;
+  vehicleType?: 'auto_light' | 'truck_van_suv_light' | 'truck_van_heavy' | 'suv_heavy';
+  vehicleDateInService?: string;
+  vehicleUsedStandardMileage?: boolean;
+  vehicleTotalMiles?: number;
+  vehicleBusinessMiles?: number;
+  vehicleCommutingMiles?: number;
+  vehicleAvgDailyCommute?: number;
+  vehicleGasPrice?: number;
+  vehicleMpgLow?: number;
+  vehicleMpgHigh?: number;
+  vehicleGasCategoryId?: number;
+  vehicleParkingTollsAmount?: number;
+  vehicleParkingTollsTaxCategoryId?: number;
+  vehiclePropertyTaxesAmount?: number;
+  vehiclePropertyTaxesTaxCategoryId?: number;
+  vehicleLoanInterestAmount?: number;
+  vehicleLoanInterestTaxCategoryId?: number;
+  businessName?: string;
+  businessTypeOfWork?: string;
+  businessEin?: string;
+  businessCode?: string;
+  w2ManagerSelectedYear?: number;
+  depreciableAssets?: DepreciableAsset[];
+  businessData?: {
+    [year: number]: {
+      otherGrossReceipts?: number;
+      returnsAndAllowances?: number;
+      miscIncome?: number;
+      qbiEffectivelyConnected?: boolean;
+      qbiFormerEmployer?: boolean;
+    };
+  };
 }
 
 export interface AccordionProps {

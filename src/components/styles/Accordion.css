@@ -17,6 +17,12 @@
   cursor: pointer;
   width: 100%;
 }
+.accordion-title-wrapper {
+  display: flex;
+  flex-grow: 1;
+  align-items: center;
+  justify-content: space-between;
+}
 
 .accordion-header h4 {
   /* This will now hold our custom title block */
@@ -140,4 +146,24 @@
 
 .timer-pill .priority-high {
   color: white; /* Ensure the text inside the red pill is white */
+}
+/* --- W2 Manager --- */
+.w2-manager-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.w2-manager-container label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 0.9em;
+    color: #ccc;
+}
+
+.w2-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }

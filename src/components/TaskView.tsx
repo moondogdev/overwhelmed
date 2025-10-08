@@ -555,14 +555,25 @@ export function TabbedView({
                               onChange={(e) => {
                                 const rawAmount = parseFloat(e.target.value) || 0;                                
                                 const type = rawAmount === 0 ? 'none' : (task.transactionType === 'none' ? 'expense' : task.transactionType);
-                                const finalAmount = type === 'expense' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
-                                onUpdate({ ...task, transactionAmount: finalAmount, transactionType: type });
+                                let finalAmount = rawAmount;
+                                // Only force sign for income/expense. For transfer, respect the input.
+                                if (task.transactionType === 'expense') {
+                                  finalAmount = -Math.abs(rawAmount);
+                                } else if (task.transactionType === 'income') {
+                                  finalAmount = Math.abs(rawAmount);
+                                }
+                                // If type is transfer, the sign is determined by the user's input or previous value.
+                                onUpdate({ ...task, transactionAmount: finalAmount });
                               }}
                             />
                             <div className="transaction-type-toggle">
                               <button className={`none-btn ${(task.transactionType || 'none') === 'none' || !task.transactionAmount ? 'active' : ''}`} onClick={() => {
                                 onUpdate({ ...task, transactionType: 'none', transactionAmount: 0 });
                               }}>None</button>
+                              <button className={`transfer-btn ${task.transactionType === 'transfer' && task.transactionAmount !== 0 ? 'active' : ''}`} onClick={() => {
+                                const currentAmount = task.transactionAmount || 1; // Keep the original sign
+                                onUpdate({ ...task, transactionType: 'transfer', transactionAmount: currentAmount });
+                              }}>Transfer</button>
                               <button className={`expense-btn ${task.transactionType === 'expense' && task.transactionAmount !== 0 ? 'active' : ''}`} onClick={() => {
                                 const currentAmount = Math.abs(task.transactionAmount || 1);
                                 onUpdate({ ...task, transactionType: 'expense', transactionAmount: -currentAmount });

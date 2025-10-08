@@ -43,20 +43,24 @@ export function useAppListeners({
 
   // Effect to handle keyboard back/forward navigation
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // --- Save Shortcut ---
+      if (e.ctrlKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        dataPersistenceState.handleSaveProject();
+        return; // Stop further processing
+      }
+
+      // --- Navigation & Other Shortcuts ---
       const activeElement = document.activeElement;
       if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || (activeElement as HTMLElement).isContentEditable)) {
         return;
       }
+
       if (e.altKey && e.key === 'ArrowLeft') navigationState.goBack();
       else if (e.altKey && e.key === 'ArrowRight') navigationState.goForward();
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [navigationState.goBack, navigationState.goForward]);
-
-  // Effect to handle different shutdown signals from the main process
-  useEffect(() => {
+    window.addEventListener('keydown', handleGlobalKeyDown);
     const handleGetDataForQuit = () => {
       // This logic doesn't need the canvas, so it's safe here.
       // It sends the refs, which are guaranteed to have the latest state.
@@ -72,8 +76,11 @@ export function useAppListeners({
       });
     };
     const cleanup = window.electronAPI.on('get-data-for-quit', handleGetDataForQuit);
-    return cleanup;
-  }, [taskState.tasksRef, taskState.completedTasksRef, settingsState.settingsRef, inboxState.inboxMessagesRef, inboxState.archivedMessagesRef, inboxState.trashedMessagesRef, globalTimerState.activeTimerTaskIdRef, globalTimerState.activeTimerEntryRef]);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+      cleanup?.();
+    };
+  }, [navigationState.goBack, navigationState.goForward, dataPersistenceState.handleSaveProject, taskState.tasksRef, taskState.completedTasksRef, settingsState.settingsRef, inboxState.inboxMessagesRef, inboxState.archivedMessagesRef, inboxState.trashedMessagesRef, globalTimerState.activeTimerTaskIdRef, globalTimerState.activeTimerEntryRef]);
 
   // Effect to handle commands from the ticket context menu
   useEffect(() => {
@@ -266,11 +273,33 @@ export function useAppListeners({
         return;
       }
       if (e.altKey && e.key.toLowerCase() === 's') {
-        settingsState.setSettings(prev => ({ ...prev, isSidebarVisible: !prev.isSidebarVisible }));
+        settingsState.setSettings(prev => {
+          const currentState = prev.sidebarState || 'visible';
+          let nextState: 'visible' | 'focused' | 'hidden';
+          if (currentState === 'visible') nextState = 'focused';
+          else if (currentState === 'focused') nextState = 'hidden';
+          else nextState = 'visible';
+          return { ...prev, sidebarState: nextState };
+        });
       }
     };
     window.addEventListener('keydown', handleSidebarToggle);
     return () => window.removeEventListener('keydown', handleSidebarToggle);
+  }, [settingsState.setSettings]);
+
+  // Effect to handle MiniPlayer toggle hotkey
+  useEffect(() => {
+    const handleMiniPlayerToggle = (e: KeyboardEvent) => {
+      const activeElement = document.activeElement;
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || (activeElement as HTMLElement).isContentEditable)) {
+        return;
+      }
+      if (e.altKey && e.key.toLowerCase() === 't') {
+        settingsState.setSettings(prev => ({ ...prev, isMiniPlayerVisible: !(prev.isMiniPlayerVisible ?? true) }));
+      }
+    };
+    window.addEventListener('keydown', handleMiniPlayerToggle);
+    return () => window.removeEventListener('keydown', handleMiniPlayerToggle);
   }, [settingsState.setSettings]);
 
   // Effect to handle browser toggle hotkey
@@ -336,18 +365,6 @@ export function useAppListeners({
     document.addEventListener('contextmenu', handleGlobalContextMenu);
     return () => document.removeEventListener('contextmenu', handleGlobalContextMenu);
   }, []);
-
-  // Effect to handle the Ctrl+S shortcut for saving
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey && event.key === 's') {
-        event.preventDefault();
-        dataPersistenceState.handleSaveProject();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [dataPersistenceState.handleSaveProject]);
 
   // Effect to handle generic toast messages from the main process
   useEffect(() => {

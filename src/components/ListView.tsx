@@ -25,7 +25,7 @@ export function ListView() {
   const activeTransactionTypeFilter = settings.activeTransactionTypeFilter ?? 'all';
   const activeSubCategoryId = settings.activeSubCategoryId ?? 'all';
   const incomeTypeFilter = settings.incomeTypeFilter ?? 'all';
-  const [selectedYear, setSelectedYear] = useState<'all' | number>('all');
+  const selectedYear = settings.selectedReportYear ?? 'all';
 
   const parentCategories = settings.categories.filter(c => !c.parentId);
   const subCategoriesForActive = activeCategoryId !== 'all' ? settings.categories.filter(c => c.parentId === activeCategoryId) : [];
@@ -85,7 +85,7 @@ export function ListView() {
     });
 
     if (isTransactionsView && selectedYear !== 'all') {
-      filtered = filtered.filter(task => new Date(task.openDate).getFullYear() === selectedYear);
+      filtered = filtered.filter(task => new Date(task.openDate).getFullYear() === Number(selectedYear));
     }
     return filtered;
   }, [tasks, activeCategoryId, activeSubCategoryId, searchQuery, settings.categories, selectedYear, isTransactionsView]);
@@ -123,7 +123,7 @@ export function ListView() {
 
     // NEW: Add year filtering for transactions view
     if (isTransactionsView && selectedYear !== 'all') {
-      filtered = filtered.filter(task => {
+      filtered = filtered.filter(task => { // @ts-ignore
         return new Date(task.openDate).getFullYear() === selectedYear;
       });
     }
@@ -136,9 +136,11 @@ export function ListView() {
     // NEW: Add income/expense filtering for transactions view
     if (isTransactionsView && activeTransactionTypeFilter !== 'all') {
       if (activeTransactionTypeFilter === 'income') {
-        filtered = filtered.filter(task => (task.transactionAmount || 0) > 0);
+        filtered = filtered.filter(task => task.transactionType === 'income');
       } else if (activeTransactionTypeFilter === 'expense') {
-        filtered = filtered.filter(task => (task.transactionAmount || 0) < 0);
+        filtered = filtered.filter(task => task.transactionType === 'expense');
+      } else if (activeTransactionTypeFilter === 'transfer') {
+        filtered = filtered.filter(task => task.transactionType === 'transfer');
       }
     }
 
@@ -490,8 +492,7 @@ export function ListView() {
     <div className="list-view-container">
       {!isTransactionsView && (
         <div className="category-tabs">
-          <button
-            onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); setSearchQuery(''); setSelectedYear('all'); setSettings(prev => ({ ...prev, activeAccountId: 'all', activeTransactionTypeFilter: 'all' })); setActiveTaxCategoryId('all'); }}
+          <button onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); setSearchQuery(''); setSettings(prev => ({ ...prev, selectedReportYear: null, activeAccountId: 'all', activeTransactionTypeFilter: 'all' })); setActiveTaxCategoryId('all'); }}
             className={`all-category-btn ${activeCategoryId === 'all' ? 'active' : ''}`}
             style={{
               backgroundColor: settings.allCategoryColor || '#4a4f5b',
@@ -507,8 +508,7 @@ export function ListView() {
             const count = tasks.filter(t => t.categoryId === cat.id || (t.categoryId && subCatIds.includes(t.categoryId))).length;
             return (
               <button
-                key={cat.id}
-                onClick={() => { setActiveCategoryId(cat.id); setActiveSubCategoryId('all'); setSearchQuery(''); setSelectedYear('all'); setSettings(prev => ({ ...prev, activeAccountId: 'all', activeTransactionTypeFilter: 'all' })); setActiveTaxCategoryId('all'); }}
+                key={cat.id} onClick={() => { setActiveCategoryId(cat.id); setActiveSubCategoryId('all'); setSearchQuery(''); setSettings(prev => ({ ...prev, selectedReportYear: null, activeAccountId: 'all', activeTransactionTypeFilter: 'all' })); setActiveTaxCategoryId('all'); }}
                 className={activeCategoryId === cat.id ? 'active' : ''}
                 style={{
                   backgroundColor: cat.color || 'transparent',
@@ -527,8 +527,7 @@ export function ListView() {
             const subCatIds = settings.categories.filter(sc => sc.parentId === parentCategory?.id).map(sc => sc.id);
             const totalCount = tasks.filter(t => t.categoryId === parentCategory?.id || (t.categoryId && subCatIds.includes(t.categoryId))).length;
             return (
-              <button
-                onClick={() => { setActiveSubCategoryId('all'); setSearchQuery(''); setSelectedYear('all'); setSettings(prev => ({ ...prev, activeAccountId: 'all', activeTransactionTypeFilter: 'all' })); setActiveTaxCategoryId('all'); }}                
+              <button onClick={() => { setActiveSubCategoryId('all'); setSearchQuery(''); setSettings(prev => ({ ...prev, selectedReportYear: null, activeAccountId: 'all', activeTransactionTypeFilter: 'all' })); setActiveTaxCategoryId('all'); }}
                 className={`all-category-btn ${activeSubCategoryId === 'all' ? 'active' : ''}`}
                 style={{
                   backgroundColor: parentCategory?.color || '#3a3f4b',
@@ -544,7 +543,7 @@ export function ListView() {
               return null;
             }
             return (
-              <button key={subCat.id} onClick={() => { setActiveSubCategoryId(subCat.id); setSearchQuery(''); setSelectedYear('all'); setSettings(prev => ({ ...prev, activeAccountId: 'all', activeTransactionTypeFilter: 'all' })); setActiveTaxCategoryId('all'); }} className={activeSubCategoryId === subCat.id ? 'active' : ''} style={{
+              <button key={subCat.id} onClick={() => { setActiveSubCategoryId(subCat.id); setSearchQuery(''); setSettings(prev => ({ ...prev, selectedReportYear: null, activeAccountId: 'all', activeTransactionTypeFilter: 'all' })); setActiveTaxCategoryId('all'); }} className={activeSubCategoryId === subCat.id ? 'active' : ''} style={{
                   backgroundColor: subCat.color || '#3a3f4b',
                   color: getContrastColor(subCat.color || '#3a3f4b')
                 }}>
@@ -771,10 +770,9 @@ export function ListView() {
           </div>
         )}
         {isTransactionsView && transactionYears.length > 1 && (
-          <div className="list-header-year-filter filter-group-year">
-            <span className="list-filter-title">Filter by Year:</span><button className={selectedYear === 'all' ? 'active' : ''} onClick={() => setSelectedYear('all')}>All Years</button>
+          <div className="list-header-year-filter filter-group-year"><span className="list-filter-title">Filter by Year:</span><button className={selectedYear === 'all' ? 'active' : ''} onClick={() => setSettings(prev => ({ ...prev, selectedReportYear: null }))}>All Years</button>
             {transactionYears.map(year => (
-              <button key={year} className={selectedYear === year ? 'active' : ''} onClick={() => setSelectedYear(year)}>{year}</button>
+              <button key={year} className={selectedYear === year ? 'active' : ''} onClick={() => setSettings(prev => ({ ...prev, selectedReportYear: year }))}>{year}</button>
             ))}
           </div>
         )}
@@ -813,19 +811,25 @@ export function ListView() {
             <span className="list-filter-title">Filter by Type:</span><button className={activeTransactionTypeFilter === 'all' ? 'active' : ''} onClick={() => setSettings(prev => ({ ...prev, activeTransactionTypeFilter: 'all' }))}>
               All Types ({tasksForAccountCounting.filter(t => activeAccountId === 'all' || t.accountId === activeAccountId).length})
             </button>
-            {(() => {
-              const incomeCount = tasksForAccountCounting.filter(t => (t.transactionAmount || 0) > 0 && (activeAccountId === 'all' || t.accountId === activeAccountId)).length;
+            {(() => {              
+              const incomeCount = tasksForAccountCounting.filter(t => t.transactionType === 'income' && (activeAccountId === 'all' || t.accountId === activeAccountId)).length;
               if (incomeCount > 0) {
                 return <button className={activeTransactionTypeFilter === 'income' ? 'active' : ''} onClick={() => setSettings(prev => ({ ...prev, activeTransactionTypeFilter: 'income' }))}>Income ({incomeCount})</button>;
               }
               return null;
             })()}
             {(() => {
-              const expenseCount = tasksForAccountCounting.filter(t => (t.transactionAmount || 0) < 0 && (activeAccountId === 'all' || t.accountId === activeAccountId)).length;
+              const expenseCount = tasksForAccountCounting.filter(t => t.transactionType === 'expense' && (activeAccountId === 'all' || t.accountId === activeAccountId)).length;
               if (expenseCount > 0) {
                 return <button className={activeTransactionTypeFilter === 'expense' ? 'active' : ''} onClick={() => setSettings(prev => ({ ...prev, activeTransactionTypeFilter: 'expense' }))}>Expense ({expenseCount})</button>;
               }
               return null;
+            })()}
+            {(() => {
+              const transferCount = tasksForAccountCounting.filter(t => t.transactionType === 'transfer' && (activeAccountId === 'all' || t.accountId === activeAccountId)).length;
+              if (transferCount > 0) {
+                return <button className={activeTransactionTypeFilter === 'transfer' ? 'active' : ''} onClick={() => setSettings(prev => ({ ...prev, activeTransactionTypeFilter: 'transfer' }))}>Transfers ({transferCount})</button>;
+              }
             })()}
           </div>
         )}

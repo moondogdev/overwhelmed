@@ -4,20 +4,23 @@ import './styles/BulkActionBar.css';
 import { Dropdown } from './TaskComponents';
 
 export function BulkActionBar() {
-  const { 
+  const {
     selectedTaskIds, setSelectedTaskIds, handleBulkDelete, handleBulkSetCategory, 
-    handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen, handleBulkCopyAsCsv, handleBulkDownloadAsCsv, handleBulkSetAccount, handleBulkSetTaxCategory, handleBulkSetIncomeType,
+    handleBulkSetDueDate, handleBulkSetOpenDate, handleBulkSetYear, handleBulkSetPriority, handleBulkComplete, handleBulkReopen, handleBulkCopyAsCsv, handleBulkDownloadAsCsv, handleBulkSetAccount, handleBulkSetTaxCategory, handleBulkSetIncomeType, handleBulkSetTransactionType,
     settings, tasks, completedTasks, visibleTaskIds
   } = useAppContext();
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
+  const [isDatePickerOpenDateVisible, setIsDatePickerOpenDateVisible] = useState(false);
   const [dueDate, setDueDate] = useState('');
+  const [openDate, setOpenDate] = useState('');
   const confirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Reset confirmation state if selection changes
   useEffect(() => {
     setIsConfirmingDelete(false);
     setIsDatePickerVisible(false); // Also hide date picker on selection change
+    setIsDatePickerOpenDateVisible(false);
     if (confirmTimeoutRef.current) {
       clearTimeout(confirmTimeoutRef.current);
     }
@@ -67,13 +70,8 @@ export function BulkActionBar() {
     return 'mixed';
   }, [selectedTaskIds, tasks, completedTasks]);
 
-  const isTransactionsView = useMemo(() => {
-    const parentCategory = settings.categories.find(c => c.name === 'Transactions');
-    if (!parentCategory) return false;
-    if (settings.activeCategoryId === parentCategory.id) return true;
-    const activeCat = settings.categories.find(c => c.id === settings.activeCategoryId);
-    return activeCat?.parentId === parentCategory.id;
-  }, [settings.activeCategoryId, settings.categories]);
+  // Corrected logic: Check the current view directly from settings.
+  const isTransactionsView = settings.currentView === 'transactions';
 
   const selectionIsIncomeRelated = useMemo(() => {
     if (selectedTaskIds.length === 0) return false;
@@ -81,8 +79,23 @@ export function BulkActionBar() {
     return allSelectedTasks.some(t => (t.transactionAmount || 0) > 0 || (t.payRate || 0) > 0);
   }, [selectedTaskIds, tasks, completedTasks]);
 
-  const handleIncomeTypeChange = (incomeType: 'w2' | 'business' | 'reimbursement' | undefined) => {
+  const handleIncomeTypeChange = (incomeType: 'w2' | 'business' | 'reimbursement' | undefined) => {    
     handleBulkSetIncomeType(selectedTaskIds, incomeType);
+  };
+
+  const handleTransactionTypeChange = (transactionType: 'income' | 'expense' | 'none' | 'transfer') => {
+    handleBulkSetTransactionType(selectedTaskIds, transactionType);
+  };
+
+  const handleYearChange = (year: number) => {
+    handleBulkSetYear(selectedTaskIds, year);
+  };
+
+  const yearOptions = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let i = currentYear + 1; i >= currentYear - 10; i--) { years.push(i); }
+    return years.map(year => <option key={year} value={year}>{year}</option>);
   };
 
   if (selectedTaskIds.length === 0) {
@@ -95,6 +108,15 @@ export function BulkActionBar() {
       handleBulkSetDueDate(selectedTaskIds, timestamp);
       setIsDatePickerVisible(false); // Hide picker
       setDueDate(''); // Reset date
+    }
+  };
+
+  const handleConfirmOpenDate = () => {
+    if (openDate) {
+      const timestamp = new Date(openDate).getTime();
+      handleBulkSetOpenDate(selectedTaskIds, timestamp);
+      setIsDatePickerOpenDateVisible(false); // Hide picker
+      setOpenDate(''); // Reset date
     }
   };
 
@@ -175,6 +197,47 @@ export function BulkActionBar() {
             <div className="dropdown-separator"></div>
             <button className="category-dropdown-item" onClick={() => handleIncomeTypeChange(undefined)}>-- Remove Income Type --</button>
           </Dropdown>
+        )}
+        {isTransactionsView && (
+          <Dropdown trigger={
+            <button className="icon-button" title="Change Transaction Type">
+              <i className="fas fa-exchange-alt"></i>
+            </button>
+          }>
+            <button className="category-dropdown-item" onClick={() => handleTransactionTypeChange('income')}>Income</button>
+            <button className="category-dropdown-item" onClick={() => handleTransactionTypeChange('expense')}>Expense</button>
+            <button className="category-dropdown-item" onClick={() => handleTransactionTypeChange('transfer')}>Transfer</button>
+            <button className="category-dropdown-item" onClick={() => handleTransactionTypeChange('none')}>None</button>
+          </Dropdown>
+        )}
+        {isTransactionsView && (
+          <Dropdown trigger={
+            <button className="icon-button" title="Set Year">
+              <i className="fas fa-calendar-week"></i>
+            </button>
+          }>
+            {yearOptions().map(option => (
+              <button key={option.key} className="category-dropdown-item" onClick={() => handleYearChange(Number(option.props.value))}>{option.props.children}</button>
+            ))}
+          </Dropdown>
+        )}
+        {isTransactionsView && (
+          <div className="bulk-action-group">
+            <button
+              className="icon-button"
+              title="Set Transaction Date"
+              onClick={() => setIsDatePickerOpenDateVisible(!isDatePickerOpenDateVisible)}
+            >
+              <i className="fas fa-calendar-day"></i>
+            </button>
+            {isDatePickerOpenDateVisible && (
+              <div className="bulk-date-picker">
+                <input type="datetime-local" value={openDate} onChange={(e) => setOpenDate(e.target.value)} autoFocus />
+                <button onClick={handleConfirmOpenDate} className="confirm-btn">Set</button>
+                <button onClick={() => setIsDatePickerOpenDateVisible(false)} className="cancel-btn">X</button>
+              </div>
+            )}
+          </div>
         )}
         <div className="bulk-action-group">
           <button

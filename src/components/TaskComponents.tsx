@@ -341,12 +341,28 @@ export function TaskAccordionHeader({
             Date: {new Date(task.openDate).toLocaleDateString()}
           </span>
         )}
-        {task.transactionAmount && task.transactionAmount !== 0 && (
-          <span className={`transaction-pill ${task.transactionAmount > 0 ? 'income' : 'expense'}`}>
-            <i className={`fas ${task.transactionAmount > 0 ? 'fa-arrow-up' : 'fa-arrow-down'}`}></i>
-            ${Math.abs(task.transactionAmount).toFixed(2)}
-          </span>
-        )}
+        {task.transactionType && task.transactionType !== 'none' && task.transactionAmount !== 0 && (() => {
+          const amount = task.transactionAmount || 0;
+          if (task.transactionType === 'transfer') {
+            return (
+              <span className="transaction-pill transfer">
+                <i className="fas fa-exchange-alt"></i>
+                {amount > 0 ? '+' : ''}${amount.toFixed(2)}
+              </span>
+            );
+          }
+          if (task.transactionType === 'income') {
+            return (
+              <span className="transaction-pill income">
+                <i className="fas fa-arrow-up"></i>
+                ${Math.abs(amount).toFixed(2)}
+              </span>
+            );
+          }
+          return (
+            <span className="transaction-pill expense"><i className="fas fa-arrow-down"></i>${Math.abs(amount).toFixed(2)}</span>
+          );
+        })()}
         {(() => {
           let recurringText = '';
           if (task.isDailyRecurring) recurringText = 'Repeats Daily';

@@ -37,7 +37,10 @@ export const defaultSettings: Settings = {
   incomeTypeFilter: 'all', // Default to showing all income types
   activeSubCategoryId: 'all',
   warningTime: 60, // Default to 60 minutes
-  isSidebarVisible: true,
+  sidebarState: 'visible',
+  isMiniPlayerVisible: true,
+  activeReportTab: 'summary', // Default report tab
+  selectedReportYear: null, // Default selected year
   openAccordionIds: [], // Default to no accordions open
   activeTaskTabs: {}, // Default to no specific tabs active
   timerNotificationLevel: 'medium', // Default to medium alerts
@@ -69,4 +72,31 @@ export const defaultSettings: Settings = {
     reimbursement: [],
   },
   taxCategories: [], // Initialize tax categories
+  w2Data: {}, // Initialize W-2 data
+  // Vehicle & Mileage Information
+  vehicleMakeModel: '',
+  vehicleType: 'auto_light',
+  vehicleDateInService: '',
+  vehicleUsedStandardMileage: false,
+  vehicleTotalMiles: 0,
+  vehicleBusinessMiles: 0,
+  vehicleCommutingMiles: 0,
+  vehicleAvgDailyCommute: 0,
+  vehicleGasPrice: 3.50,
+  vehicleMpgLow: 20,
+  vehicleMpgHigh: 30,
+  vehicleGasCategoryId: undefined,
+  vehicleParkingTollsAmount: 0,
+  vehicleParkingTollsTaxCategoryId: undefined,
+  vehiclePropertyTaxesAmount: 0,
+  vehiclePropertyTaxesTaxCategoryId: undefined,
+  vehicleLoanInterestAmount: 0,
+  vehicleLoanInterestTaxCategoryId: undefined,
+  businessName: '',
+  businessTypeOfWork: '',
+  businessEin: '',
+  businessCode: '',
+  w2ManagerSelectedYear: new Date().getFullYear(),
+  depreciableAssets: [],
+  businessData: {},
 };

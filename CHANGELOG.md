@@ -24,9 +24,63 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
+## Budgeting System
+-   ### **Phase 1: Foundational Budgeting Model**
+    -   **Data Model**:
+        -   Add a `budgets` array to the `Settings` interface.
+        -   Define a `Budget` interface: `{ id: number; name: string; categoryIds: number[]; amount: number; period: 'monthly' | 'yearly'; }`.
+    -   **UI**:
+        -   Create a `BudgetManager` in the sidebar to allow users to create, edit, and delete budgets.
+        -   For each budget, users should be able to set a name, a monetary amount, a period (monthly/yearly), and associate it with one or more expense categories.
+-   ### **Phase 2: Budget Tracking & Reporting**
+    -   **Reporting**: In the "Finances" tab of the `ReportsView`, add a new "Budgets" section.
+    -   For each defined budget, display a progress bar showing `(total spent in associated categories for the period) / (budgeted amount)`.
+    -   Display the amount remaining or the amount over budget.
+    -   Allow the user to filter the report view by the time period of the budget (e.g., show this month's data for a monthly budget).
+-   ### **Phase 3: Notifications & Insights**
+    -   **Notifications**: Create new `InboxMessage` types for budget alerts.
+    -   Trigger notifications when a budget reaches 75%, 90%, and 100% of its limit for the current period.
+    -   **Insights**: In the "Reports" view, provide simple insights, such as "You are on track for your 'Groceries' budget this month" or "Warning: You have exceeded your 'Entertainment' budget."
+
+---
+
+## Budgeting System
+-   ### **Phase 1: Foundational Budgeting Model**
+    -   **Data Model**:
+        -   Add a `budgets` array to the `Settings` interface.
+        -   Define a `Budget` interface: `{ id: number; name: string; categoryIds: number[]; amount: number; period: 'monthly' | 'yearly'; }`.
+    -   **UI**:
+        -   Create a `BudgetManager` in the sidebar to allow users to create, edit, and delete budgets.
+        -   For each budget, users should be able to set a name, a monetary amount, a period (monthly/yearly), and associate it with one or more expense categories.
+-   ### **Phase 2: Budget Tracking & Reporting**
+    -   **Reporting**: In the "Finances" tab of the `ReportsView`, add a new "Budgets" section.
+    -   For each defined budget, display a progress bar showing `(total spent in associated categories for the period) / (budgeted amount)`.
+    -   Display the amount remaining or the amount over budget.
+    -   Allow the user to filter the report view by the time period of the budget (e.g., show this month's data for a monthly budget).
+-   ### **Phase 3: Notifications & Insights**
+    -   **Notifications**: Create new `InboxMessage` types for budget alerts.
+    -   Trigger notifications when a budget reaches 75%, 90%, and 100% of its limit for the current period.
+    -   **Insights**: In the "Reports" view, provide simple insights, such as "You are on track for your 'Groceries' budget this month" or "Warning: You have exceeded your 'Entertainment' budget."
+
+---
+
 ## Future Features
 -   ### **Finances**:
     -   **Phase 4: Advanced Features**
+
+-   ### **Reports & Analytics**:
+    -   **Refactor `ReportsView`**: Decompose the monolithic `ReportsView.tsx` component into smaller, single-responsibility components and custom hooks to improve maintainability and performance.
+    -   **Separate Charitable Donations**: Ensure all calculations and displays of "Total Business Expenses" throughout the `ReportsView` correctly exclude any categories marked as "Charitable" or "Charity".
+    -   **Display Depreciable Assets Schedule**: In the `ReportsView` "Taxes" tab, display the calculated depreciation schedule for each asset for the selected tax year.
+    -   **Calculate Net Business Revenue**: Implement a calculation in the tax report that determines net business revenue by subtracting total business expenses, asset depreciation, and vehicle expenses from total business income.
+    -   **Refine Depreciation Calculation**: In the tax report, ensure that fully depreciated assets do not contribute to the total asset expense for a given year. The calculation should only sum the scheduled depreciation amount for the selected year.
+    -   **Refine "Finances" View Expense Reporting**:
+        -   Update the "Deductible Expenses by Tax Category" table to exclude any categories marked as "Charitable".
+        -   Incorporate calculated vehicle mileage deductions and asset depreciation values into the total expense calculations to provide a more comprehensive financial overview.
+    -   **Yearly Tax Breakdown**: Enhance the "Lifetime Tax Summary" in the `ReportsView` "Taxes" tab to include a year-by-year breakdown of total deductible expenses.
+
+-   ### **Vehicle & Mileage**:
+    -   **Mileage Log**: Implement a mileage log within the `VehicleInformationManager` to allow users to record individual trips (date, purpose, start/end odometer) instead of just a yearly total.
 
 -   ### **Automated Transaction Importing (via Plaid Integration)**
     -   **Phase 1: Research & Backend Setup**:
@@ -121,6 +175,7 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
+- **[1.0.30] - 2025-10-07: Tax Reporting & Sidebar Management Overhaul**: feat(core): Overhaul tax reporting UI and sidebar component management.
 - **[1.0.29] - 2025-10-06: Tax Workflow & Reporting Polish**: feat(taxes): Enhance tax workflow with new actions, filters, and reporting UI.
 - **[1.0.28] - 2025-10-05: Financial Tracking & Reporting**: feat(finances): Implement comprehensive financial tracking and reporting.
 - **[1.0.27] - 2025-10-04: Checklist Hook Refactor**: refactor(checklist): Decompose monolithic `useChecklist` hook into smaller, single-responsibility hooks.
@@ -151,6 +206,39 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+## [1.0.30] - 2025-10-07: Tax Reporting & Sidebar Management Overhaul
+**feat(core): Overhaul tax reporting UI and sidebar component management.**
+
+This update introduces a significant refactor to the Tax Reporting view for improved clarity and usability. It also enhances the sidebar's component structure and adds several quality-of-life features for financial management.
+
+#### Features & UI Improvements:
+-   **Tax Report Overhaul**:
+    -   The main summary blocks in the yearly tax report (Total Income, Taxes Withheld, Deductible Expenses) are now collapsible accordions, allowing users to expand them to see a detailed breakdown.
+    -   The "Final Net Calculations" section has been redesigned into a clear, stacked list for better readability.
+    -   All monetary values in the summary are now accompanied by a one-click "copy" button.
+    -   The report now correctly separates "Charitable Donations" from "Deductible Business Expenses" in all totals and text exports, preventing double-counting.
+    -   **Report Item Navigation**: Clicking on a transaction or income item within the detailed tax report tables will now navigate directly to the associated task in the list view, expanding its accordion for quick review.
+    -   **Text Export Actions**: Added "Copy Summary" and "Copy Full Text" buttons to the yearly tax report, allowing users to easily export a clean, text-based version of their financial data for external use.
+-   **Sidebar Component Refactor**:
+    -   Created a new `SidebarComponents.tsx` file to house smaller, reusable components that were previously defined within larger files.
+    -   Moved `SimpleAccordion`, `LiveClock`, `TaskTypeManager`, `W2Manager`, `BusinessInfoManager`, `DepreciableAssetsManager`, `VehicleInformationManager`, `TaxCategoryManager`, and `AccountManager` into this new centralized file for better organization.
+-   **Financial Management Enhancements**:
+    -   **Deductible Percentage**: Added a "Deductible %" field to both Transaction sub-categories and Tax Categories, allowing for partial deductions (e.g., "Meals - 50%"). The tax report now automatically calculates and displays the correct deductible amounts based on these percentages.
+    -   **Depreciable Assets**: Implemented a full `DepreciableAssetsManager` in the sidebar, allowing users to track assets, their cost, acquisition date, and business use percentage for tax purposes. The tax report now includes a dedicated section to display these assets.
+    -   **Vehicle & Mileage**: Added a `VehicleInformationManager` to the sidebar for tracking business mileage and other vehicle-related expenses (parking, tolls, property tax, loan interest), which are now included in the tax report.
+    -   **Automated Depreciation Calculation**: The `DepreciableAssetsManager` now automatically calculates the current year's depreciation deduction for each asset based on its category and the MACRS schedule. This value is displayed in the manager and used in the final tax report.
+    -   **Business Information**: Added a `BusinessInfoManager` to the sidebar for tracking core business details (Name, EIN, Business Code) and year-specific financial data like `Returns and Allowances` and `Miscellaneous Income` for tax reporting.
+
+#### UI/UX & Hotkeys:
+-   **Sidebar View States**: The sidebar now supports three states: `visible` (default), `focused` (wide view for detailed management), and `hidden`.
+-   **Sidebar Toggle Hotkey**: Added an `Alt+S` hotkey to cycle through the sidebar's three view states (`visible` -> `focused` -> `hidden`).
+-   **MiniPlayer Toggle Hotkey**: Added an `Alt+T` hotkey to quickly show or hide the MiniPlayer/Work Session Manager.
+
+#### Summary
+This release delivers a more powerful and accurate tax reporting experience, with a cleaner UI and more granular control over deductions. The underlying code has been made more modular and maintainable through the strategic refactoring of sidebar components.
 
 ---
 

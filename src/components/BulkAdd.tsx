@@ -2,7 +2,6 @@ import React from 'react';
 import { SimpleAccordion } from './SidebarComponents';
 import { useAppContext } from '../contexts/AppContext';
 import { CategoryOptions } from './TaskView';
-
 export function BulkAdd() {
   const {
     bulkAddText, setBulkAddText, handleBulkAdd,
@@ -52,6 +51,7 @@ export function BulkAdd() {
             <option value="none">None</option>
             <option value="expense">Expense</option>
             <option value="income">Income</option>
+            <option value="transfer">Transfer</option>
           </select>
         </label>
         {bulkAddTransactionType !== 'none' && (
@@ -72,15 +72,15 @@ export function BulkAdd() {
             </select>
           </label>
         )}
+        {bulkAddTransactionType !== 'none' && (
+          <label>
+            For Year:
+            <select value={bulkAddYear} onChange={(e) => setBulkAddYear(Number(e.target.value))}>
+              {yearOptions()}
+            </select>
+          </label>
+        )}
       </div>
-      {bulkAddTransactionType !== 'none' && (
-        <label>
-          For Year:
-          <select value={bulkAddYear} onChange={(e) => setBulkAddYear(Number(e.target.value))}>
-            {yearOptions()}
-          </select>
-        </label>
-      )}
       <textarea
         placeholder="Add multiple tasks, separated by new lines or commas..."
         value={bulkAddText}

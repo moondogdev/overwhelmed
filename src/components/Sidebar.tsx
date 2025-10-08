@@ -9,25 +9,29 @@ import { BackupManager } from './BackupManager';
 import { ProjectActions } from './ProjectActions';
 import { GlobalCategorySettings } from './GlobalCategorySettings';
 import { TransactionAutocategorizeSettings } from './TransactionAutocategorizeSettings';
-import { AccountManager } from './SidebarComponents';
-import { TaxCategoryManager } from './SidebarComponents';
+import { AccountManager, VehicleInformationManager, BusinessInfoManager, DepreciableAssetsManager } from './SidebarComponents';
+import { TaxCategoryManager, W2Manager } from './SidebarComponents'; 
 import { NotificationSettings } from './NotificationSettings';
 import { TaskTypeManager } from './SidebarComponents';
 import './styles/Sidebar.css';
 
 interface SidebarProps {
-  isVisible: boolean;
+  sidebarState: 'visible' | 'focused' | 'hidden';
 }
 
-export function Sidebar({ isVisible }: SidebarProps) {
+export function Sidebar({ sidebarState }: SidebarProps) {
   return (
-    <div className={`sidebar ${isVisible ? '' : 'hidden'}`}>
+    <div className={`sidebar ${sidebarState}`}>
       <AddNewTaskForm />
       <BulkAdd />
       <CategoryManager />
       <AccountManager />
       <TransactionAutocategorizeSettings />
       <TaxCategoryManager />
+      <BusinessInfoManager />
+      <DepreciableAssetsManager />
+      <VehicleInformationManager />
+      <W2Manager />
       <TaskTypeManager />
       <MemeViewSettings />
       <TimeManagementSettings />

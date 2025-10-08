@@ -19,11 +19,12 @@ interface StandaloneProps {
   handleTaskUpdate: (updatedTask: Task) => void;
   handleAccordionToggle: (taskId: number) => void;
   focusAddTaskInput: () => void;
-  handleBulkDelete: (taskIds: number[]) => void;
-  handleBulkAdd: (options: { categoryId: number | 'default'; priority: 'High' | 'Medium' | 'Low'; completeBy?: string; transactionType?: 'none' | 'income' | 'expense' }) => void;
+  handleBulkDelete: (taskIds: number[]) => void;  handleBulkAdd: (options: { categoryId: number | 'default'; priority: 'High' | 'Medium' | 'Low'; completeBy?: string; transactionType?: 'none' | 'income' | 'expense' | 'transfer', accountId?: number, taxCategoryId?: number }, contextYear: number) => void;
   handleBulkReopen: (taskIds: number[]) => void;
   handleBulkComplete: (taskIds: number[]) => void;
   handleBulkSetPriority: (taskIds: number[], priority: 'High' | 'Medium' | 'Low') => void;
+  handleBulkSetYear: (taskIds: number[], year: number) => void;
+  handleBulkSetOpenDate: (taskIds: number[], openDate: number) => void;
   handleBulkSetDueDate: (taskIds: number[], completeBy: number) => void;
   handleBulkDownloadAsCsv: (taskIds: number[]) => void;
   handleBulkCopyAsCsv: (taskIds: number[]) => void;

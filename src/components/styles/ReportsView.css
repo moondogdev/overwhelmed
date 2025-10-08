@@ -192,15 +192,43 @@
   font-weight: bold;
 }
 
+.summary-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.summary-value .copy-btn {
+  font-size: 0.5em; /* Make the icon smaller relative to the large text */
+  opacity: 0.3;
+  transition: opacity 0.2s ease;
+}
+
 
 
 
 span.tax-accordion-total.income-text, .summary-value.income { color: #28a745; }
 span.tax-accordion-total.expense-text, .summary-value.expense { color: #dc3545; }
+.summary-value.transfer { color: #ffc107; }
+
+.summary-item:hover .summary-value .copy-btn {
+  opacity: 1;
+}
 
 /* Ensure recharts legend text is visible */
 .recharts-legend-item-text {
   color: #ccc !important;
+}
+
+.report-table tfoot td {
+  padding: 8px;
+  font-size: 0.9em;
+}
+
+.report-table tfoot tr:last-child td {
+  font-size: 1em;
+  font-weight: bold;
 }
 
 .report-table .amount-column {
@@ -226,9 +254,19 @@ table.report-table th {
   align-items: center;
 }
 
-.tax-accordion-total {
-  font-weight: bold;
+.tax-accordion-total {    
+    font-size: .75em;
+    margin-left: 8px;
+    color: #fff;
+}
+.accordion-header .tax-accordion-title {
   font-size: 1.1em;
+  font-weight: 700;
+}
+
+.tax-category-accordion .tax-section-title {
+  width: 100%;
+  margin: 0;
 }
 
 .report-table {
@@ -274,13 +312,67 @@ table.report-table th {
   border-top: 1px solid #444;
   padding-top: 20px;
 }
-
+.tax-report-pin {
+  font-size: 1em;
+  color: #ccc;
+  margin-top: 10px;
+  background-color: #21252b;
+  padding: 5px 10px;
+  border-radius: 4px;
+  display: inline-block;
+  border: 1px solid #444;
+}
+.tax-report-business-name {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #ccc;
+  margin-top: 10px;
+}
 .tax-report-main-header {
   padding: 20px;
   background-color: #2c3e50;
   border-radius: 8px;
   margin-bottom: 20px;
   text-align: center;
+}
+
+.tax-report-summary-accordion {
+  margin: 20px 0;
+}
+
+.tax-report-summary-accordion .accordion-header {
+  background-color: #34495e;
+  border-radius: 5px;
+  padding: 10px 15px;
+}
+
+.tax-report-section-info {
+  text-align: left;
+  font-size: 0.9em;
+  color: #ccc;
+  background-color: #21252b;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  border: 1px solid #444;
+}
+
+.tax-report-employer-info,
+.tax-report-employee-info {
+  text-align: left;
+  font-size: 0.9em;
+  color: #ccc;
+  background-color: #21252b;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  border: 1px solid #444;
+}
+
+.tax-report-section-info div,
+.tax-report-employer-info div,
+.tax-report-employee-info div {
+  margin-bottom: 4px;
 }
 
 .tax-report-main-header h4 {
@@ -290,9 +382,94 @@ table.report-table th {
 
 .tax-report-summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 15px;
   margin: 20px 0;
+}
+
+.tax-report-summary-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;  
+  padding-top: 15px;
+}
+
+.summary-block-accordion {
+  background-color: #2c313a;
+  padding: 0;
+  border-radius: 8px;
+  margin-bottom: 0;
+}
+
+.summary-block-accordion .accordion-header {
+  padding: 15px;
+}
+
+.summary-block-accordion .accordion-content {
+  padding: 0 15px 15px 15px;
+}
+
+.summary-block-accordion:hover .copy-btn {
+  opacity: 1;
+}
+
+.summary-item.stacked {
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.summary-block {
+  background-color: #2c313a;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.summary-block .summary-item.stacked {
+  padding: 0; /* Remove padding from the inner item */
+  background-color: transparent;
+}
+
+.summary-block .tax-withheld-breakdown {
+  padding-top: 10px;
+  margin-top: 10px;
+  border-top: 1px solid #444;
+  text-align: right; /* Align breakdown items to the right */
+}
+
+.summary-final-item {
+  border-top: 2px solid #61dafb;
+  padding-top: 15px;
+}
+.final-net-block .summary-item.stacked {
+  background-color: transparent;
+  padding: 10px 0;
+}
+.tax-report-summary-grid.main-summary {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  align-items: start;
+}
+
+.tax-withheld-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #444;
+}
+
+.tax-withheld-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.9em;
+  color: #ccc;
+}
+
+.tax-withheld-breakdown strong {
+  color: white;
 }
 
 .tax-report-actions {
@@ -321,10 +498,44 @@ table.report-table th {
   margin-bottom: 25px;
 }
 
+.tax-report-category-section .summary-block-accordion {
+  margin-bottom: 10px;
+}
+
 .tax-report-category-section h5 {
   margin: 0 0 10px 0;
   padding-bottom: 5px;
   border-bottom: 1px solid #555;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tax-report-category-section h5 .expense-text,
+.tax-report-category-section h5 .income-text {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tax-report-table-container {
+  max-height: 300px; /* Adjust this value as needed */
+  overflow-y: auto;
+  border: 1px solid #444;
+}
+
+.tax-report-table-container .clickable-row {
+  cursor: pointer;
+}
+.tax-report-table-container .clickable-row:hover {
+  background-color: #3a3f4b;
+}
+
+.asset-details-subtext {
+  font-size: 0.8em;
+  color: #999;
+  margin-top: 4px;
+  font-style: italic;
 }
 
 @media print {
@@ -354,4 +565,53 @@ table.report-table th {
   .tax-report-year-selector {
     display: none;
   }
+}
+
+.tax-report-subtotal {
+  font-size: 0.8em;
+  font-weight: normal;
+  color: #aaa;
+  margin-left: 15px;
+  font-style: italic;
+}
+
+.deductible-percentage {
+  font-size: 0.8em;
+  color: #aaa;
+  font-weight: normal;
+  margin-left: 5px;
+  cursor: help;
+}
+.mileage-summary {
+  text-align: center;
+  font-size: 1.1em;
+  line-height: 1.6;
+}
+
+.mileage-summary p {
+  margin-bottom: 20px;
+}
+
+.mileage-result {
+  font-size: 1.8em;
+  font-weight: bold;
+  color: #61dafb;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+}
+
+.mileage-result .to-text {
+  font-size: 0.7em;
+  color: #aaa;
+  font-weight: normal;
+}
+
+.report-footnote {
+  font-size: 0.8em;
+  color: #888;
+  text-align: center;
+  margin-top: 20px;
+  font-style: italic;
 }

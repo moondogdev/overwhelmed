@@ -185,6 +185,19 @@ export function TransactionAutocategorizeSettings() {
                 onBlur={(e) => handleUpdateSubCategory(subCat.id, { autoCategorizationKeywords: e.target.value.split(',').map(k => k.trim()).filter(Boolean) })}
               />
             </div>
+            <div className="category-manager-item sub keywords">
+              <input
+                type="number"
+                min="1"
+                max="100"
+                placeholder="Deductible % (default 100)"
+                defaultValue={subCat.deductiblePercentage || ''}
+                onBlur={(e) => {
+                  const percentage = parseInt(e.target.value, 10);
+                  handleUpdateSubCategory(subCat.id, { deductiblePercentage: isNaN(percentage) ? undefined : Math.max(1, Math.min(100, percentage)) });
+                }}
+              />
+            </div>
           </div>
         ))}
       </div>

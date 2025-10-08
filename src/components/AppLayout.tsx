@@ -69,8 +69,10 @@ export function AppLayout({ contentAreaRef }: AppLayoutProps) {
 
   const fullTask = fullTaskViewId ? tasks.find(t => t.id === fullTaskViewId) : null;
 
+  const sidebarClass = settings.sidebarState === 'hidden' ? 'hidden' : (settings.sidebarState === 'focused' ? 'focused' : '');
+
   return (
-    <div className={`app ${settings.isSidebarVisible ? '' : 'sidebar-hidden'}`}>
+    <div className={`app ${sidebarClass ? `sidebar-${sidebarClass}` : ''}`}>
       <Header
         settings={settings}
         currentView={settings.currentView}
@@ -86,7 +88,7 @@ export function AppLayout({ contentAreaRef }: AppLayoutProps) {
       />
       <div className="main-content">
         {selectedTaskIds.length > 0 && <BulkActionBar />}
-        <Sidebar isVisible={settings.isSidebarVisible} />
+        <Sidebar sidebarState={settings.sidebarState || 'visible'} />
         <div className="content-area" ref={contentAreaRef}>
           {fullTask ? (
             <FullTaskView
@@ -102,7 +104,7 @@ export function AppLayout({ contentAreaRef }: AppLayoutProps) {
       </div>
       <Footer />
       <OverdueNotifications />
-      <MiniPlayer />
+      {settings.isMiniPlayerVisible && <MiniPlayer />}
       {isWorkSessionManagerOpen && (
         <WorkSessionManager />
       )}

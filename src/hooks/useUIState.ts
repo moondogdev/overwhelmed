@@ -23,12 +23,11 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
   const [toastMessage, setToastMessage] = useState('');
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
-  const [selectedYear, setSelectedYear] = useState<'all' | number>('all');
   // New state for bulk add options
   const [bulkAddCategoryId, setBulkAddCategoryId] = useState<number | 'default'>('default');
   const [bulkAddPriority, setBulkAddPriority] = useState<'High' | 'Medium' | 'Low'>('Medium');
   const [bulkAddCompleteBy, setBulkAddCompleteBy] = useState<string>('');
-  const [bulkAddTransactionType, setBulkAddTransactionType] = useState<'none' | 'income' | 'expense'>('none');
+  const [bulkAddTransactionType, setBulkAddTransactionType] = useState<'none' | 'income' | 'expense' | 'transfer'>('none');
   const [bulkAddYear, setBulkAddYear] = useState<number>(new Date().getFullYear());
   const [bulkAddAccountId, setBulkAddAccountId] = useState<number | undefined>(undefined);
   const [activeTaxCategoryId, setActiveTaxCategoryId] = useState<number | 'all'>('all');
@@ -72,7 +71,7 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
 
   const focusAddTaskInput = useCallback(() => {
     setIsAddTaskOpen(true);
-    setSettings(prev => ({ ...prev, isSidebarVisible: true }));
+    setSettings(prev => ({ ...prev, sidebarState: 'visible' }));
     // Use a timeout to ensure the accordion is open before focusing.
     setTimeout(() => {
       newTaskTitleInputRef.current?.focus();
@@ -108,7 +107,6 @@ export function useUIState({ setSettings, newTaskTitleInputRef }: UseUIStateProp
     isWorkSessionManagerOpen, setIsWorkSessionManagerOpen,
     focusAddTaskInput, selectedTaskIds, setSelectedTaskIds, handleToggleTaskSelection,
     bulkAddCategoryId, setBulkAddCategoryId, bulkAddPriority, setBulkAddPriority,
-    selectedYear, setSelectedYear,
     bulkAddCompleteBy, setBulkAddCompleteBy,
     bulkAddTransactionType, setBulkAddTransactionType,
     bulkAddYear, setBulkAddYear,
