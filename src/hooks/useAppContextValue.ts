@@ -14,7 +14,7 @@ import { useUIState } from './useUIState';
 // Use Omit to derive StandaloneProps from AppContextType by removing the keys
 // that are provided by the other hooks. This makes it fully automatic.
 type StandaloneProps = Omit<AppContextType, 
-  keyof ReturnType<typeof useTaskState> | 
+  keyof Omit<ReturnType<typeof useTaskState>, 'handleCompleteTask'> | 
   keyof ReturnType<typeof useInboxState> |
   keyof ReturnType<typeof useSettings> |
   keyof ReturnType<typeof useEditingState> |

@@ -10,9 +10,7 @@ All notable changes to this project will be documented in this file. See `## Log
     -   **Phase 4: Advanced Features**
 
 -   ### **Architecture & Refactoring**:
-    -   **Refactor `index.ts` (Main Process)**: Decompose the monolithic `index.ts` file by extracting IPC handlers and related logic into smaller, feature-specific modules (e.g., `backupManager.ts`, `contextMenuManager.ts`).
-    - Can you review the `useDataPersistence.ts` hook for any potential improvements?
-    - Let's start refactoring the `AppLayout.tsx` component next.
+    -   **Refactor `index.ts` (Main Process)**: Decompose the monolithic `index.ts` file by extracting IPC handlers and related logic into smaller, feature-specific modules (e.g., `backupManager.ts`, `contextMenuManager.ts`).    
 
 -   ### **Reports & Analytics**:
     -   **Separate Charitable Donations**: Ensure all calculations and displays of "Total Business Expenses" throughout the `ReportsView` correctly exclude any categories marked as "Charitable" or "Charity".
@@ -136,6 +134,7 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
+- **[1.0.32] - 2025-10-11: Core Architecture & Data Persistence Refactor**: refactor(core): Decompose `AppLayout` and `useDataPersistence` and improve context type safety.
 - **[1.0.31] - 2025-10-08: Component Refactor**: refactor(multiple): Decompose monolithic components into individual component files.
     - **[1.0.31.05] - 2025-10-08: Sidebar Component Refactor**: refactor(sidebar): Decompose monolithic `SidebarComponents.tsx` into individual component files.
     - **[1.0.31.04] - 2025-10-08: ListView & useListView Refactor**: refactor(list): Decompose `ListView` component and `useListView` hook into smaller, single-responsibility modules.
@@ -173,6 +172,24 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+
+- **[1.0.32] - 2025-10-11: Core Architecture & Data Persistence Refactor**
+**refactor(core): Decompose `AppLayout` and `useDataPersistence` and improve context type safety.**
+
+This update continues the major architectural refactoring of the application, focusing on the main app layout and the critical data persistence layer. It also enhances the type safety of the global application context.
+
+#### Refactored
+-   **Decomposed `AppLayout.tsx`**: The main layout component, which previously contained significant logic for view rendering and state calculation, has been refactored. All of its logic has been extracted into a new `useAppLayout` custom hook, transforming `AppLayout.tsx` into a clean, presentational "Orchestrator" component.
+-   **Decomposed `useDataPersistence.ts`**: The monolithic `useDataPersistence` hook, which managed all data loading, saving, auto-saving, and import/export logic, has been broken down into smaller, single-responsibility hooks:
+    -   **`useDataLoading.ts`**: Now solely responsible for loading all data from `electron-store` on application startup.
+    -   **`useAutoSave.ts`**: Manages the "dirty" state detection and the 5-minute auto-save countdown timer.
+    -   **`useDataActions.ts`**: Consolidates all user-facing data actions like manual saving, importing, exporting, and creating backups.
+    -   The main `useDataPersistence.ts` hook now acts as a clean orchestrator for these smaller hooks.
+-   **Improved Context Type Safety**: The `useAppContextValue` hook has been refactored to automatically derive its prop types from the main `AppContextType` and the return types of the other state hooks. This eliminates a large, manually maintained interface and makes it impossible for the context value to become out of sync with its definition, significantly improving type safety and maintainability.
+
+#### Summary
+This refactor completes the application-wide adoption of the "Orchestrator" pattern, resulting in a codebase that is significantly more modular, maintainable, and type-safe. The separation of concerns in the data persistence layer makes the most critical part of the application easier to reason about and safer to modify.
 
 ---
 
