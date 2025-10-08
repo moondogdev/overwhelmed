@@ -115,7 +115,18 @@ See `CHANGELOG.md` for a list of future features to implement. Strickly follow `
 ### Log of Changes
 
 All notable changes to this project will be documented in this file @CHANGELOG.md. Please update the separate changelog as development progresses. 
-
+- **[1.0.31] - 2025-10-08: Reports View Refactor**: refactor(reports): Decompose monolithic `ReportsView` component into smaller components and a custom hook.
+- **[1.0.30] - 2025-10-08: Tax Reporting & Sidebar Management Overhaul**: feat(core): Overhaul tax reporting UI and sidebar component management.
+- **[1.0.29] - 2025-10-06: Tax Workflow & Reporting Polish**: feat(taxes): Enhance tax workflow with new actions, filters, and reporting UI.
+- **[1.0.28] - 2025-10-05: Financial Tracking & Reporting**: feat(finances): Implement comprehensive financial tracking and reporting.
+- **[1.0.27] - 2025-10-04: Checklist Hook Refactor**: refactor(checklist): Decompose monolithic `useChecklist` hook into smaller, single-responsibility hooks.
+- **[1.0.26] - 2025-10-04: Advanced Checklist Structuring & Organization**: feat(checklist): Implement content blocks, hierarchical sorting, nesting, bulk actions, and named hyperlinks.
+- **[1.0.25] - 2025-10-03: Inbox Expansion & Auto-Save Logic**: feat(core): Complete Inbox expansion and fix auto-save logic.
+- **[1.0.24] - 2025-10-03: Data Export & Advanced Notification Controls**: feat(core): Implement comprehensive data export and advanced notification management.
+- **[1.0.23] - 2025-10-03: Bulk Task Management**: feat(tasks): Implement bulk task actions and enhanced bulk add.
+- **[1.0.22] - 2025-10-03: Workflow Features & UI Overhaul**: feat(core): Enhance task workflows, stabilize editor, and overhaul UI.
+- **[1.0.21] - 2025-10-02: Codebase Cleanup & Bug Fixes**: refactor(core): Standardize naming conventions (Word->Task) and Checklist.tsx refactor fix data loading
+- **[1.0.20] - 2025-10-02: MiniPlayer V2: Work Session Manager**: feat(player): Implement Work Session Manager and MiniPlayer V2
 - **[1.0.19] - 2025-09-27: Full Refactor to Hook-Based Architecture**: refactor: Complete full refactor to hook-based architecture and MiniPlayer
 - **[1.0.18] - 2025-09-26: Time Log Sessions & Advanced Timer Controls**: feat(time): Implement Time Log Sessions and advanced timer controls
 - **[1.0.17] - 2025-09-26: Time Tracker Log & Checklist Integration**: feat(time): Implement detailed time tracker log and checklist integration
@@ -131,7 +142,7 @@ All notable changes to this project will be documented in this file @CHANGELOG.m
 - **[1.0.07] - 2025-09-21: UI Polish & Category Color-Coding**: feat(ui): Add category colors and refactor task header/actions
 - **[1.0.06] - 2025-09-21: Grouped Task View by Day**: feat(tasks): Add grouped view by day when sorting by due date
 - **[1.0.05] - 2025-09-21: Task Types & Templated Forms**: feat(tasks): Implement Task Types and Templated Forms
-- **[1.0.04] - 2025-09-21: Inbox Archive & Trash + Documentation**: feat(inbox): Implement full Archive and Trash system with UI polish 
+- **[1.0.04] - 2025-09-21: Inbox Archive & Trash + Documentation Workflow**: feat(inbox): Implement full Archive and Trash system with UI polish 
 - **[1.0.03] - 2025-09-20: Inbox Protection & Full Task View**:
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
@@ -352,6 +363,12 @@ Please keep this consistent to keep the maintainer from having to make frequent 
 ---
 
 ### Log of Issues and Lessons
+
+#### [1.0.32] - TypeScript Inference with Hook Composition
+-   **Issue**: After refactoring a large hook (`useTaskState`) into smaller, single-responsibility hooks and combining their return values with the spread operator (`...`), TypeScript failed to correctly infer the shape of the final, combined object. This led to `Property 'X' does not exist on type 'Y'` errors, even though the property was correctly defined and returned by one of the child hooks.
+-   **Lesson**: When composing multiple custom hooks, especially when using the spread operator, it is crucial to provide **explicit return type interfaces** for each child hook. This provides a clear "contract" for TypeScript to follow, ensuring it can correctly assemble the final type and preventing inference failures. Without explicit return types, TypeScript may only infer a partial or incorrect type for the combined object. See `Rule 76.0` for a full explanation.
+
+---
 
 #### [1.0.24] - Decomposing Monolithic Hooks
 -   **Issue**: The `useChecklist.ts` hook had grown into a massive, monolithic file containing all state, event handlers, and side effects for the entire checklist feature. This made it extremely difficult to debug, maintain, and add new functionality without risking unintended side effects.
@@ -581,6 +598,7 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 73.0: Safe Conditional Rendering in JSX
   - Rule 74.0: Keyboard Interactivity with `onKeyDown` and `tabIndex`
   - Rule 75.0: Decoupling Actions from Editing State with Hover Menus
+  - Rule 76.0: Explicit Return Types for Composable Hooks
 
 ---
 
@@ -3612,4 +3630,60 @@ This pattern provides several benefits:
     <button onClick={onDelete}>Delete</button>
   </div>
 </div>
+```
+
+---
+
+### Developer Guide - Rule 76.0: Explicit Return Types for Composable Hooks
+
+This guide explains a critical TypeScript pattern for ensuring type safety when building complex state logic by composing multiple custom hooks.
+
+#### The Problem: Type Inference Failure with Spread Syntax
+
+We encountered a significant issue after refactoring the monolithic `useTaskState` hook into smaller, single-responsibility hooks (`useCoreTaskState`, `useTaskManagement`, `useBulkTaskActions`). The new `useTaskState` acted as an "orchestrator," combining the return values of the smaller hooks using the spread operator:
+
+```typescript
+// The orchestrator hook
+export function useTaskState(...) {
+  const coreState = useCoreTaskState(...);
+  const taskManagement = useTaskManagement(...); // Returns { handleCompleteTask, ... }
+  const bulkTaskActions = useBulkTaskActions(...); // Returns { handleBulkDelete, ... }
+
+  return {
+    ...coreState,
+    ...taskManagement,
+    ...bulkTaskActions,
+  };
+}
+```
+
+The bug occurred because TypeScript struggled to infer the complete shape of the final returned object. It would sometimes only "see" the properties from one of the spread objects, leading to errors like `Property 'handleBulkDelete' does not exist on type '{ handleCompleteTask: ... }'`.
+
+#### The Solution: Explicit Return Type Interfaces
+
+The definitive solution is to provide an explicit return type interface for each of the child hooks. This acts as a clear "contract" that tells TypeScript the exact shape of the object that the hook will return.
+
+By doing this, TypeScript no longer has to *infer* the type; it can simply read the contract. When the orchestrator hook then spreads these objects, TypeScript can correctly combine the well-defined types into a final, complete type.
+
+**Golden Rule**: Any custom hook that is intended to be composed or spread into a larger object should have an explicit return type interface. This prevents type inference failures and ensures robust type safety.
+
+```typescript
+// File: src/hooks/useBulkTaskActions.ts
+
+// 1. Define the explicit return type interface.
+interface UseBulkTaskActionsReturn {
+  handleBulkAdd: (options: {...}) => void;
+  handleBulkDelete: (taskIds: number[]) => void;
+  // ... all other handlers
+}
+
+// 2. Apply the return type to the hook's function signature.
+export function useBulkTaskActions({...}: UseBulkTaskActionsProps): UseBulkTaskActionsReturn {
+  // ... hook logic
+  return {
+    handleBulkAdd,
+    handleBulkDelete,
+    // ...
+  };
+}
 ```

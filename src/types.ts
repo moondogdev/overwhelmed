@@ -212,6 +212,7 @@ export interface Settings {
   activeAccountId?: number | 'all'; // Persist active account filter
   activeTransactionTypeFilter?: 'all' | 'income' | 'expense' | 'transfer'; // New filter for income/expense
   incomeTypeFilter?: 'all' | 'w2' | 'business' | 'reimbursement' | 'untagged';
+  taxStatusFilter?: 'all' | 'tagged' | 'untagged';
   currentView: 'meme' | 'list' | 'reports' | 'inbox' | 'transactions';
   activeCategoryId?: number | 'all';
   activeSubCategoryId?: number | 'all';
@@ -220,8 +221,9 @@ export interface Settings {
   isMiniPlayerVisible?: boolean;
   initialReportTab?: 'summary' | 'earnings' | 'activity' | 'raw' | 'history' | 'finances' | 'taxes';
   activeReportTab?: 'summary' | 'earnings' | 'activity' | 'raw' | 'history' | 'finances' | 'taxes';
-  selectedReportYear?: number | null;
+  selectedReportYear?: number | 'all' | null;
   openAccordionIds: number[]; // Persist open accordions
+  activeTaxCategoryId?: number | 'all';
   activeTaskTabs: { [key: number]: 'ticket' | 'edit' }; // Persist active tab per task
   workSessionQueue: number[];
   timerNotificationLevel: 'silent' | 'low' | 'medium' | 'high';

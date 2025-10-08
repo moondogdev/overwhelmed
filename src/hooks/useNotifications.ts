@@ -38,12 +38,12 @@ export function useNotifications({
     });
   }, [tasks, setInboxMessages]);
 
-  const handleTimerNotify = useCallback((task: Task) => {
+  const handleTimerNotify = useCallback((task: Task, message: string) => {
     setTimerNotifications(prev => [...prev, task]);
     setTimeout(() => {
       setTimerNotifications(prev => prev.filter(n => n.id !== task.id));
     }, 8000);
-  }, []);
+  }, [setTimerNotifications]);
 
   const handleSnooze = useCallback((taskToSnooze: Task, duration?: 'low' | 'medium' | 'high' | 'long') => {
     const snoozeDurations = { low: 1 * 60 * 1000, medium: 5 * 60 * 1000, high: 10 * 60 * 1000, long: 60 * 60 * 1000 };
@@ -137,7 +137,7 @@ export function useNotifications({
     const notificationInterval = setInterval(() => {
       const now = Date.now();
       const newlyOverdueIds = new Set<number>();
-      const approachingTasks: Task[] = [];
+      const approachingTasks: { task: Task; minutesLeft: number }[] = [];
 
       // First, collect all events for this tick
       for (const task of tasks) {
@@ -165,7 +165,7 @@ export function useNotifications({
           }
 
           if (shouldNotify) {
-            approachingTasks.push(task);
+            approachingTasks.push({ task, minutesLeft });
           }
         }
       }
@@ -175,8 +175,11 @@ export function useNotifications({
         newlyOverdueIds.forEach(id => handleTaskOverdue(id));
       }
       if (approachingTasks.length > 0) {
-        approachingTasks.forEach(task => handleTimerNotify(task));
-        setTasks(prev => prev.map(t => approachingTasks.find(at => at.id === t.id) ? { ...t, lastNotified: now } : t));
+        approachingTasks.forEach(({ task, minutesLeft }) => {
+          const message = `Task "${task.text}" is due in about ${minutesLeft} minute${minutesLeft > 1 ? 's' : ''}.`;
+          handleTimerNotify(task, message);
+        });
+        setTasks(prev => prev.map(t => approachingTasks.find(at => at.task.id === t.id) ? { ...t, lastNotified: now } : t));
       }
     }, 1000); // Check every second
     return () => clearInterval(notificationInterval);

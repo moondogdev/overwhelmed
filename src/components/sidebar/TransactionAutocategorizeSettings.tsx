@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { useAppContext } from '../contexts/AppContext';
-import { moveCategory } from '../utils';
-import { SimpleAccordion } from './SidebarComponents';
-import { Category } from '../types';
+import { useAppContext } from '../../contexts/AppContext';
+import { moveCategory } from '../../utils';
+import { SimpleAccordion } from '../SidebarComponents';
+import { Category } from '../../types';
 
 export function TransactionAutocategorizeSettings() {
   const { settings, setSettings, tasks, setTasks, handleSyncTransactionTypes, showToast } = useAppContext();

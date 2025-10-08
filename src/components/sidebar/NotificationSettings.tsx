@@ -1,7 +1,7 @@
 import React from 'react';
-import { SimpleAccordion } from './SidebarComponents';
-import { useAppContext } from '../contexts/AppContext';
-import { InboxMessage } from '../types';
+import { SimpleAccordion } from '../SidebarComponents';
+import { useAppContext } from '../../contexts/AppContext';
+import { InboxMessage } from '../../types';
 
 export function NotificationSettings() {
   const { settings, setSettings } = useAppContext();

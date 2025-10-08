@@ -1,6 +1,6 @@
 import React from 'react';
-import { SimpleAccordion } from './SidebarComponents';
-import { useAppContext } from '../contexts/AppContext';
+import { SimpleAccordion } from '../SidebarComponents';
+import { useAppContext } from '../../contexts/AppContext';
 
 export function ExternalLinkManager() {
   const { settings, setSettings } = useAppContext();

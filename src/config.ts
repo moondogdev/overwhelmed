@@ -35,6 +35,7 @@ export const defaultSettings: Settings = {
   activeCategoryId: 'all',
   activeTransactionTypeFilter: 'all', // Default to showing all transaction types
   incomeTypeFilter: 'all', // Default to showing all income types
+  taxStatusFilter: 'all', // Default to showing all tax statuses
   activeSubCategoryId: 'all',
   warningTime: 60, // Default to 60 minutes
   sidebarState: 'visible',

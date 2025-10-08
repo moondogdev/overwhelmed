@@ -19,7 +19,7 @@ export function Dropdown({ trigger, children }: { trigger: React.ReactNode, chil
 export function TimeLeft({ task, onUpdate, onNotify, settings }: { 
   task: Task, 
   onUpdate: (updatedTask: Task) => void, 
-  onNotify: (task: Task) => void, 
+  onNotify: (task: Task, message: string) => void, 
   settings: Settings
 }) {
   const [timeLeft, setTimeLeft] = useState('');
@@ -144,13 +144,13 @@ export function TaskAccordionHeader({
   settings, 
   onCategoryClick,
   onUpdate,
-  onNotify,  
+  onNotify,
   allTasks,
   isSelected,
   onToggleSelection
 }: { 
-  task: Task, settings: Settings, onCategoryClick: (e: React.MouseEvent, catId: number, parentId?: number) => void, onUpdate?: (updatedTask: Task, options?: { action: string }) => void, onNotify?: (task: Task) => void, allTasks: Task[]
-  isSelected: boolean,
+  task: Task, settings: Settings, onCategoryClick: (e: React.MouseEvent, catId: number, parentId?: number) => void, onUpdate?: (updatedTask: Task, options?: { action: string }) => void, allTasks: Task[],
+  isSelected: boolean, onNotify?: (task: Task, message: string) => void,
   onToggleSelection: (taskId: number) => void,
 }) {
   const [confirmingUncategorize, setConfirmingUncategorize] = useState(false);
@@ -410,9 +410,9 @@ export function TaskAccordion({
   settings, 
   completedTasks,
   onUpdate,
-  onNotify
+  onNotify,
 }: { 
-  title: React.ReactNode, children: React.ReactNode, isOpen: boolean, onToggle: () => void, task: Task, settings: Settings, completedTasks: Task[], onUpdate?: (task: Task, options?: { action: string }) => void, onNotify?: (task: Task) => void
+  title: React.ReactNode, children: React.ReactNode, isOpen: boolean, onToggle: () => void, task: Task, settings: Settings, completedTasks: Task[], onUpdate?: (task: Task, options?: { action: string }) => void, onNotify?: (task: Task, message: string) => void
 }) {
   const [content, headerActions] = React.Children.toArray(children);
 

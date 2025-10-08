@@ -4,72 +4,17 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
-## Budgeting System
--   ### **Phase 1: Foundational Budgeting Model**
-    -   **Data Model**:
-        -   Add a `budgets` array to the `Settings` interface.
-        -   Define a `Budget` interface: `{ id: number; name: string; categoryIds: number[]; amount: number; period: 'monthly' | 'yearly'; }`.
-    -   **UI**:
-        -   Create a `BudgetManager` in the sidebar to allow users to create, edit, and delete budgets.
-        -   For each budget, users should be able to set a name, a monetary amount, a period (monthly/yearly), and associate it with one or more expense categories.
--   ### **Phase 2: Budget Tracking & Reporting**
-    -   **Reporting**: In the "Finances" tab of the `ReportsView`, add a new "Budgets" section.
-    -   For each defined budget, display a progress bar showing `(total spent in associated categories for the period) / (budgeted amount)`.
-    -   Display the amount remaining or the amount over budget.
-    -   Allow the user to filter the report view by the time period of the budget (e.g., show this month's data for a monthly budget).
--   ### **Phase 3: Notifications & Insights**
-    -   **Notifications**: Create new `InboxMessage` types for budget alerts.
-    -   Trigger notifications when a budget reaches 75%, 90%, and 100% of its limit for the current period.
-    -   **Insights**: In the "Reports" view, provide simple insights, such as "You are on track for your 'Groceries' budget this month" or "Warning: You have exceeded your 'Entertainment' budget."
-
----
-
-## Budgeting System
--   ### **Phase 1: Foundational Budgeting Model**
-    -   **Data Model**:
-        -   Add a `budgets` array to the `Settings` interface.
-        -   Define a `Budget` interface: `{ id: number; name: string; categoryIds: number[]; amount: number; period: 'monthly' | 'yearly'; }`.
-    -   **UI**:
-        -   Create a `BudgetManager` in the sidebar to allow users to create, edit, and delete budgets.
-        -   For each budget, users should be able to set a name, a monetary amount, a period (monthly/yearly), and associate it with one or more expense categories.
--   ### **Phase 2: Budget Tracking & Reporting**
-    -   **Reporting**: In the "Finances" tab of the `ReportsView`, add a new "Budgets" section.
-    -   For each defined budget, display a progress bar showing `(total spent in associated categories for the period) / (budgeted amount)`.
-    -   Display the amount remaining or the amount over budget.
-    -   Allow the user to filter the report view by the time period of the budget (e.g., show this month's data for a monthly budget).
--   ### **Phase 3: Notifications & Insights**
-    -   **Notifications**: Create new `InboxMessage` types for budget alerts.
-    -   Trigger notifications when a budget reaches 75%, 90%, and 100% of its limit for the current period.
-    -   **Insights**: In the "Reports" view, provide simple insights, such as "You are on track for your 'Groceries' budget this month" or "Warning: You have exceeded your 'Entertainment' budget."
-
----
-
-## Budgeting System
--   ### **Phase 1: Foundational Budgeting Model**
-    -   **Data Model**:
-        -   Add a `budgets` array to the `Settings` interface.
-        -   Define a `Budget` interface: `{ id: number; name: string; categoryIds: number[]; amount: number; period: 'monthly' | 'yearly'; }`.
-    -   **UI**:
-        -   Create a `BudgetManager` in the sidebar to allow users to create, edit, and delete budgets.
-        -   For each budget, users should be able to set a name, a monetary amount, a period (monthly/yearly), and associate it with one or more expense categories.
--   ### **Phase 2: Budget Tracking & Reporting**
-    -   **Reporting**: In the "Finances" tab of the `ReportsView`, add a new "Budgets" section.
-    -   For each defined budget, display a progress bar showing `(total spent in associated categories for the period) / (budgeted amount)`.
-    -   Display the amount remaining or the amount over budget.
-    -   Allow the user to filter the report view by the time period of the budget (e.g., show this month's data for a monthly budget).
--   ### **Phase 3: Notifications & Insights**
-    -   **Notifications**: Create new `InboxMessage` types for budget alerts.
-    -   Trigger notifications when a budget reaches 75%, 90%, and 100% of its limit for the current period.
-    -   **Insights**: In the "Reports" view, provide simple insights, such as "You are on track for your 'Groceries' budget this month" or "Warning: You have exceeded your 'Entertainment' budget."
-
----
 
 ## Future Features
 -   ### **Finances**:
     -   **Phase 4: Advanced Features**
 
+-   ### **Architecture & Refactoring**:
+    -   **Refactor `index.ts` (Main Process)**: Decompose the monolithic `index.ts` file by extracting IPC handlers and related logic into smaller, feature-specific modules (e.g., `backupManager.ts`, `contextMenuManager.ts`).
+    - Can you review the `useDataPersistence.ts` hook for any potential improvements?
+    - Let's start refactoring the `AppLayout.tsx` component next.
+
 -   ### **Reports & Analytics**:
-    -   **Refactor `ReportsView`**: Decompose the monolithic `ReportsView.tsx` component into smaller, single-responsibility components and custom hooks to improve maintainability and performance.
     -   **Separate Charitable Donations**: Ensure all calculations and displays of "Total Business Expenses" throughout the `ReportsView` correctly exclude any categories marked as "Charitable" or "Charity".
     -   **Display Depreciable Assets Schedule**: In the `ReportsView` "Taxes" tab, display the calculated depreciation schedule for each asset for the selected tax year.
     -   **Calculate Net Business Revenue**: Implement a calculation in the tax report that determines net business revenue by subtracting total business expenses, asset depreciation, and vehicle expenses from total business income.
@@ -136,7 +81,23 @@ All notable changes to this project will be documented in this file. See `## Log
     -   **Launch Program Buttons**: Add the ability to create custom buttons or links within the app that can launch external programs on the user's system.
     -   **Open File Path Buttons**: Add a feature to create buttons or links that open a specific folder path in the system's file explorer.
 
-    
+-   ### Budgeting System
+    -   #### **Phase 1: Foundational Budgeting Model**
+        -   **Data Model**:
+            -   Add a `budgets` array to the `Settings` interface.
+            -   Define a `Budget` interface: `{ id: number; name: string; categoryIds: number[]; amount: number; period: 'monthly' | 'yearly'; }`.
+        -   **UI**:
+            -   Create a `BudgetManager` in the sidebar to allow users to create, edit, and delete budgets.
+            -   For each budget, users should be able to set a name, a monetary amount, a period (monthly/yearly), and associate it with one or more expense categories.
+    -   #### **Phase 2: Budget Tracking & Reporting**
+        -   **Reporting**: In the "Finances" tab of the `ReportsView`, add a new "Budgets" section.
+        -   For each defined budget, display a progress bar showing `(total spent in associated categories for the period) / (budgeted amount)`.
+        -   Display the amount remaining or the amount over budget.
+        -   Allow the user to filter the report view by the time period of the budget (e.g., show this month's data for a monthly budget).
+    -   #### **Phase 3: Notifications & Insights**
+        -   **Notifications**: Create new `InboxMessage` types for budget alerts.
+        -   Trigger notifications when a budget reaches 75%, 90%, and 100% of its limit for the current period.
+        -   **Insights**: In the "Reports" view, provide simple insights, such as "You are on track for your 'Groceries' budget this month" or "Warning: You have exceeded your 'Entertainment' budget."
 
 -   ### **Response to Ticket**: 
     -   Maybe expand this section to include some details from the task and likely where we could tie in the "scripted responses" from the next request so we can use a dropdown to input a variety of responses which we can edit in the response field to either leave there or copy for use externally. like hello these tasks were completed on xxx. please blah blah blah. 
@@ -175,7 +136,13 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
-- **[1.0.30] - 2025-10-07: Tax Reporting & Sidebar Management Overhaul**: feat(core): Overhaul tax reporting UI and sidebar component management.
+- **[1.0.31] - 2025-10-08: Component Refactor**: refactor(multiple): Decompose monolithic components into individual component files.
+    - **[1.0.31.05] - 2025-10-08: Sidebar Component Refactor**: refactor(sidebar): Decompose monolithic `SidebarComponents.tsx` into individual component files.
+    - **[1.0.31.04] - 2025-10-08: ListView & useListView Refactor**: refactor(list): Decompose `ListView` component and `useListView` hook into smaller, single-responsibility modules.
+    - **[1.0.31.03] - 2025-10-08: Time Tracker Log Refactor**: refactor(time): Decompose monolithic `TimeTrackerLog` component into a custom hook and smaller components.
+    - **[1.0.31.02] - 2025-10-08: Task State Management Refactor**: refactor(tasks): Decompose monolithic useTaskState hook into smaller, single-responsibility hooks.
+    - **[1.0.31.01] - 2025-10-08: Reports View Refactor**: refactor(reports): Decompose monolithic `ReportsView` component into smaller components and a custom hook.
+- **[1.0.30] - 2025-10-08: Tax Reporting & Sidebar Management Overhaul**: feat(core): Overhaul tax reporting UI and sidebar component management.
 - **[1.0.29] - 2025-10-06: Tax Workflow & Reporting Polish**: feat(taxes): Enhance tax workflow with new actions, filters, and reporting UI.
 - **[1.0.28] - 2025-10-05: Financial Tracking & Reporting**: feat(finances): Implement comprehensive financial tracking and reporting.
 - **[1.0.27] - 2025-10-04: Checklist Hook Refactor**: refactor(checklist): Decompose monolithic `useChecklist` hook into smaller, single-responsibility hooks.
@@ -206,6 +173,98 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.02] - 2025-09-19: Advanced Checklists, UI Polish, & Documentation**:
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
+
+---
+
+- **[1.0.31.05] - 2025-10-11: Sidebar Component Refactor**
+**refactor(sidebar): Decompose monolithic `SidebarComponents.tsx` into individual component files.**
+
+This update completes a major architectural refactor of the sidebar, significantly improving its organization and maintainability. The previously monolithic `SidebarComponents.tsx` file, which contained numerous unrelated components, has been broken down into smaller, single-responsibility modules.
+
+#### Refactored
+-   **Decomposed `SidebarComponents.tsx`**: All components previously housed in `SidebarComponents.tsx` (e.g., `AccountManager`, `TaxCategoryManager`, `AddNewTaskForm`, `W2Manager`) have been moved into their own dedicated files within a new `src/components/sidebar/` directory.
+-   **Created Re-export Index**: The original `SidebarComponents.tsx` file has been converted into a clean index file that simply re-exports all the components from their new locations. This ensures that existing import statements throughout the application continue to work without modification, making the refactor non-breaking.
+-   **Standardized Imports**: All import paths within the newly created sidebar components have been updated to reflect their new location, ensuring that they correctly reference shared components like `SimpleAccordion`.
+
+#### Summary
+This refactor was a critical step in cleaning up the application's component structure. By giving each sidebar component its own file, the codebase is now significantly more organized, easier to navigate, and aligns with modern React best practices. This modularity will make future enhancements to the sidebar much simpler to implement.
+
+---
+
+## [1.0.31.04] - 2025-10-11: ListView & useListView Refactor
+**refactor(list): Decompose `ListView` component and `useListView` hook into smaller, single-responsibility modules.**
+
+This update completes a major architectural refactor of the `ListView` component and its associated `useListView` hook, following the successful "Orchestrator" pattern established in previous refactors (`useTaskState`, `useChecklist`, `useReports`). This significantly improves the maintainability, readability, and modularity of the list view feature.
+
+#### Refactored
+-   **Decomposed `ListView.tsx`**: The monolithic `ListView.tsx` component, which previously contained all rendering logic for both active and completed tasks, has been broken down into smaller, single-responsibility components:
+    -   **`ListViewHeader.tsx`**: Manages category filters, search, and sorting controls.
+    -   **`TaskList.tsx`**: Renders the list of active tasks.
+    -   **`CompletedTasks.tsx`**: Renders the list of completed tasks.
+-   **Decomposed `useListView.ts`**: The monolithic `useListView.ts` hook, which previously contained all state management, filtering, sorting, and action logic for the list view, has been broken down into a suite of smaller, single-responsibility custom hooks:
+    -   **`useTaskFiltering.ts`**: Encapsulates the core logic for filtering both active and completed tasks based on various criteria (category, search, transaction details).
+    -   **`useSelectionManagement.ts`**: Manages the "select all" functionality and state for both active and completed task lists.
+    -   **`useListViewCalculations.ts`**: Handles all derived state and memoized calculations (e.g., `nonTransactionTasksCount`, `transactionTotal`, `uncategorizeTaxCount`).
+    -   **`useListViewActions.ts`**: Consolidates user action handlers specific to the list view, such as sorting and various "copy" functions.
+-   **Orchestrator Pattern**:
+    -   The main `ListView.tsx` component now acts as a clean "orchestrator." Its only job is to initialize the `useListView` hook and render the new presentational components, passing down the necessary data and handlers as props.
+    -   The `useListView.ts` hook itself also acts as an orchestrator, composing the functionality of the smaller hooks.
+-   **Context-Driven Child Components**: `TaskList.tsx` and `CompletedTasks.tsx` now directly consume the `AppContext` for common props (e.g., `settings`, `handleTaskUpdate`, `showToast`), further reducing prop drilling from `ListView.tsx`.
+
+#### Summary
+This refactor was a critical step in managing the complexity of the list view feature. By separating concerns into dedicated hooks and smaller UI components, the codebase is now significantly more organized and easier to navigate. This modular architecture will make it much simpler to add new list-related features and fix bugs in the future.
+
+---
+
+## [1.0.31.03] - 2025-10-10: Time Tracker Log Refactor
+**refactor(time): Decompose monolithic `TimeTrackerLog` component into a custom hook and smaller components.**
+
+This update completes a major architectural refactor of the `TimeTrackerLog` component, following the successful "Orchestrator" pattern established in previous refactors (`useTaskState`, `useChecklist`, `useReports`). This significantly improves the maintainability, readability, and modularity of the time tracking feature.
+
+#### Refactored
+-   **Decomposed `TimeTrackerLog.tsx`**: The monolithic `TimeTrackerLog.tsx` component, which previously contained all state management and rendering logic for the time log, has been broken down into a suite of smaller, single-responsibility modules.
+    -   **`useTimeTracker.ts`**: A new custom hook was created to encapsulate all state management (`useState`, `useRef`), data processing (`useMemo`), and event handlers related to the time log and saved sessions.
+    -   **Presentational Components**: The UI has been extracted into smaller, "dumb" presentational components:
+        -   **`TimeLogHeader.tsx`**: Renders the main header, including the title, total time, and all global action buttons.
+        -   **`TimeLogEntryItem.tsx`**: Renders a single entry in the current time log, including its play/pause button, description, duration, and action buttons.
+        -   **`TimeLogSessionItem.tsx`**: Renders a single row in the "Time Logs" history table, including its collapsible details view for nested entries.
+-   **Orchestrator Pattern**: The main `TimeTrackerLog.tsx` component now acts as a clean "orchestrator." Its only job is to initialize the `useTimeTracker` hook and render the new presentational components, passing down the necessary data and handlers as props.
+
+#### Summary
+This refactor was a critical step in managing the complexity of the time tracking feature. By separating concerns into a dedicated hook and smaller UI components, the codebase is now significantly more organized and easier to navigate. This modular architecture will make it much simpler to add new time tracking features and fix bugs in the future.
+
+---
+
+## [1.0.31.02] - 2025-10-09: Task State Management Refactor
+**refactor(tasks): Decompose monolithic `useTaskState` hook into smaller, single-responsibility hooks.**
+
+This update completes a major architectural refactor of the application's core task state management, significantly improving its maintainability, readability, and testability.
+
+#### Refactored
+-   **Decomposed `useTaskState.ts`**: The monolithic `useTaskState.ts` hook, which previously contained all logic for task creation, updates, bulk actions, and ID management, has been broken down into a suite of smaller, single-responsibility custom hooks.
+    -   **`useCoreTaskState.ts`**: Manages the fundamental state arrays (`tasks`, `completedTasks`) and the core ID generation logic (`getNextId`, `handleSyncIds`).
+    -   **`useTaskManagement.ts`**: Encapsulates all handlers for managing *individual* tasks, such as `handleCompleteTask`, `removeTask`, `handleTaskUpdate`, and `handleCreateNewTask`.
+    -   **`useBulkTaskActions.ts`**: Consolidates all handlers that operate on *multiple* tasks at once, including `handleBulkDelete`, `handleBulkSetCategory`, `handleBulkAdd`, and all CSV export functions.
+-   **Orchestrator Pattern**: The main `useTaskState.ts` hook now acts as a clean "orchestrator." Its only job is to initialize these new hooks and combine their returned state and handlers into a single, comprehensive object for the rest of the application to consume.
+
+#### Summary
+This refactor was a critical step in managing the complexity of the application's core logic. By separating concerns into dedicated hooks, the codebase is now significantly more organized and easier to navigate. This modular architecture will make it much simpler to add new task-related features and fix bugs in the future, following the same successful pattern used in the `useChecklist` and `useReports` refactors.
+
+---
+
+## [1.0.31.01] - 2025-10-08: Reports View Refactor
+**refactor(reports): Decompose monolithic `ReportsView` component into smaller components and a custom hook.**
+
+This update completes a major architectural refactor of the `ReportsView` system, significantly improving its maintainability, readability, and performance, following the "Orchestrator" pattern.
+
+#### Refactored
+-   **Decomposed `ReportsView.tsx`**: The monolithic `ReportsView.tsx` component, which previously contained all reporting logic, has been broken down into a suite of smaller, single-responsibility modules.
+    -   **`useReports.ts`**: A new custom hook was created to encapsulate all state management (`useState`), data processing (`useMemo`), and event handlers related to the reports feature.
+    -   **Presentational Components**: The UI for each report tab has been extracted into its own "dumb" presentational component (e.g., `SummaryTab.tsx`, `FinancesTab.tsx`, `TaxesTab.tsx`) located in a new `src/components/reports/` directory.
+-   **Orchestrator Pattern**: The main `ReportsView.tsx` component now acts as a clean "orchestrator." Its only job is to initialize the `useReports` hook and render the appropriate presentational components, passing down the necessary data and handlers as props.
+
+#### Summary
+This refactor was a critical step in managing the complexity of the reporting feature. By separating concerns into a dedicated hook and smaller UI components, the codebase is now significantly more organized and easier to navigate. This modular architecture will make it much simpler to add new reporting features and fix bugs in the future.
 
 ---
 

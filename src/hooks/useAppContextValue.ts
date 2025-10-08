@@ -11,65 +11,20 @@ import { useDataPersistence } from './useDataPersistence';
 import { useNavigation } from './useNavigation';
 import { useUIState } from './useUIState';
 
-interface StandaloneProps {
-  showToast: (message: string, duration?: number) => void;
-  handleCompleteTask: (task: Task, status?: 'completed' | 'skipped') => void;
-  handleClearAll: () => void;
-  handleCopyList: () => void;
-  handleTaskUpdate: (updatedTask: Task) => void;
-  handleAccordionToggle: (taskId: number) => void;
-  focusAddTaskInput: () => void;
-  handleBulkDelete: (taskIds: number[]) => void;  handleBulkAdd: (options: { categoryId: number | 'default'; priority: 'High' | 'Medium' | 'Low'; completeBy?: string; transactionType?: 'none' | 'income' | 'expense' | 'transfer', accountId?: number, taxCategoryId?: number }, contextYear: number) => void;
-  handleBulkReopen: (taskIds: number[]) => void;
-  handleBulkComplete: (taskIds: number[]) => void;
-  handleBulkSetPriority: (taskIds: number[], priority: 'High' | 'Medium' | 'Low') => void;
-  handleBulkSetYear: (taskIds: number[], year: number) => void;
-  handleBulkSetOpenDate: (taskIds: number[], openDate: number) => void;
-  handleBulkSetDueDate: (taskIds: number[], completeBy: number) => void;
-  handleBulkDownloadAsCsv: (taskIds: number[]) => void;
-  handleBulkCopyAsCsv: (taskIds: number[]) => void;
-  handleSetTaxCategory: (taskId: number, taxCategoryId: number | undefined) => void;
-  handleBulkSetTaxCategory: (taskIds: number[], taxCategoryId: number | undefined) => void;
-  handleAutoTagIncomeTypes: (taskIdsToProcess: number[], incomeTypeToProcess?: 'w2' | 'business' | 'reimbursement') => void;  handleBulkSetIncomeType: (taskIds: number[], incomeType: 'w2' | 'business' | 'reimbursement' | undefined) => void;
-  handleBulkSetAccount: (taskIds: number[], accountId: number) => void;
-  handleSyncIds: () => void;
-  handleAutoTaxCategorize: (taskIdsToProcess: number[], taxCategoryIdToProcess?: number) => void;
-  createManualBackup: (backupName: string) => Promise<{ success: boolean; path: string; }>;
-  handleBulkSetCategory: (taskIds: number[], categoryId: number) => void;
-  handleToggleTaskSelection: (taskId: number) => void;
-  handleChecklistCompletion: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
-  handleGlobalToggleTimer: (taskId: number, entryId: number, entry?: TimeLogEntry, newTimeLog?: TimeLogEntry[]) => void;  
-  handleCopyTaskAsCsv: (taskId: number) => void;
-  handleGlobalResetTimer: (taskId: number, entryId: number) => void;
-  handlePrimeTask: (taskId: number) => void;
-  handleClearActiveTimer: () => void;
-  handleUnSnooze: (taskId: number) => void;
-  handleUnSnoozeAll: () => void;
-  handleSilenceTask: (taskId: number) => void;
-  handleUnsilenceTask: (taskId: number) => void;
-  handleSkipAllOverdue: () => void;
-  handleDismissAllOverdue: () => void;
-  handleNextEntry: () => void;
-  handlePreviousEntry: () => void;
-  handleNextChapter: () => void;
-  handlePreviousChapter: () => void;
-  handleStartSession: () => void;
-  handlePostLog: (taskId: number) => void;
-  handlePostAndResetLog: (taskId: number) => void;
-  handleResetAllLogEntries: (taskId: number) => void;
-  handlePostAndComplete: (taskId: number, entryId: number, onUpdate: (updatedTask: Task) => void) => void;
-  handleStartTaskFromSession: (taskId: number) => void;
-  searchInputRef: React.RefObject<HTMLInputElement>;
-  sortSelectRef: React.RefObject<HTMLSelectElement>;
-  snoozeTimeSelectRef: React.RefObject<HTMLSelectElement>;
-  activeChecklistRef: React.RefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
-  filteredTasks: Task[];
-  nonTransactionTasksCount: number;
-  newTaskTitleInputRef: React.RefObject<HTMLInputElement>;
-  setSelectedTaskIds: React.Dispatch<React.SetStateAction<number[]>>;
-}
-
-type AppContextProps = StandaloneProps & {
+// Use Omit to derive StandaloneProps from AppContextType by removing the keys
+// that are provided by the other hooks. This makes it fully automatic.
+type StandaloneProps = Omit<AppContextType, 
+  keyof ReturnType<typeof useTaskState> | 
+  keyof ReturnType<typeof useInboxState> |
+  keyof ReturnType<typeof useSettings> |
+  keyof ReturnType<typeof useEditingState> |
+  keyof ReturnType<typeof useNotifications> |
+  keyof ReturnType<typeof useGlobalTimer> |
+  keyof ReturnType<typeof useNavigation> |
+  keyof ReturnType<typeof useDataPersistence> |
+  keyof ReturnType<typeof useUIState>
+>;
+type AppContextProps = {
   taskState: ReturnType<typeof useTaskState>;
   inboxState: ReturnType<typeof useInboxState>;
   settingsState: ReturnType<typeof useSettings>;
@@ -79,7 +34,7 @@ type AppContextProps = StandaloneProps & {
   navigationState: ReturnType<typeof useNavigation>;
   dataPersistenceState: ReturnType<typeof useDataPersistence>;
   uiState: ReturnType<typeof useUIState>;
-};
+} & StandaloneProps;
 
 /**
  * This custom hook takes all the state and handlers from the main App component

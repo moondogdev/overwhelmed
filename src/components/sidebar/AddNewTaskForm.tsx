@@ -1,12 +1,12 @@
 import React from 'react';
-import { Task, Settings, ChecklistItem, ChecklistSection } from '../types';
-import { formatTimestampForInput, parseInputTimestamp } from '../utils';
-import { CategoryOptions } from './TaskView';
-import { Checklist } from './Checklist';
-import { DescriptionEditor } from './Editors';
-import { useAppContext } from '../contexts/AppContext';
-import { SimpleAccordion } from './SidebarComponents';
-import './styles/Finances.css';
+import { Task, Settings, ChecklistItem, ChecklistSection } from '../../types';
+import { formatTimestampForInput, parseInputTimestamp } from '../../utils';
+import { CategoryOptions } from '../TaskView';
+import { Checklist } from '../Checklist';
+import { DescriptionEditor } from '../Editors';
+import { useAppContext } from '../../contexts/AppContext';
+import { SimpleAccordion } from './SimpleAccordion';
+import '../styles/Finances.css';
 
 export function AddNewTaskForm() {
   const {

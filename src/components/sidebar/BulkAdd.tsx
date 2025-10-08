@@ -1,7 +1,7 @@
 import React from 'react';
-import { SimpleAccordion } from './SidebarComponents';
-import { useAppContext } from '../contexts/AppContext';
-import { CategoryOptions } from './TaskView';
+import { SimpleAccordion } from '../SidebarComponents';
+import { useAppContext } from '../../contexts/AppContext';
+import { CategoryOptions } from '../TaskView';
 export function BulkAdd() {
   const {
     bulkAddText, setBulkAddText, handleBulkAdd,

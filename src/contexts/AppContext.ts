@@ -122,8 +122,8 @@ export interface AppContextType {
   handleResetAllLogEntries: (taskId: number) => void;
   handlePostAndComplete: (taskId: number, entryId: number, onUpdate: (updatedTask: Task) => void) => void;
   handleStartTaskFromSession: (taskId: number) => void;
-  handlePreviousEntry: () => void;
-  handleTimerNotify: (task: Task) => void;
+  handlePreviousEntry: () => void;  
+  handleTimerNotify: (task: Task, message: string) => void;
   handleSnooze: (task: Task, duration?: 'low' | 'medium' | 'high' | 'long') => void;
   handleSnoozeAll: (duration?: 'low' | 'medium' | 'high' | 'long') => void;
   handleUnSnooze: (taskId: number) => void;

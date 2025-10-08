@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { Category } from '../types';
-import { moveCategory } from '../utils';
-import { useAppContext } from '../contexts/AppContext';
-import { SimpleAccordion } from './SidebarComponents';
+import { Category } from '../../types';
+import { moveCategory } from '../../utils';
+import { useAppContext } from '../../contexts/AppContext';
+import { SimpleAccordion } from '../SidebarComponents';
 
 export function CategoryManager() {
   const { settings, setSettings, tasks, setTasks } = useAppContext();

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Task, TimeLogEntry, Settings, ChecklistSection, ChecklistItem, TimeLogSession } from '../types';
+import { Task, TimeLogEntry, Settings, ChecklistSection, ChecklistItem, TimeLogSession, RichTextBlock } from '../types';
 import { formatTime } from '../utils';
 
 interface UseGlobalTimerProps {
@@ -86,14 +86,20 @@ export function useGlobalTimer({ tasks, setTasks, settings }: UseGlobalTimerProp
           );
 
           // Find the corresponding checklist item and update its loggedTime.
-          let updatedChecklist = t.checklist || [];
+          let checklistToUpdate = t.checklist || [];
+          // Normalize checklist from old format if necessary
+          if (checklistToUpdate.length > 0 && 'isCompleted' in checklistToUpdate[0]) {
+            checklistToUpdate = [{ id: 1, title: 'Checklist', items: checklistToUpdate as ChecklistItem[] }];
+          }
+          let updatedChecklist = checklistToUpdate as (ChecklistSection | RichTextBlock)[];
+
           if (lastActiveEntry.checklistItemId) {
             updatedChecklist = updatedChecklist.map(sectionOrItem => {
               if ('items' in sectionOrItem) { // It's a ChecklistSection
                 return { ...sectionOrItem, items: sectionOrItem.items.map(item => item.id === lastActiveEntry.checklistItemId ? { ...item, loggedTime: finalDuration } : item) };
               }
               return sectionOrItem;
-            }) as ChecklistSection[] | ChecklistItem[]; // Cast to satisfy TypeScript's union type
+            });
           }
           return { ...t, timeLog: updatedTimeLog, checklist: updatedChecklist };
         });
@@ -117,13 +123,20 @@ export function useGlobalTimer({ tasks, setTasks, settings }: UseGlobalTimerProp
           const finalDuration = targetEntry.duration + elapsed;
 
           // Also update the corresponding checklist item's loggedTime
+          let checklistToUpdate = t.checklist || [];
+          if (checklistToUpdate.length > 0 && 'isCompleted' in checklistToUpdate[0]) {
+            checklistToUpdate = [{ id: 1, title: 'Checklist', items: checklistToUpdate as ChecklistItem[] }];
+          }
+          let updatedChecklist = checklistToUpdate as (ChecklistSection | RichTextBlock)[];
+
           if (targetEntry.checklistItemId) {
-            t.checklist = (t.checklist || []).map(sectionOrItem => {
+            updatedChecklist = updatedChecklist.map(sectionOrItem => {
               if ('items' in sectionOrItem) {
                 return { ...sectionOrItem, items: sectionOrItem.items.map(item => item.id === targetEntry.checklistItemId ? { ...item, loggedTime: finalDuration } : item) };
               }
               return sectionOrItem;
-            }) as ChecklistSection[] | ChecklistItem[];
+            });
+            t.checklist = updatedChecklist;
           }
           targetEntry = { ...targetEntry, duration: finalDuration, isRunning: false, startTime: undefined };
           // Keep the timer "active" but in a paused state.
@@ -422,7 +435,7 @@ export function useGlobalTimer({ tasks, setTasks, settings }: UseGlobalTimerProp
     if (!entry || !entry.checklistItemId) return;
   
     // Find the checklist item and toggle its completion status
-    const updatedChecklist = (task.checklist || []).map((sectionOrItem): ChecklistItem | ChecklistSection => {
+    const updatedChecklist = (task.checklist || []).map((sectionOrItem): ChecklistItem | ChecklistSection | RichTextBlock => {
       if ('items' in sectionOrItem) { // It's a ChecklistSection
         return { ...sectionOrItem, items: sectionOrItem.items.map(item => item.id === entry.checklistItemId ? { ...item, isCompleted: !item.isCompleted } : item) };
       }

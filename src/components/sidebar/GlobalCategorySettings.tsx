@@ -1,6 +1,6 @@
 import React from 'react';
-import { useAppContext } from '../contexts/AppContext';
-import { SimpleAccordion } from './SidebarComponents';
+import { useAppContext } from '../../contexts/AppContext';
+import { SimpleAccordion } from '../SidebarComponents';
 
 export function GlobalCategorySettings() {
   const { settings, setSettings } = useAppContext();

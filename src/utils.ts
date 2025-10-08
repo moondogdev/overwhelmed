@@ -1,4 +1,4 @@
-import { Category, ChecklistSection, TimeLogSession, Settings, Task, ChecklistItem, RichTextBlock } from './types';
+import { Category, ChecklistSection, TimeLogSession, Settings, Task, ChecklistItem, RichTextBlock, TimeLogEntry } from './types';
 
 export const formatTime = (ms: number): string => {
   if (typeof ms !== 'number' || !isFinite(ms)) return '00:00:00';
@@ -255,6 +255,35 @@ export const indentChecklistItem = (sections: (ChecklistSection | RichTextBlock)
 
   newSections[sectionIndex] = section;
   return newSections;
+};
+
+export const formatTimeLogSessionsForCsv = (sessions: TimeLogSession[] | undefined): string => {
+  if (!sessions || sessions.length === 0) return '';
+  return sessions.map((session: TimeLogSession) => {
+    const totalDuration = session.entries.reduce((acc: number, entry: TimeLogEntry) => acc + entry.duration, 0);
+    const header = `Session: ${session.title} (Total: ${formatTime(totalDuration)})`;
+    const entries = session.entries.map((entry: TimeLogEntry) => `  - ${entry.description}: ${formatTime(entry.duration)}`).join('\n');
+    return `${header}\n${entries}`;
+  }).join('\n\n');
+};
+
+export const formatChecklistForCsv = (checklist: (ChecklistSection | RichTextBlock | ChecklistItem)[] | undefined): string => {
+  if (!checklist || checklist.length === 0) return '';
+
+  // Handle legacy format
+  if ('isCompleted' in checklist[0]) {
+    return (checklist as ChecklistItem[]).map(item => `${item.isCompleted ? '[x]' : '[ ]'} ${item.text}`).join('\n');
+  }
+
+  // Handle modern format with sections and rich text blocks
+  return (checklist as (ChecklistSection | RichTextBlock)[]).map(block => {
+    if ('items' in block) { // It's a ChecklistSection
+      const header = `### ${block.title}`;
+      const items = block.items.map((item: ChecklistItem) => `${item.isCompleted ? '[x]' : '[ ]'} ${item.text}`).join('\n');
+      return `${header}\n${items}`;
+    }
+    return `[Rich Text]: ${block.content.replace(/<[^>]*>?/gm, ' ')}`; // It's a RichTextBlock, strip HTML for CSV
+  }).join('\n');
 };
 
 const getAllDescendantIds = (items: ChecklistSection['items'], parentId: number): number[] => {

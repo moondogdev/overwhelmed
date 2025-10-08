@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { useAppContext } from '../contexts/AppContext';
-import { SimpleAccordion } from './SidebarComponents';
-import { PromptModal } from './Editors';
-import './styles/Modal.css';
-import { defaultSettings } from '../config';
+import { useAppContext } from '../../contexts/AppContext';
+import { SimpleAccordion } from '../SidebarComponents';
+import { PromptModal } from '../Editors';
+import '../styles/Modal.css';
+import { defaultSettings } from '../../config';
 
 const formatBytes = (bytes: number, decimals = 2) => {
     if (bytes === 0) return '0 Bytes';

@@ -48,7 +48,7 @@ function App() {
   const taskState = useTaskState({
     setInboxMessages, showToast, newTask, setNewTask, bulkAddText, setBulkAddText, settings,
   });
-  const { tasks, setTasks, completedTasks, setCompletedTasks, handleCompleteTask: originalHandleCompleteTask, removeTask, handleTaskUpdate, handleChecklistCompletion, handleClearAll, handleCopyList, tasksRef, completedTasksRef, handleBulkAdd, handleBulkDelete, handleBulkSetCategory, handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen, handleCopyTaskAsCsv, handleBulkCopyAsCsv, handleBulkDownloadAsCsv, handleAutoTaxCategorize, handleBulkSetAccount, handleSetTaxCategory, handleBulkSetTaxCategory, handleSyncIds, handleBulkSetIncomeType, handleAutoTagIncomeTypes } = taskState;
+  const { tasks, setTasks, completedTasks, setCompletedTasks, handleCompleteTask: originalHandleCompleteTask, removeTask, handleTaskUpdate, handleChecklistCompletion, handleClearAll, handleCopyList, tasksRef, completedTasksRef, handleBulkAdd, handleBulkDelete, handleBulkSetCategory, handleBulkSetDueDate, handleBulkSetPriority, handleBulkComplete, handleBulkReopen, handleCopyTaskAsCsv, handleBulkCopyAsCsv, handleBulkDownloadAsCsv, handleAutoTaxCategorize, handleBulkSetAccount, handleSetTaxCategory, handleBulkSetTaxCategory, handleSyncIds, handleBulkSetIncomeType, handleAutoTagIncomeTypes, handleBulkSetTransactionType, handleAutoCategorize, handleBulkSetOpenDate, handleBulkSetYear, moveTask, handleDuplicateTask, handleReopenTask, handleClearCompleted, handleCreateNewTask } = taskState;
 
   // --- Global Timer State (managed by custom hook) ---
   const globalTimerState = useGlobalTimer({
@@ -191,6 +191,10 @@ function App() {
     handleBulkSetDueDate,
     handleBulkSetYear: taskState.handleBulkSetYear,
     handleBulkSetOpenDate: taskState.handleBulkSetOpenDate,
+    handleBulkSetTransactionType: taskState.handleBulkSetTransactionType,
+    handleAutoCategorize: taskState.handleAutoCategorize,
+    moveTask: taskState.moveTask,
+    handleDuplicateTask: taskState.handleDuplicateTask,
     handleBulkDownloadAsCsv,
     handleCopyTaskAsCsv,
     handleBulkCopyAsCsv,
@@ -204,7 +208,9 @@ function App() {
     createManualBackup: dataPersistenceState.createManualBackup,
     handleBulkSetAccount,
     handleAutoTaxCategorize,
+    handleReopenTask,
     handleAccordionToggle,
+    handleCreateNewTask,
     focusAddTaskInput,
     handleToggleTaskSelection,    handleChecklistCompletion,
     handleGlobalToggleTimer,
