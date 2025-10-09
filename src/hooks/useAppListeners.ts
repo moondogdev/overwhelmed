@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { ipcRenderer } from 'electron';
 import { useTaskState } from './useTaskState';
 import { useSettings } from './useSettings';
 import { useUIState } from './useUIState';
@@ -75,10 +76,25 @@ export function useAppListeners({
         activeTimerEntryRef: globalTimerState.activeTimerEntryRef 
       });
     };
-    const cleanup = window.electronAPI.on('get-data-for-quit', handleGetDataForQuit);
+
+    const handleProvideDataForBackup = () => {
+      const data = {
+        tasks: taskState.tasksRef.current,
+        completedTasks: taskState.completedTasksRef.current,
+        settings: settingsState.settingsRef.current,
+        inboxMessages: inboxState.inboxMessagesRef.current,
+        archivedMessages: inboxState.archivedMessagesRef.current,
+        trashedMessages: inboxState.trashedMessagesRef.current,
+      };
+      window.electronAPI.send('data-for-backup-reply', data);
+    };
+
+    const cleanupQuit = window.electronAPI.on('get-data-for-quit', handleGetDataForQuit);
+    const cleanupBackup = window.electronAPI.on('get-data-for-backup', handleProvideDataForBackup);
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown);
-      cleanup?.();
+      cleanupQuit?.();
+      cleanupBackup?.();
     };
   }, [navigationState.goBack, navigationState.goForward, dataPersistenceState.handleSaveProject, taskState.tasksRef, taskState.completedTasksRef, settingsState.settingsRef, inboxState.inboxMessagesRef, inboxState.archivedMessagesRef, inboxState.trashedMessagesRef, globalTimerState.activeTimerTaskIdRef, globalTimerState.activeTimerEntryRef]);
 

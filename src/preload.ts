@@ -10,7 +10,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   importProject: () => ipcRenderer.invoke('dialog:importProject'),
   saveCsv: (csvData: string) => ipcRenderer.invoke('save-csv', csvData),
   openExternalLink: (payload: { url: string, browserPath?: string }) => ipcRenderer.send('open-external-link', payload),
-  showContextMenu: () => ipcRenderer.send('show-context-menu'),
   getStoreValue: (key: string) => ipcRenderer.invoke('electron-store-get', key),
   setStoreValue: (key: string, value: any) => ipcRenderer.invoke('electron-store-set', key, value),
   getBackups: () => ipcRenderer.invoke('get-backups'),

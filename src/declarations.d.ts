@@ -8,10 +8,10 @@ declare global {
       importProject: () => Promise<string | null>;
       saveCsv: (csvData: string) => Promise<void>;
       openExternalLink: (payload: { url: string, browserPath?: string }) => void;
-      showContextMenu: () => void;
       getStoreValue: (key: string) => Promise<any>;
       setStoreValue: (key: string, value: any) => Promise<void>;
       getBackups: () => Promise<{ name: string, path: string, time: number, size: number }[]>;
+      handleGetDataForBackup: (callback: () => any) => void;
       restoreBackup: (filePath: string) => Promise<string | null>;
       createManualBackup: (backupName: string) => Promise<{ success: boolean, path: string }>;
       deleteBackup: (filePath: string) => Promise<{ success: boolean, error?: string }>;

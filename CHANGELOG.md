@@ -6,12 +6,7 @@ All notable changes to this project will be documented in this file. See `## Log
 
 
 ## Future Features
--   ### **Finances**:
-    -   **Phase 4: Advanced Features**
-
--   ### **Architecture & Refactoring**:
-    -   **Refactor `index.ts` (Main Process)**: Decompose the monolithic `index.ts` file by extracting IPC handlers and related logic into smaller, feature-specific modules (e.g., `backupManager.ts`, `contextMenuManager.ts`).    
-
+  
 -   ### **Reports & Analytics**:
     -   **Separate Charitable Donations**: Ensure all calculations and displays of "Total Business Expenses" throughout the `ReportsView` correctly exclude any categories marked as "Charitable" or "Charity".
     -   **Display Depreciable Assets Schedule**: In the `ReportsView` "Taxes" tab, display the calculated depreciation schedule for each asset for the selected tax year.
@@ -134,7 +129,8 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ## Log of Changes
 
-- **[1.0.32] - 2025-10-11: Core Architecture & Data Persistence Refactor**: refactor(core): Decompose `AppLayout` and `useDataPersistence` and improve context type safety.
+- **[1.0.33] - 2025-10-08: Main Process Refactor**: refactor(main): Decompose monolithic `index.ts` into feature-specific modules.
+- **[1.0.32] - 2025-10-08: Core Architecture & Data Persistence Refactor**: refactor(core): Decompose `AppLayout` and `useDataPersistence` and improve context type safety.
 - **[1.0.31] - 2025-10-08: Component Refactor**: refactor(multiple): Decompose monolithic components into individual component files.
     - **[1.0.31.05] - 2025-10-08: Sidebar Component Refactor**: refactor(sidebar): Decompose monolithic `SidebarComponents.tsx` into individual component files.
     - **[1.0.31.04] - 2025-10-08: ListView & useListView Refactor**: refactor(list): Decompose `ListView` component and `useListView` hook into smaller, single-responsibility modules.
@@ -173,8 +169,28 @@ All notable changes to this project will be documented in this file. See `## Log
 - **[1.0.01] - 2025-09-18: Notification System & Inbox View**:
 - **[1.0.00] - 2025-09-15: Core Task Management & Data Persistence**:
 
+---
 
-- **[1.0.32] - 2025-10-11: Core Architecture & Data Persistence Refactor**
+- **[1.0.33] - 2025-10-08: Main Process Refactor**
+**refactor(main): Decompose monolithic `index.ts` into feature-specific modules.**
+
+This update completes a major architectural refactor of the Electron main process, significantly improving its organization and maintainability. The previously monolithic `index.ts` file, which contained all main process logic, has been broken down into smaller, single-responsibility modules.
+
+#### Refactored
+-   **Decomposed `index.ts`**: All logic related to backups, general IPC handling, and context menu creation has been extracted from `index.ts`.
+-   **Created `backupManager.ts`**: This new module now exclusively handles all logic for creating, managing, and restoring automatic and manual backups.
+-   **Created `ipcHandlers.ts`**: This module now contains all general-purpose IPC handlers that don't fit into other specific managers (e.g., file dialogs, data storage access).
+-   **Created `contextMenuManager.ts`**: This module is now responsible for building and displaying all of the application's numerous right-click context menus. This module has itself been refactored to act as a clean "orchestrator" that initializes all context menu logic.
+-   **Decomposed `contextMenuManager.ts`**: The `contextMenuManager.ts` file, which was created in the initial refactor, has itself been refactored. It now acts as a clean "orchestrator" that initializes all context menu logic.
+-   **Created `menus/` Modules**: All logic for building individual context menus has been extracted into dedicated modules within a new `src/main/menus/` directory (e.g., `taskMenu.ts`, `checklistItemMenu.ts`, `linkMenu.ts`).
+-   **Orchestrator Pattern**: The main `index.ts` file now acts as a clean "orchestrator." Its only job is to initialize the application, create the main window, and call the setup functions for the new, dedicated manager modules.
+
+#### Summary
+This refactor brings the main process architecture in line with the modular, hook-based architecture of the renderer process. By separating concerns, the codebase is now significantly more organized, easier to navigate, and safer to modify.
+
+---
+
+- **[1.0.32] - 2025-10-08: Core Architecture & Data Persistence Refactor**
 **refactor(core): Decompose `AppLayout` and `useDataPersistence` and improve context type safety.**
 
 This update continues the major architectural refactoring of the application, focusing on the main app layout and the critical data persistence layer. It also enhances the type safety of the global application context.
@@ -193,7 +209,7 @@ This refactor completes the application-wide adoption of the "Orchestrator" patt
 
 ---
 
-- **[1.0.31.05] - 2025-10-11: Sidebar Component Refactor**
+- **[1.0.31.05] - 2025-10-08: Sidebar Component Refactor**
 **refactor(sidebar): Decompose monolithic `SidebarComponents.tsx` into individual component files.**
 
 This update completes a major architectural refactor of the sidebar, significantly improving its organization and maintainability. The previously monolithic `SidebarComponents.tsx` file, which contained numerous unrelated components, has been broken down into smaller, single-responsibility modules.
@@ -208,7 +224,7 @@ This refactor was a critical step in cleaning up the application's component str
 
 ---
 
-## [1.0.31.04] - 2025-10-11: ListView & useListView Refactor
+## [1.0.31.04] - 2025-10-08: ListView & useListView Refactor
 **refactor(list): Decompose `ListView` component and `useListView` hook into smaller, single-responsibility modules.**
 
 This update completes a major architectural refactor of the `ListView` component and its associated `useListView` hook, following the successful "Orchestrator" pattern established in previous refactors (`useTaskState`, `useChecklist`, `useReports`). This significantly improves the maintainability, readability, and modularity of the list view feature.
@@ -233,7 +249,7 @@ This refactor was a critical step in managing the complexity of the list view fe
 
 ---
 
-## [1.0.31.03] - 2025-10-10: Time Tracker Log Refactor
+## [1.0.31.03] - 2025-10-08: Time Tracker Log Refactor
 **refactor(time): Decompose monolithic `TimeTrackerLog` component into a custom hook and smaller components.**
 
 This update completes a major architectural refactor of the `TimeTrackerLog` component, following the successful "Orchestrator" pattern established in previous refactors (`useTaskState`, `useChecklist`, `useReports`). This significantly improves the maintainability, readability, and modularity of the time tracking feature.
@@ -252,7 +268,7 @@ This refactor was a critical step in managing the complexity of the time trackin
 
 ---
 
-## [1.0.31.02] - 2025-10-09: Task State Management Refactor
+## [1.0.31.02] - 2025-10-08: Task State Management Refactor
 **refactor(tasks): Decompose monolithic `useTaskState` hook into smaller, single-responsibility hooks.**
 
 This update completes a major architectural refactor of the application's core task state management, significantly improving its maintainability, readability, and testability.
