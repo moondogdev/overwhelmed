@@ -5,6 +5,7 @@ import { formatChecklistForCopy, formatChecklistItemsForRawCopy } from '../utils
 interface UseChecklistBlockManagementProps {
     history: (ChecklistSection | RichTextBlock)[][];
     historyIndex: number;
+    getNextChecklistId: () => number;
     updateHistory: (newSections: (ChecklistSection | RichTextBlock)[]) => void;
     onUpdate: (newSections: (ChecklistSection | RichTextBlock)[]) => void;
     showToast: (message: string, duration?: number) => void;
@@ -14,6 +15,7 @@ interface UseChecklistBlockManagementProps {
 export const useChecklistBlockManagement = ({
     history,
     historyIndex,
+    getNextChecklistId,
     updateHistory,
     onUpdate,
     showToast,
@@ -29,7 +31,7 @@ export const useChecklistBlockManagement = ({
         const sectionIndex = currentChecklist.findIndex(s => s.id === sectionId);
         if (sectionIndex === -1) return;
         const newBlock: RichTextBlock = {
-            id: Date.now() + Math.random(),
+            id: getNextChecklistId(),
             type: 'rich-text',
             content: '<h3>Section Title</h3><p>Section description...</p>',
         };
@@ -38,7 +40,7 @@ export const useChecklistBlockManagement = ({
         updateHistory(newChecklist);
         onUpdate(newChecklist);
         showToast('Content block added!');
-    }, [history, historyIndex, setEditingContentBlockId, updateHistory, onUpdate, showToast]);
+    }, [history, historyIndex, getNextChecklistId, setEditingContentBlockId, updateHistory, onUpdate, showToast]);
 
     const handleUpdateRichTextBlockContent = useCallback((blockId: number, newContent: string) => {
         const newChecklist = history[historyIndex].map(block =>
@@ -123,14 +125,14 @@ export const useChecklistBlockManagement = ({
     const handleDetachFromBlock = useCallback((sectionId: number) => {
         const currentSections = history[historyIndex];
         const sectionIndex = currentSections.findIndex(s => s.id === sectionId);
-        if (sectionIndex === -1 || sectionIndex === 0) return;
-        const newSeparatorBlock: RichTextBlock = { id: Date.now() + Math.random(), type: 'rich-text', content: '' };
+        if (sectionIndex === -1) return;
+        const newSeparatorBlock: RichTextBlock = { id: getNextChecklistId(), type: 'rich-text', content: '' };
         const newSections = [...currentSections];
         newSections.splice(sectionIndex, 0, newSeparatorBlock);
         updateHistory(newSections);
         onUpdate(newSections);
         showToast('Section detached into a new block.');
-    }, [history, historyIndex, updateHistory, onUpdate, showToast]);
+    }, [history, historyIndex, getNextChecklistId, updateHistory, onUpdate, showToast]);
 
     return {
         handleAddRichTextBlock,

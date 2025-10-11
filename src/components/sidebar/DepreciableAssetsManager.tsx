@@ -15,6 +15,14 @@ function AssetDepreciationCalculator({ asset, handleUpdateAsset }: { asset: Depr
     const recoveryPeriodKey = asset.recoveryPeriod || (asset.assetCategory === 'computer_etc' ? '5-year' : asset.assetCategory === 'equipment' ? '7-year' : '');
     const rates = macrsRates[recoveryPeriodKey];
     const businessBasis = (asset.cost || 0) * ((asset.businessUsePercentage || 100) / 100);
+
+    if (asset.isFullyDepreciated) {
+      if (asset.currentYearDepreciation !== 0) {
+        handleUpdateAsset(asset.id, 'currentYearDepreciation', 0);
+      }
+      return; // Asset is manually marked as fully depreciated, so no calculation needed.
+    }
+
     const acquiredDate = new Date(asset.dateAcquired);
 
     if (rates && businessBasis > 0 && !isNaN(acquiredDate.getTime())) {
@@ -27,7 +35,7 @@ function AssetDepreciationCalculator({ asset, handleUpdateAsset }: { asset: Depr
         }
       }
     }
-  }, [asset.cost, asset.businessUsePercentage, asset.recoveryPeriod, asset.assetCategory, asset.dateAcquired, selectedYear, asset.id, handleUpdateAsset, asset.currentYearDepreciation]);
+  }, [asset.cost, asset.businessUsePercentage, asset.recoveryPeriod, asset.assetCategory, asset.dateAcquired, selectedYear, asset.id, handleUpdateAsset, asset.currentYearDepreciation, asset.isFullyDepreciated]);
 
   return null; // This component does not render anything.
 }
@@ -53,6 +61,7 @@ export function DepreciableAssetsManager() {
       priorYearBonusDepreciationTaken: false,
       priorYearDepreciation: 0,
       priorYearAmtDepreciation: 0,
+      isFullyDepreciated: false,
       currentYearDepreciation: 0,
     };
     setSettings(prev => ({ ...prev, depreciableAssets: [...(prev.depreciableAssets || []), newAsset] }));
@@ -205,6 +214,10 @@ export function DepreciableAssetsManager() {
               )}
 
               <label>Percentage of this asset used for business purposes:<input type="number" min="0" max="100" placeholder="100" value={asset.businessUsePercentage || ''} onChange={(e) => handleUpdateAsset(asset.id, 'businessUsePercentage', parseFloat(e.target.value) || 0)} /></label>
+              <label className="checkbox-label" style={{ flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+                <input type="checkbox" checked={asset.isFullyDepreciated || false} onChange={(e) => handleUpdateAsset(asset.id, 'isFullyDepreciated', e.target.checked)} />
+                <span className='checkbox-label-text'>Asset Fully Depreciated</span>
+              </label>
               <label>Date Sold, Disposed of, or Retired:<input type="date" value={asset.dateSold || ''} onChange={(e) => handleUpdateAsset(asset.id, 'dateSold', e.target.value)} /></label>
 
               <h5 className="w2-section-header" style={{ borderTop: '1px solid #444', paddingTop: '15px', marginTop: '15px' }}>Additional Depreciable Asset Info ({settings.businessName || 'Business'})</h5>

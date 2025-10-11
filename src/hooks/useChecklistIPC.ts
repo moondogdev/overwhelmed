@@ -41,6 +41,7 @@ interface UseChecklistIPCHandlers {
     handleDetachFromBlock: (sectionId: number) => void;
     // Global Handlers
     handleGlobalChecklistCommand: (payload: { command: string }) => void;
+    handleItemCommand: (payload: { command: string; sectionId: number; itemId: number; color?: string; }) => void;
     // State Setters for Editing
     setEditingItemId: (id: number | null) => void;
     setEditingItemText: (text: string) => void;
@@ -57,42 +58,11 @@ export const useChecklistIPC = (props: UseChecklistIPCHandlers) => {
 
     useEffect(() => {
         const handleChecklistCommand = (payload: { command: string, sectionId: number, itemId: number, color?: string }) => {
-            const { command, sectionId, itemId, color } = payload;
+            handlers.handleItemCommand(payload);
+
+            const { command, sectionId, itemId } = payload;
             const currentSections = history[historyIndex];
             const section = currentSections.find(s => 'items' in s && s.id === sectionId) as (ChecklistSection | undefined);
-            if (!section) return;
-
-            const itemIndex = section.items.findIndex(item => item.id === itemId);
-            if (itemIndex === -1 && !['edit', 'edit_response', 'edit_note'].includes(command)) return;
-
-            let newItems = [...section.items];
-            let newSections = [...currentSections];
-
-            switch (command) {
-                case 'toggle_complete': handlers.handleToggleItem(sectionId, itemId); return;
-                case 'delete': handlers.handleDeleteItem(sectionId, itemId); return;
-                case 'copy': navigator.clipboard.writeText(section.items.find(i => i.id === itemId)?.text || ''); showToast('Checklist item copied!'); return;
-                case 'duplicate': handlers.handleDuplicateChecklistItem(sectionId, itemId); return;
-                case 'add_before': newItems.splice(itemIndex, 0, { id: Date.now() + Math.random(), text: 'New Item', isCompleted: false, level: section.items[itemIndex].level, parentId: section.items[itemIndex].parentId }); break;
-                case 'add_after': newItems.splice(itemIndex + 1, 0, { id: Date.now() + Math.random(), text: 'New Item', isCompleted: false, level: section.items[itemIndex].level, parentId: section.items[itemIndex].parentId }); break;
-                case 'indent': newSections = indentChecklistItem(currentSections, sectionId, itemId); break;
-                case 'outdent': newSections = outdentChecklistItem(currentSections, sectionId, itemId); break;
-                case 'move_up': newSections = moveChecklistItemAndChildren(currentSections, sectionId, itemId, 'up'); break;
-                case 'move_down': newSections = moveChecklistItemAndChildren(currentSections, sectionId, itemId, 'down'); break;
-                case 'highlight': newSections = newSections.map(s => 'items' in s && s.id === sectionId ? { ...s, items: s.items.map(i => i.id === itemId ? { ...i, highlightColor: color } : i) } : s); break;
-                case 'delete_note': handlers.handleDeleteItemNote(sectionId, itemId); return;
-                case 'delete_response': handlers.handleDeleteItemResponse(sectionId, itemId); return;
-                case 'promote_to_header': handlers.handlePromoteItemToHeader(sectionId, itemId); return;
-            }
-
-            if (command === 'open_link') { return; }
-
-            if (!['highlight', 'move_up', 'move_down', 'indent', 'outdent'].includes(command)) {
-                newSections = newSections.map(s => 'items' in s && s.id === sectionId ? { ...s, items: newItems } : s);
-            }
-
-            updateHistory(newSections);
-            onUpdate(newSections);
 
             if (payload.command === 'edit') {
                 const item = section?.items.find(i => i.id === payload.itemId);
@@ -153,9 +123,8 @@ export const useChecklistIPC = (props: UseChecklistIPCHandlers) => {
         };
 
         const cleanupItem = window.electronAPI.on('checklist-item-command', handleChecklistCommand);
-        const cleanupSection = window.electronAPI.on('checklist-section-command', (payload) => payload.sectionId ? handleSectionCommand(payload) : handlers.handleGlobalChecklistCommand(payload));
         const cleanupMainHeader = window.electronAPI.on('checklist-main-header-command', handleMainHeaderCommand);
 
-        return () => { cleanupItem?.(); cleanupSection?.(); cleanupMainHeader?.(); };
+        return () => { cleanupItem?.(); cleanupMainHeader?.(); };
     }, [history, historyIndex, onUpdate, tasks, settings, onSettingsChange, showToast, handlers, updateHistory, taskId]);
 };

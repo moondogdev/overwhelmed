@@ -3,7 +3,6 @@ import { AppHeader as Header } from './AppHeader';
 import { Sidebar } from './Sidebar';
 import { ListView } from './ListView';
 import { ReportsView } from './ReportsView';
-import { MemeView } from './MemeView';
 import { InboxView } from './InboxView';
 import { FullTaskView } from './TaskView';
 import { Footer } from './Footer';
@@ -23,7 +22,7 @@ export function AppLayout({ contentAreaRef }: AppLayoutProps) {
     settings, navigateToView, historyIndex, viewHistory, isDirty, lastSaveTime,
     autoSaveCountdown, handleSaveProject, isPromptOpen, setIsPromptOpen,
     createManualBackup, showToast, setFullTaskViewId, handleTaskUpdate, setSettings,
-    isWorkSessionManagerOpen, nonTransactionTasksCount, selectedTaskIds,
+    isWorkSessionManagerOpen, nonTransactionTasksCount, selectedTaskIds, isLoading,
     inboxMessages, transactionCount, fullTask, sidebarClass
   } = useAppLayout();
 
@@ -37,9 +36,8 @@ export function AppLayout({ contentAreaRef }: AppLayoutProps) {
         return <ReportsView />;
       case 'inbox':
         return <InboxView />;
-      case 'meme':
       default:
-        return <MemeView />;
+        return <ListView />;
     }
   };
 
@@ -61,14 +59,16 @@ export function AppLayout({ contentAreaRef }: AppLayoutProps) {
       <div className="main-content">
         {selectedTaskIds.length > 0 && <BulkActionBar />}
         <Sidebar sidebarState={settings.sidebarState || 'visible'} />
-        <div className="content-area" ref={contentAreaRef}>
-          {fullTask ? (
+        <div className="content-area" ref={contentAreaRef}>          
+          {isLoading ? (
+            <div className="loading-indicator">Loading...</div>
+          ) : fullTask ? (
             <FullTaskView
               task={fullTask}
               onClose={() => setFullTaskViewId(null)}
               onUpdate={handleTaskUpdate}
               onSettingsChange={setSettings}
-            />
+            />            
           ) : (
             renderView()
           )}

@@ -364,6 +364,12 @@ Please keep this consistent to keep the maintainer from having to make frequent 
 
 ### Log of Issues and Lessons
 
+#### [1.0.34] - IPC Listener Memory Leaks (`MaxListenersExceededWarning`)
+-   **Issue**: The application would show a `MaxListenersExceededWarning` in the console when multiple tasks with checklists were open. This indicated a memory leak where every `Checklist` instance was adding its own set of IPC listeners for the same global events (e.g., `checklist-item-command`).
+-   **Lesson**: Global IPC event listeners should be registered only **once** in a high-level, stable component, not inside a reusable child component that can be instantiated many times. The solution was to move all checklist-related IPC listeners from the `useChecklistIPC` hook into a single `useEffect` in the `TaskView.tsx` component. This central listener then uses a `ref` (`activeChecklistRef`) to delegate the command to the currently active checklist instance, preventing the creation of duplicate listeners and fixing the memory leak. See `Rule 77.0` for a full explanation.
+
+### Log of Issues and Lessons
+
 #### [1.0.32] - TypeScript Inference with Hook Composition
 -   **Issue**: After refactoring a large hook (`useTaskState`) into smaller, single-responsibility hooks and combining their return values with the spread operator (`...`), TypeScript failed to correctly infer the shape of the final, combined object. This led to `Property 'X' does not exist on type 'Y'` errors, even though the property was correctly defined and returned by one of the child hooks.
 -   **Lesson**: When composing multiple custom hooks, especially when using the spread operator, it is crucial to provide **explicit return type interfaces** for each child hook. This provides a clear "contract" for TypeScript to follow, ensuring it can correctly assemble the final type and preventing inference failures. Without explicit return types, TypeScript may only infer a partial or incorrect type for the combined object. See `Rule 76.0` for a full explanation.
@@ -599,6 +605,7 @@ This approach gives me the direct context I need to make the change accurately, 
   - Rule 74.0: Keyboard Interactivity with `onKeyDown` and `tabIndex`
   - Rule 75.0: Decoupling Actions from Editing State with Hover Menus
   - Rule 76.0: Explicit Return Types for Composable Hooks
+  - Rule 77.0: Centralizing Global IPC Listeners to Prevent Memory Leaks
 
 ---
 

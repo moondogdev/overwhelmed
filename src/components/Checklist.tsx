@@ -10,6 +10,7 @@ import { ManageTemplatesModal } from './ManageTemplatesModal';
 
 interface ChecklistProps {
   sections: (ChecklistSection | RichTextBlock)[] | ChecklistItem[];
+  completedTasks: Task[]; // Add completedTasks to props
   onUpdate: (newSections: (ChecklistSection | RichTextBlock)[]) => void;
   isEditable: boolean;
   onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
@@ -18,7 +19,7 @@ interface ChecklistProps {
   task: Task;
   taskId: number;
   onTaskUpdate: (updatedTask: Task) => void;  
-  checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
+  checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: (ChecklistSection | RichTextBlock)[]) => void; handleGlobalChecklistCommand: (payload: { command: string; }) => void; handleSectionCommand: (payload: { command: string; sectionId?: number; blockId?: number; }) => void; handleItemCommand: (payload: { command: string; sectionId: number; itemId: number; color?: string; }) => void; }>;
   showToast: (message: string, duration?: number) => void;
   focusItemId: number | null;
   onFocusHandled: () => void;
@@ -34,6 +35,7 @@ interface ChecklistProps {
 
 export function Checklist({ 
   sections, 
+  completedTasks, // Add here
   onUpdate, 
   isEditable, 
   onComplete, 
@@ -140,7 +142,7 @@ export function Checklist({
     updateHistory,
     setFocusSubInputKey,
   } = useChecklist({ sections, onUpdate, isEditable, onComplete, tasks, setInboxMessages, task, taskId,
-    onTaskUpdate, checklistRef, showToast, focusItemId, onFocusHandled, settings,
+    completedTasks, onTaskUpdate, checklistRef, showToast, focusItemId, onFocusHandled, settings,
     onSettingsChange, handleGlobalToggleTimer, handleClearActiveTimer, handlePrimeTask,
     handlePrimeTaskWithNewLog, activeTimerEntry, activeTimerLiveTime
   });
@@ -175,6 +177,7 @@ export function Checklist({
         onDeleteAllResponses={handleDeleteAllResponses}
         onAddNotes={handleAddNotes}
         onDeleteAllNotes={handleDeleteAllNotes}
+        onAddSection={handleAddSection}
         showToast={showToast}
         onGlobalChecklistCommand={handleGlobalChecklistCommand}
         onUndo={handleUndo}
@@ -282,18 +285,6 @@ export function Checklist({
         }
         return renderedBlocks;
       })()}
-      <div className="checklist-actions">
-        <div className="checklist-main-actions">
-          <button onClick={handleAddSection} className="add-section-btn">
-            <i className='fas fa-plus'></i> Add Section
-          </button>
-          {history[historyIndex].length > 0 && (
-            <button title="Delete All Sections" onClick={handleDeleteAllSections} className={`add-section-btn delete-btn ${confirmingDeleteAllSections ? 'confirm-delete' : ''}`}>
-              {confirmingDeleteAllSections ? <i className="fas fa-trash-alt"></i> : <i className="fas fa-trash-alt"></i>}
-            </button>
-          )}
-        </div>
-      </div>      
       <div className="bulk-add-checklist-container">
         <textarea
           placeholder="Bulk add sections and items... (e.g., ### Section Title)"

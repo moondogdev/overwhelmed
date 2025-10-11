@@ -17,11 +17,12 @@ interface UseChecklistProps {
     isEditable: boolean;
     onComplete: (item: ChecklistItem, sectionId: number, updatedSections: ChecklistSection[]) => void;
     tasks: Task[];
+    completedTasks: Task[];
     setInboxMessages: React.Dispatch<React.SetStateAction<InboxMessage[]>>;
     task: Task;
     taskId: number;
-    onTaskUpdate: (updatedTask: Task) => void;
-    checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
+    onTaskUpdate: (updatedTask: Task) => void;    
+    checklistRef?: React.MutableRefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: (ChecklistSection | RichTextBlock)[]) => void; handleGlobalChecklistCommand: (payload: { command: string; }) => void; handleSectionCommand: (payload: { command: string; sectionId?: number; blockId?: number; }) => void; handleItemCommand: (payload: { command: string; sectionId: number; itemId: number; color?: string; }) => void; }>;
     showToast: (message: string, duration?: number) => void;
     focusItemId: number | null;
     onFocusHandled: () => void;
@@ -41,6 +42,7 @@ export const useChecklist = ({
     isEditable,
     onComplete,
     tasks,
+    completedTasks,
     setInboxMessages,
     task,
     taskId,
@@ -58,6 +60,29 @@ export const useChecklist = ({
     activeTimerEntry,
     activeTimerLiveTime
 }: UseChecklistProps) => {
+    const getNextChecklistId = useCallback(() => {
+        let maxId = 0;
+        const allTasks = [...tasks, ...completedTasks];
+
+        for (const t of allTasks) {
+            if (t.checklist && t.checklist.length > 0) {
+                // Normalize legacy format for scanning
+                const checklist = ('isCompleted' in t.checklist[0])
+                    ? [{ id: 1, title: 'Checklist', items: t.checklist as ChecklistItem[] }]
+                    : t.checklist as (ChecklistSection | RichTextBlock)[];
+
+                for (const block of checklist) {
+                    if (block.id > maxId) maxId = block.id;
+                    if ('items' in block) {
+                        for (const item of block.items) {
+                            if (item.id > maxId) maxId = item.id;
+                        }
+                    }
+                }
+            }
+        }
+        return maxId + 1;
+    }, [tasks, completedTasks]);
 
     // Create a derived map of checklist item times from the single source of truth: task.timeLog
     const timeLogDurations = useMemo(() => {
@@ -169,6 +194,7 @@ export const useChecklist = ({
         history,
         historyIndex,
         updateHistory,
+        getNextChecklistId,
         onUpdate,
         showToast,
         setEditingContentBlockId,
@@ -178,7 +204,7 @@ export const useChecklist = ({
         handleAddSection, handleUpdateSectionTitle, handleDuplicateSection, handleDeleteSection, handleDeleteAllSections,
         handleCompleteAllInSection, handleToggleAllSections, handleToggleSectionCollapse, handleCollapseAllSections,
         handleExpandAllSections, handleAddNotes, handleAddResponses, handleDeleteAllNotes, handleDeleteAllResponses,
-        handleDeleteAllSectionNotes, handleDeleteAllSectionResponses, handleToggleSectionNotes, handleToggleSectionResponses,
+        handleDeleteAllSectionNotes, handleDeleteAllSectionResponses, handleToggleSectionNotes, handleToggleSectionResponses
     } = useChecklistSectionManagement({
         history, historyIndex, isUndoingRedoing, confirmingDeleteAllSections, confirmTimeoutRef, historyRef, settings,
         updateHistory, onUpdate, onComplete, showToast, onSettingsChange, setInboxMessages, tasks,
@@ -204,7 +230,7 @@ export const useChecklist = ({
         handleBulkAddChecklist, handleLoadChecklistTemplate, handleDeleteChecked,
         handleSaveChecklistTemplate, handleGlobalChecklistCommand
     } = useChecklistGlobalActions({
-        history, historyIndex, settings, bulkAddChecklistText, templateSectionsToSave, confirmingDeleteChecked, confirmTimeoutRef,
+        history, historyIndex, settings, bulkAddChecklistText, templateSectionsToSave, confirmingDeleteChecked, confirmTimeoutRef, getNextChecklistId,
         updateHistory, onUpdate, onSettingsChange, showToast,
         setBulkAddChecklistText, setTemplateSectionsToSave, setIsSaveTemplatePromptOpen,
         setConfirmingDeleteChecked, setConfirmingDeleteSectionId, setConfirmingDeleteNotes, setConfirmingDeleteResponses,
@@ -212,12 +238,71 @@ export const useChecklist = ({
         handleExpandAllSections, handleCollapseAllSections, handleAddNotes, handleAddResponses,
         handleDeleteAllNotes, handleDeleteAllResponses, handleDeleteAllSections, handleSendAllItemsToTimer
     });
+    
+    const handleSectionCommand = useCallback((payload: { command: string, sectionId?: number, blockId?: number }) => {
+        const { command, sectionId } = payload;
+        if (!sectionId) {
+            handleGlobalChecklistCommand(payload);
+            return;
+        }
+        switch (command) {
+            case 'move_section_up': onUpdate(moveSection(history[historyIndex], sectionId, 'up')); break;
+            case 'move_section_down': onUpdate(moveSection(history[historyIndex], sectionId, 'down')); break;
+            case 'edit_title': { const section = history[historyIndex].find(s => 'items' in s && s.id === sectionId) as (ChecklistSection | undefined); if (section) { setEditingSectionId(section.id); setEditingSectionTitle(section.title); } break; }
+            case 'toggle_all_in_section': handleCompleteAllInSection(sectionId); break;
+            case 'toggle_collapse': handleToggleSectionCollapse(sectionId); break;
+            case 'add_note_to_section': handleAddNotes(sectionId); break;
+            case 'add_response_to_section': handleAddResponses(sectionId); break;
+            case 'toggle_section_notes': handleToggleSectionNotes(sectionId); break;
+            case 'toggle_section_responses': handleToggleSectionResponses(sectionId); break;
+            case 'duplicate_section': handleDuplicateSection(sectionId); break;
+            case 'delete_section': handleDeleteSection(sectionId); break;
+        }
+    }, [history, historyIndex, onUpdate, moveSection, setEditingSectionId, setEditingSectionTitle, handleCompleteAllInSection, handleToggleSectionCollapse, handleAddNotes, handleAddResponses, handleToggleSectionNotes, handleToggleSectionResponses, handleDuplicateSection, handleDeleteSection, handleGlobalChecklistCommand]);
+
+    const handleItemCommand = useCallback((payload: { command: string, sectionId: number, itemId: number, color?: string }) => {
+        const { command, sectionId, itemId, color } = payload;
+        const currentSections = history[historyIndex];
+        const section = currentSections.find(s => 'items' in s && s.id === sectionId) as (ChecklistSection | undefined);
+        if (!section) return;
+
+        const itemIndex = section.items.findIndex(item => item.id === itemId);
+        if (itemIndex === -1 && !['edit', 'edit_response', 'edit_note'].includes(command)) return;
+
+        let newItems = [...section.items];
+        let newSections = [...currentSections];
+
+        switch (command) {
+            case 'toggle_complete': handleToggleItem(sectionId, itemId); return;
+            case 'delete': handleDeleteItem(sectionId, itemId); return;
+            case 'copy': navigator.clipboard.writeText(section.items.find(i => i.id === itemId)?.text || ''); showToast('Checklist item copied!'); return;
+            case 'duplicate': handleDuplicateChecklistItem(sectionId, itemId); return;
+            case 'add_before': newItems.splice(itemIndex, 0, { id: Date.now() + Math.random(), text: 'New Item', isCompleted: false, level: section.items[itemIndex].level, parentId: section.items[itemIndex].parentId }); break;
+            case 'add_after': newItems.splice(itemIndex + 1, 0, { id: Date.now() + Math.random(), text: 'New Item', isCompleted: false, level: section.items[itemIndex].level, parentId: section.items[itemIndex].parentId }); break;
+            case 'indent': newSections = indentChecklistItem(currentSections, sectionId, itemId); break;
+            case 'outdent': newSections = outdentChecklistItem(currentSections, sectionId, itemId); break;
+            case 'move_up': newSections = moveChecklistItemAndChildren(currentSections, sectionId, itemId, 'up'); break;
+            case 'move_down': newSections = moveChecklistItemAndChildren(currentSections, sectionId, itemId, 'down'); break;
+            case 'highlight': newSections = newSections.map(s => 'items' in s && s.id === sectionId ? { ...s, items: s.items.map(i => i.id === itemId ? { ...i, highlightColor: color } : i) } : s); break;
+            case 'delete_note': handleDeleteItemNote(sectionId, itemId); return;
+            case 'delete_response': handleDeleteItemResponse(sectionId, itemId); return;
+            case 'promote_to_header': handlePromoteItemToHeader(sectionId, itemId); return;
+        }
+
+        if (command === 'open_link') { return; }
+
+        if (!['highlight', 'move_up', 'move_down', 'indent', 'outdent'].includes(command)) { newSections = newSections.map(s => 'items' in s && s.id === sectionId ? { ...s, items: newItems } : s); }
+        updateHistory(newSections);
+    }, [history, historyIndex, handleToggleItem, handleDeleteItem, showToast, handleDuplicateChecklistItem, updateHistory, handleDeleteItemNote, handleDeleteItemResponse, handlePromoteItemToHeader]);
 
     // Expose undo/redo functions via the passed-in ref
     if (checklistRef) {
         checklistRef.current = {
             handleUndo,
             handleRedo,
+            handleGlobalChecklistCommand,
+            handleSectionCommand,
+            handleItemCommand,
             resetHistory: (sections: (ChecklistSection | RichTextBlock)[]) => {
                 isUndoingRedoing.current = true;
                 setHistory([sections]);
@@ -228,7 +313,7 @@ export const useChecklist = ({
     }
 
     useChecklistIPC({
-        history, historyIndex, tasks, settings, taskId, onUpdate, onSettingsChange, showToast, updateHistory,
+        history, historyIndex, tasks, settings, taskId, onUpdate, onSettingsChange, showToast, updateHistory, handleItemCommand,
         handleToggleItem,
         handleDeleteItem,
         handleDuplicateChecklistItem,
@@ -369,6 +454,7 @@ export const useChecklist = ({
         handleDeleteAllSectionResponses,
         handleDeleteAllSectionNotes,
         handleDuplicateChecklistItem,
+        handleItemCommand,
         handleGlobalChecklistCommand,
         updateHistory, // Expose for the IPC hook
     };

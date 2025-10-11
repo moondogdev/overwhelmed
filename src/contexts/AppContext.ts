@@ -1,5 +1,5 @@
 import React from 'react';
-import { Task, Settings, InboxMessage, ChecklistItem, ChecklistSection, TimeLogEntry } from '../types';
+import { Task, Settings, InboxMessage, ChecklistItem, ChecklistSection, TimeLogEntry, RichTextBlock } from '../types';
 
 export interface AppContextType {
   // State
@@ -83,7 +83,7 @@ export interface AppContextType {
   sortSelectRef: React.RefObject<HTMLSelectElement>;
   snoozeTimeSelectRef: React.RefObject<HTMLSelectElement>;
   filteredTasks: Task[];
-  activeChecklistRef: React.RefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: ChecklistSection[]) => void; }>;
+  activeChecklistRef: React.RefObject<{ handleUndo: () => void; handleRedo: () => void; resetHistory: (sections: (ChecklistSection | RichTextBlock)[]) => void; handleGlobalChecklistCommand: (payload: { command: string; }) => void; handleSectionCommand: (payload: { command: string; sectionId?: number; blockId?: number; }) => void; handleItemCommand: (payload: { command: string; sectionId: number; itemId: number; color?: string; }) => void; }>;
 
   // Handlers
   showToast: (message: string, duration?: number) => void;
@@ -93,6 +93,8 @@ export interface AppContextType {
   handleCompleteTask: (task: Task, status?: 'completed' | 'skipped') => void;
   moveTask: (taskId: number, targetTaskId: number) => void;
   removeTask: (id: number) => void;
+  handleExpandAllTaskSections: () => void;
+  handleCollapseAllTaskSections: () => void;
   handleTaskUpdate: (task: Task) => void;
   handleAccordionToggle: (id: number) => void;
   handleReopenTask: (task: Task) => void;

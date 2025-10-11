@@ -4,6 +4,12 @@
   border-bottom: 1px solid #444;
 }
 
+.view-tab-actions {
+  margin-bottom: 10px;
+  width: 100%; /* Ensure the accordion itself takes full width */
+  border-bottom: 1px solid #444;
+}
+
 .accordion-header-container {
   display: flex;
   justify-content: space-between;
@@ -14,14 +20,47 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  cursor: pointer;
-  width: 100%;
+  cursor: pointer;  
+}
+.priority-list-item .accordion-header {
+    width: 100%;
 }
 .accordion-title-wrapper {
   display: flex;
   flex-grow: 1;
   align-items: center;
   justify-content: space-between;
+}
+.header-actions {
+    display: flex;
+    align-items: center;
+}
+.task-item-details-form .accordion {
+    margin: 0;
+    padding: 0;
+}
+.task-item-details-form .accordion:hover {
+    background: #222;    
+}
+.task-item-details-form .accordion:has(.open) .description-header, 
+.task-item-details-form .accordion:hover .description-header {
+  padding-left: 5px;
+}
+.task-item-details-form .accordion-content label {
+    display: block;
+    width: 100%;
+    margin-bottom: 5px;
+}
+.accordion-content h4 {
+    margin: 0;
+    font-size: 12px;
+}
+.task-item-details-form .accordion-header {
+    padding: 5px 0;
+}
+.accordion-content.open {
+  padding: 5px;
+  background: rgba(0,0,0,.2)
 }
 
 .accordion-header h4 {

@@ -76,47 +76,6 @@ export const getContrastColor = (hexColor: string): string => {
   return luminance > 0.5 ? '#000000' : '#FFFFFF';
 };
 
-export const getFontSize = (index: number, total: number, settings: Settings) => {
-  if (total <= 1) {
-    return settings.maxFontSize;
-  }
-  const size = settings.maxFontSize - (index / (total - 1)) * (settings.maxFontSize - settings.minFontSize);
-  return Math.round(size);
-};
-
-export const getNewTaskPosition = (canvasWidth: number, canvasHeight: number, newTaskMetrics: { width: number, height: number }, tasksRef: React.RefObject<Task[]>) => {
-  if (!canvasWidth || !canvasHeight) {
-    return { x: 320, y: 320 };
-  }
-  const padding = 50;
-  let placementAttempts = 0;
-
-  const checkCollision = (x: number, y: number) => {
-    for (const placedTask of tasksRef.current) {
-      if (!placedTask.width || !placedTask.height) continue;
-      const newTaskRect = { left: x - newTaskMetrics.width / 2, right: x + newTaskMetrics.width / 2, top: y - newTaskMetrics.height, bottom: y };
-      const placedTaskRect = { left: placedTask.x - placedTask.width / 2, right: placedTask.x + placedTask.width / 2, top: placedTask.y - placedTask.height, bottom: placedTask.y };
-
-      if (newTaskRect.left < placedTaskRect.right && newTaskRect.right > placedTaskRect.left && newTaskRect.top < placedTaskRect.bottom && newTaskRect.bottom > placedTaskRect.top) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  while (placementAttempts < 500) {
-    const halfWidth = newTaskMetrics.width / 2;
-    const x = padding + halfWidth + Math.random() * (canvasWidth - (padding + halfWidth) * 2);
-    const halfHeight = newTaskMetrics.height / 2;
-    const y = padding + halfHeight + Math.random() * (canvasHeight - (padding + halfHeight) * 2);
-    if (!checkCollision(x, y)) {
-      return { x, y };
-    }
-    placementAttempts++;
-  }
-  return { x: Math.random() * canvasWidth, y: Math.random() * canvasHeight };
-};
-
 export const formatChecklistForCopy = (sections: ChecklistSection[]): string => {
   let output = '';
   for (const section of sections) {

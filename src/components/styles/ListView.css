@@ -14,6 +14,14 @@
 .empty-list-placeholder button {
   width: auto;
 }
+.list-view-header-sticky {
+  position: sticky;
+  top: 0;
+  background-color: #282c34; /* Match the main background color */
+  z-index: 10; /* Ensure it stays above the scrolling content */
+  padding-top: 10px; /* Add some padding to the top */
+  padding-bottom: 1px; /* Prevent margin collapse and keep a clean look */
+}
 
 .category-tabs {
   display: flex;
@@ -115,12 +123,15 @@
 
 .list-header-actions {
   display: flex;
+  gap: 5px;
+  margin-bottom: 10px;
 }
 
 .list-header button {
   display: inline-block; /* Make icon buttons inline */
   width: auto; /* Let them size to content */
   margin-bottom: 0; /* Override the default button margin */
+  padding: 5px 10px;
   margin-left: 8px;
 }
 

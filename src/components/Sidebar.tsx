@@ -2,7 +2,6 @@ import React from 'react';
 import { AddNewTaskForm } from './sidebar/AddNewTaskForm';
 import { BulkAdd } from './sidebar/BulkAdd';
 import { CategoryManager } from './sidebar/CategoryManager';
-import { MemeViewSettings } from './sidebar/MemeViewSettings';
 import { ExternalLinkManager } from './sidebar/ExternalLinkManager';
 import { TimeManagementSettings } from './sidebar/TimeManagementSettings';
 import { BackupManager } from './sidebar/BackupManager';
@@ -37,7 +36,6 @@ export function Sidebar({ sidebarState }: SidebarProps) {
       <VehicleInformationManager />
       <W2Manager />
       <TaskTypeManager />
-      <MemeViewSettings />
       <TimeManagementSettings />
       <NotificationSettings />
       <ExternalLinkManager />

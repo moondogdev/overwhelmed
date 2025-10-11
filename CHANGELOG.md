@@ -6,14 +6,9 @@ All notable changes to this project will be documented in this file. See `## Log
 
 
 ## Future Features
-  
 -   ### **Reports & Analytics**:
-    -   **Separate Charitable Donations**: Ensure all calculations and displays of "Total Business Expenses" throughout the `ReportsView` correctly exclude any categories marked as "Charitable" or "Charity".
-    -   **Display Depreciable Assets Schedule**: In the `ReportsView` "Taxes" tab, display the calculated depreciation schedule for each asset for the selected tax year.
     -   **Calculate Net Business Revenue**: Implement a calculation in the tax report that determines net business revenue by subtracting total business expenses, asset depreciation, and vehicle expenses from total business income.
-    -   **Refine Depreciation Calculation**: In the tax report, ensure that fully depreciated assets do not contribute to the total asset expense for a given year. The calculation should only sum the scheduled depreciation amount for the selected year.
     -   **Refine "Finances" View Expense Reporting**:
-        -   Update the "Deductible Expenses by Tax Category" table to exclude any categories marked as "Charitable".
         -   Incorporate calculated vehicle mileage deductions and asset depreciation values into the total expense calculations to provide a more comprehensive financial overview.
     -   **Yearly Tax Breakdown**: Enhance the "Lifetime Tax Summary" in the `ReportsView` "Taxes" tab to include a year-by-year breakdown of total deductible expenses.
 
@@ -105,31 +100,10 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
-## Deprecation Roadmap
-
--   ### **Deprecate MemeView**:
-    -   **Phase 1: Data Model & State Cleanup**
-        -   Remove canvas-specific properties (`x`, `y`, `width`, `height`) from the `Task` interface in `types.ts`.
-        -   Remove these properties from the `newTask` initial state in `useUIState.ts` and from the `newTaskObject` creation logic in `useTaskState.ts`.
-    -   **Phase 2: Main Process & IPC Cleanup**
-        -   Remove the `handleFileSave` IPC handler from `index.ts` as it's only used for saving the canvas image.
-        -   Remove the corresponding `saveFile` function from `preload.ts` and `declarations.d.ts`.
-    -   **Phase 3: UI & Navigation Cleanup**
-        -   Delete the `MemeView.tsx` component file.
-        -   Delete the `MemeViewSettings.tsx` component file and remove it from `Sidebar.tsx`.
-        -   In `AppLayout.tsx`, remove the case for rendering `MemeView`.
-        -   In `AppHeader.tsx`, remove the navigation button for "Meme View".
-    -   **Phase 4: Final Configuration Changes**
-        -   In `types.ts`, remove `'meme'` from the literal type for `Settings['currentView']`.
-        -   In `config.ts`, change the `defaultSettings.currentView` to `'list'`.
-        -   In `useNavigation.ts`, update the initial `viewHistory` to start with `['list']`.
-        -   In `types.ts` and `config.ts`, remove all settings related to the MemeView (e.g., `fontFamily`, `shadowColor`, `overlayColor`, etc.).
-
----
-
 ## Log of Changes
 
-- **[1.0.33] - 2025-10-08: Main Process Refactor**: refactor(main): Decompose monolithic `index.ts` into feature-specific modules.
+- **[1.0.34] - 2025-10-11: Code Snippets & UI Polish**: feat(core): Add code snippet editor and in-place editing for task details. Deprecate MemeView and fix IPC stability.
+- **[1.0.33] - 2025-10-08: Main Process Refactor**: refactor(main): Decompose monolithic `index.ts` and `contextMenuManager.ts` into feature-specific modules.
 - **[1.0.32] - 2025-10-08: Core Architecture & Data Persistence Refactor**: refactor(core): Decompose `AppLayout` and `useDataPersistence` and improve context type safety.
 - **[1.0.31] - 2025-10-08: Component Refactor**: refactor(multiple): Decompose monolithic components into individual component files.
     - **[1.0.31.05] - 2025-10-08: Sidebar Component Refactor**: refactor(sidebar): Decompose monolithic `SidebarComponents.tsx` into individual component files.
@@ -137,7 +111,7 @@ All notable changes to this project will be documented in this file. See `## Log
     - **[1.0.31.03] - 2025-10-08: Time Tracker Log Refactor**: refactor(time): Decompose monolithic `TimeTrackerLog` component into a custom hook and smaller components.
     - **[1.0.31.02] - 2025-10-08: Task State Management Refactor**: refactor(tasks): Decompose monolithic useTaskState hook into smaller, single-responsibility hooks.
     - **[1.0.31.01] - 2025-10-08: Reports View Refactor**: refactor(reports): Decompose monolithic `ReportsView` component into smaller components and a custom hook.
-- **[1.0.30] - 2025-10-08: Tax Reporting & Sidebar Management Overhaul**: feat(core): Overhaul tax reporting UI and sidebar component management.
+- **[1.0.30] - 2025-10-07: Tax Reporting & Sidebar Management Overhaul**: feat(core): Overhaul tax reporting UI and sidebar component management.
 - **[1.0.29] - 2025-10-06: Tax Workflow & Reporting Polish**: feat(taxes): Enhance tax workflow with new actions, filters, and reporting UI.
 - **[1.0.28] - 2025-10-05: Financial Tracking & Reporting**: feat(finances): Implement comprehensive financial tracking and reporting.
 - **[1.0.27] - 2025-10-04: Checklist Hook Refactor**: refactor(checklist): Decompose monolithic `useChecklist` hook into smaller, single-responsibility hooks.
@@ -171,6 +145,38 @@ All notable changes to this project will be documented in this file. See `## Log
 
 ---
 
+- **[1.0.34] - 2025-10-11: Code Snippets & UI Polish**
+**feat(core): Add code snippet editor and in-place editing for task details. Deprecate MemeView and fix IPC stability.**
+
+This update introduces a powerful new Code Snippet manager within tasks and significantly improves the editing workflow with in-place editing for rich text fields. It also completes the removal of the legacy `MemeView` and resolves a critical stability issue with checklist context menus.
+
+#### Added
+-   **Code Snippets**: A new "Code Snippets" accordion has been added to the task view, allowing users to add multiple, distinct code blocks to a task.
+    -   **In-Place Editing**: Snippets can be edited directly in the task view.
+    -   **Language Selection & Syntax Highlighting**: Each snippet has a language selector that provides appropriate syntax highlighting in both view and edit modes.
+-   **In-Place Editing for Task Details**: The `Description`, `Notes`, and `Responses` fields in the "Task" view can now be edited in-place by double-clicking the content or using a new pencil icon, eliminating the need to switch to the main "Edit" tab for quick changes.
+-   **Collapsible Task Sections**: All content sections within the "Task" and "Edit" views (e.g., "Task Details," "Description," "Checklist") are now collapsible accordions. The open/closed state for each section is saved on a per-task basis, allowing for persistent, customized layouts.
+
+This update completes the removal of the original "Meme View" word cloud feature. The feature was superseded by the more powerful `ListView` and `TaskView` components. This refactor simplifies the codebase, data model, and settings configuration.
+
+#### Removed
+-   **Data Model Cleanup**: Removed canvas-specific properties (`x`, `y`, `width`, `height`) from the `Task` interface.
+-   **Settings Cleanup**: Removed all `MemeView`-specific settings from the `Settings` interface and `config.ts` (e.g., `fontFamily`, `shadowColor`, `overlayColor`).
+-   **Component Deletion**: Deleted the `MemeView.tsx` and `MemeViewSettings.tsx` component files.
+-   **IPC Handler Removal**: Removed the `dialog:saveFile` IPC handler, which was only used to save the canvas image.
+-   **UI & Navigation Removal**: Removed all UI elements related to `MemeView`, including the main navigation button in the header and the settings panel in the sidebar. The application now defaults to the `ListView`.
+
+#### Fixed
+-   **IPC Listener Stability**: Resolved a critical `MaxListenersExceededWarning` that occurred when multiple tasks with checklists were open. All checklist-related IPC listeners (`checklist-main-header-command`, `checklist-section-command`, `checklist-item-command`) have been centralized into a single `useEffect` hook in `TaskView.tsx`. This new architecture uses a ref to delegate commands to the currently active checklist, eliminating memory leaks and improving application stability.
+-   **Loading Indicator**: The application now displays a simple "Loading..." message on startup. It waits for the user's settings to be fully loaded from disk before rendering the main UI, ensuring a smooth and direct transition to the correct view without any intermediate flashing.
+
+#### Changed
+-   **Data Layer Logic**: The `useReports` hook now contains centralized logic to identify and exclude transactions tagged with a "Charitable" tax category from all business expense calculations (`lifetimeTaxDeductibleExpenses`, `taxReportData`).
+-   **UI Simplification**: The `TaxesTab` component has been simplified. It no longer performs its own filtering and instead relies on the pre-calculated data from the `useReports` hook, making the component cleaner and more aligned with our orchestrator pattern.
+-   **Consistent Reporting**: All relevant report summaries and totals now accurately reflect the separation between business expenses and charitable giving.
+
+---
+
 - **[1.0.33] - 2025-10-08: Main Process Refactor**
 **refactor(main): Decompose monolithic `index.ts` into feature-specific modules.**
 
@@ -195,32 +201,13 @@ This refactor brings the main process architecture in line with the modular, hoo
 
 This update continues the major architectural refactoring of the application, focusing on the main app layout and the critical data persistence layer. It also enhances the type safety of the global application context.
 
-#### Refactored
--   **Decomposed `AppLayout.tsx`**: The main layout component, which previously contained significant logic for view rendering and state calculation, has been refactored. All of its logic has been extracted into a new `useAppLayout` custom hook, transforming `AppLayout.tsx` into a clean, presentational "Orchestrator" component.
--   **Decomposed `useDataPersistence.ts`**: The monolithic `useDataPersistence` hook, which managed all data loading, saving, auto-saving, and import/export logic, has been broken down into smaller, single-responsibility hooks:
-    -   **`useDataLoading.ts`**: Now solely responsible for loading all data from `electron-store` on application startup.
-    -   **`useAutoSave.ts`**: Manages the "dirty" state detection and the 5-minute auto-save countdown timer.
-    -   **`useDataActions.ts`**: Consolidates all user-facing data actions like manual saving, importing, exporting, and creating backups.
-    -   The main `useDataPersistence.ts` hook now acts as a clean orchestrator for these smaller hooks.
--   **Improved Context Type Safety**: The `useAppContextValue` hook has been refactored to automatically derive its prop types from the main `AppContextType` and the return types of the other state hooks. This eliminates a large, manually maintained interface and makes it impossible for the context value to become out of sync with its definition, significantly improving type safety and maintainability.
-
-#### Summary
-This refactor completes the application-wide adoption of the "Orchestrator" pattern, resulting in a codebase that is significantly more modular, maintainable, and type-safe. The separation of concerns in the data persistence layer makes the most critical part of the application easier to reason about and safer to modify.
-
 ---
 
-- **[1.0.31.05] - 2025-10-08: Sidebar Component Refactor**
+## [1.0.31.05] - 2025-10-08: Sidebar Component Refactor
 **refactor(sidebar): Decompose monolithic `SidebarComponents.tsx` into individual component files.**
 
 This update completes a major architectural refactor of the sidebar, significantly improving its organization and maintainability. The previously monolithic `SidebarComponents.tsx` file, which contained numerous unrelated components, has been broken down into smaller, single-responsibility modules.
 
-#### Refactored
--   **Decomposed `SidebarComponents.tsx`**: All components previously housed in `SidebarComponents.tsx` (e.g., `AccountManager`, `TaxCategoryManager`, `AddNewTaskForm`, `W2Manager`) have been moved into their own dedicated files within a new `src/components/sidebar/` directory.
--   **Created Re-export Index**: The original `SidebarComponents.tsx` file has been converted into a clean index file that simply re-exports all the components from their new locations. This ensures that existing import statements throughout the application continue to work without modification, making the refactor non-breaking.
--   **Standardized Imports**: All import paths within the newly created sidebar components have been updated to reflect their new location, ensuring that they correctly reference shared components like `SimpleAccordion`.
-
-#### Summary
-This refactor was a critical step in cleaning up the application's component structure. By giving each sidebar component its own file, the codebase is now significantly more organized, easier to navigate, and aligns with modern React best practices. This modularity will make future enhancements to the sidebar much simpler to implement.
 
 ---
 
@@ -301,7 +288,7 @@ This refactor was a critical step in managing the complexity of the reporting fe
 
 ---
 
-## [1.0.30] - 2025-10-07: Tax Reporting & Sidebar Management Overhaul
+## [1.0.30] - 2025-10-08: Tax Reporting & Sidebar Management Overhaul
 **feat(core): Overhaul tax reporting UI and sidebar component management.**
 
 This update introduces a significant refactor to the Tax Reporting view for improved clarity and usability. It also enhances the sidebar's component structure and adds several quality-of-life features for financial management.
@@ -334,7 +321,7 @@ This release delivers a more powerful and accurate tax reporting experience, wit
 
 ---
 
-## [1.0.29] - 2025-10-05: Tax Workflow & Reporting Polish
+## [1.0.29] - 2025-10-06: Tax Workflow & Reporting Polish
 **feat(taxes): Enhance tax workflow with new actions, filters, and reporting UI.**
 
 This update introduces a series of quality-of-life improvements to the tax and transaction management workflows, making categorization faster and reporting clearer.

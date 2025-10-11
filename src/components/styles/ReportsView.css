@@ -182,31 +182,23 @@
   gap: 8px;
 }
 
-.summary-label {
-  font-size: 1em;
-  color: #aaa;
+.summary-label {    
+    color: #fff;
+    font-weight: 700;
+    margin-bottom: 10px;
 }
 
 .summary-value {
-  font-size: 1.8em;
-  font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-weight: bold;
 }
-
-.summary-value {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-
-.summary-value .copy-btn {
-  font-size: 0.5em; /* Make the icon smaller relative to the large text */
+.summary-value .copy-btn {  
   opacity: 0.3;
   transition: opacity 0.2s ease;
 }
-
-
-
 
 span.tax-accordion-total.income-text, .summary-value.income { color: #28a745; }
 span.tax-accordion-total.expense-text, .summary-value.expense { color: #dc3545; }
@@ -243,7 +235,12 @@ table.report-table th {
 }
 
 /* --- Tax Tab Styles --- */
-.tax-category-accordion {
+.tax-category-accordion,
+.tax-report-category-section .accordion {
+  border: none;
+}
+
+.tax-category-accordion:not(:last-of-type) {
   margin-bottom: 10px;
 }
 
@@ -332,16 +329,14 @@ table.report-table th {
   padding: 20px;
   background-color: #2c3e50;
   border-radius: 8px;
-  margin-bottom: 20px;
-  text-align: center;
+  margin-bottom: 20px;  
 }
 
 .tax-report-summary-accordion {
   margin: 20px 0;
 }
 
-.tax-report-summary-accordion .accordion-header {
-  background-color: #34495e;
+.tax-report-summary-accordion .accordion-header {  
   border-radius: 5px;
   padding: 10px 15px;
 }
@@ -414,8 +409,13 @@ table.report-table th {
 }
 
 .summary-item.stacked {
-  flex-direction: row;
-  justify-content: space-between;
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid #444;
+    border-radius: 0;
 }
 
 .summary-block {
@@ -441,8 +441,12 @@ table.report-table th {
   padding-top: 15px;
 }
 .final-net-block .summary-item.stacked {
-  background-color: transparent;
-  padding: 10px 0;
+    background-color: transparent;
+    padding: 6px 0;
+    align-items: center;
+}
+.final-net-block .summary-label {
+    margin-bottom: 0;
 }
 .tax-report-summary-grid.main-summary {
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -499,16 +503,22 @@ table.report-table th {
 }
 
 .tax-report-category-section .summary-block-accordion {
-  margin-bottom: 10px;
+  margin: 10px 0;
 }
 
 .tax-report-category-section h5 {
-  margin: 0 0 10px 0;
+  margin: 0;
+  font-size: 16px;
   padding-bottom: 5px;
   border-bottom: 1px solid #555;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: 100%;
+}
+
+.tax-report-category-section h6 {
+
 }
 
 .tax-report-category-section h5 .expense-text,
@@ -517,15 +527,35 @@ table.report-table th {
   align-items: center;
   gap: 10px;
 }
+.accordion-content.closed {
+    padding: 0;
+}
 
 .tax-report-table-container {
   max-height: 300px; /* Adjust this value as needed */
-  overflow-y: auto;
-  border: 1px solid #444;
+  overflow-y: auto;  
 }
 
+.tax-report-table-container tr {
+  background: #444;  
+  text-align: center;
+}
 .tax-report-table-container .clickable-row {
   cursor: pointer;
+  
+}
+.summary-block-accordion .summary-block-accordion .accordion-header {
+    padding: 0;
+    border-bottom: 1px solid #444;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+}
+.tax-report-category-section .accordion-title-wrapper h6 {
+    font-size: 12px;
+    margin: 0;
+}
+.accordion-icon {
+    font-size: 12px;    
 }
 .tax-report-table-container .clickable-row:hover {
   background-color: #3a3f4b;

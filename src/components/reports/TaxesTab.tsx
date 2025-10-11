@@ -1,5 +1,6 @@
 import React from 'react';
 import { SimpleAccordion } from '../SidebarComponents';
+import { AssetDepreciationSchedule } from './AssetDepreciationSchedule';
 import { Task, Settings } from '../../types';
 
 interface TaxReportData {
@@ -69,6 +70,26 @@ export const TaxesTab: React.FC<TaxesTabProps> = ({
         const totalYearExpenses = allYearExpenses.reduce((sum, task) => sum + Math.abs(task.transactionAmount || 0), 0);
         const nonDeductibleSpending = totalYearExpenses - totalDeductibleExpenses;
         const finalTakeHome = w2WagesAfterTaxes + businessIncome + reimbursementIncome - totalYearExpenses;
+
+        const totalCurrentYearDepreciation = (settings.depreciableAssets || []).reduce((sum, asset) => {
+            const acquiredYear = new Date(asset.dateAcquired).getFullYear();
+            const recoveryYears = asset.recoveryPeriod === '7-year' ? 7 : 5;
+            if (typeof selectedTaxYear === 'number' && selectedTaxYear > acquiredYear + recoveryYears) {
+                return sum; // Asset is fully depreciated for the selected year
+            }
+            if (asset.isFullyDepreciated) {
+                return sum; // Asset is manually marked as fully depreciated
+            }
+            return sum + (asset.currentYearDepreciation || 0);
+        }, 0);
+
+        const standardMileageDeduction = (settings.vehicleBusinessMiles || 0) * 0.67;
+        const otherVehicleExpensesTotal = [
+            settings.vehicleParkingTollsAmount || 0,
+            settings.vehiclePropertyTaxesAmount || 0,
+            settings.vehicleLoanInterestAmount || 0,
+        ].reduce((sum, exp) => sum + exp, 0);
+        const totalVehicleDeduction = standardMileageDeduction + otherVehicleExpensesTotal;
 
         const handleCopySimplifiedReportAsText = () => {
             let reportText = `Tax Report Summary for ${selectedTaxYear}\n`;
@@ -332,24 +353,55 @@ export const TaxesTab: React.FC<TaxesTabProps> = ({
                         <button onClick={() => setSettings(prev => ({ ...prev, selectedReportYear: null }))} className="back-to-summary-btn"><i className="fas fa-arrow-left"></i> Back to Summary</button>
                     </div>
                 </div>
-                <SimpleAccordion className="tax-category-accordion" title={
-                    <h4 className="tax-section-title">
-                        Income Details
-                        <span className="tax-accordion-total">
-                            Total: ${(taxIncomeReportData || []).reduce((sum, cat) => sum + cat.total, 0).toFixed(2)}
-                        </span>
-                    </h4>
-                }>
+
+                {/* W2 Details Accordion */}
+                {w2DataForYear && (
+                    <SimpleAccordion className="tax-category-accordion" title={<h4 className="tax-section-title">W-2 Details</h4>}>
+                        <div className="tax-report-category-section">
+                            {/* W-2 Wages */}
+                            {(taxIncomeReportData || []).filter(cat => cat.name === 'W-2 Wages').map(category => (
+                                <SimpleAccordion key={category.name} className="summary-block-accordion" title={<h5>{category.name} <span className="income-text">${category.total.toFixed(2)}</span></h5>}>
+                                    <div className="tax-report-table-container">
+                                        <table className="report-table">
+                                            <thead><tr><th>Date</th><th>Description</th><th className="amount-column">Amount</th></tr></thead>
+                                            <tbody>
+                                                {category.tasks.sort((a: Task, b: Task) => a.openDate - b.openDate).map((task: Task) => (
+                                                    <tr key={task.id} onClick={() => navigateToTask(task.id)} className="clickable-row">
+                                                        <td>{new Date(task.openDate).toLocaleDateString()}</td>
+                                                        <td>{task.text}</td>
+                                                        <td className="amount-column income-text">${(((task.transactionAmount || 0) > 0 ? (task.transactionAmount || 0) : 0) + ((task.completedDuration && (task.manualTime || 0) > 0 && (task.payRate || 0) > 0) ? (((task.manualTime || 0) / (1000 * 60 * 60)) * (task.payRate || 0)) : 0)).toFixed(2)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </SimpleAccordion>
+                            ))}
+                            {/* W-2 Tax Withheld Details */}
+                            {(w2DataForYear.federalWithholding > 0 || w2DataForYear.socialSecurityWithholding > 0 || w2DataForYear.medicareWithholding > 0) && (
+                                <SimpleAccordion className="summary-block-accordion" title={<h5>W-2 Tax Withheld Details<span className="expense-text">${totalWithheld.toFixed(2)}</span></h5>}>
+                                    <div className="tax-report-table-container">
+                                        <table className="report-table">
+                                            <thead><tr><th>Description</th><th className="amount-column">Amount</th></tr></thead>
+                                            <tbody>
+                                                {w2DataForYear.federalWithholding > 0 && <tr><td>Federal Tax Withheld</td><td className="amount-column expense-text">${w2DataForYear.federalWithholding.toFixed(2)}</td></tr>}
+                                                {w2DataForYear.socialSecurityWithholding > 0 && <tr><td>Social Security Tax Withheld</td><td className="amount-column expense-text">${w2DataForYear.socialSecurityWithholding.toFixed(2)}</td></tr>}
+                                                {w2DataForYear.medicareWithholding > 0 && <tr><td>Medicare Tax Withheld</td><td className="amount-column expense-text">${w2DataForYear.medicareWithholding.toFixed(2)}</td></tr>}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </SimpleAccordion>
+                            )}
+                        </div>
+                    </SimpleAccordion>
+                )}
+
+                {/* Business Details Accordion */}
+                <SimpleAccordion className="tax-category-accordion" title={<h4 className="tax-section-title">Business Details</h4>}>
                     <div className="tax-report-category-section">
-                        {(taxIncomeReportData || []).map(category => (
-                            <SimpleAccordion key={category.name} className="summary-block-accordion" title={
-                                <h5>
-                                    {category.name} - Total: <span className="income-text">${category.total.toFixed(2)}</span>
-                                    {category.name === 'W-2 Wages' && category.transactionTotal > 0 && (
-                                        <span className="tax-report-subtotal">(Transactions Received: ${category.transactionTotal.toFixed(2)})</span>
-                                    )}
-                                </h5>
-                            }>
+                        {/* Business Revenue */}
+                        {(taxIncomeReportData || []).filter(cat => cat.name === 'Business Income (1099)').map(category => (
+                            <SimpleAccordion key={category.name} className="summary-block-accordion" title={<h5>Business Revenue <span className="income-text">${category.total.toFixed(2)}</span></h5>}>
                                 <div className="tax-report-table-container">
                                     <table className="report-table">
                                         <thead><tr><th>Date</th><th>Description</th><th className="amount-column">Amount</th></tr></thead>
@@ -366,245 +418,128 @@ export const TaxesTab: React.FC<TaxesTabProps> = ({
                                 </div>
                             </SimpleAccordion>
                         ))}
+
+                        {/* Deductible Expense Details */}
+                        <SimpleAccordion className="summary-block-accordion" title={<h5>Deductible Expense Details <span className="expense-text">${totalDeductibleExpenses.toFixed(2)}</span></h5>}>
+                            <div className="tax-report-category-section">
+                                {taxReportData.map(category => (
+                                    <SimpleAccordion key={category.name} className="summary-block-accordion" title={<h6>{category.name} <span className="expense-text">${category.total.toFixed(2)}</span></h6>}>
+                                        <div className="tax-report-table-container">
+                                            <table className="report-table">
+                                                <thead><tr><th>Date</th><th>Description</th><th className="amount-column">Amount</th></tr></thead>
+                                                <tbody>
+                                                    {category.tasks.sort((a: Task, b: Task) => a.openDate - b.openDate).map((task: Task) => {
+                                                        const transactionCategory = settings.categories.find(c => c.id === task.categoryId);
+                                                        const taxCategory = settings.taxCategories?.find(tc => tc.id === task.taxCategoryId);
+                                                        const percentageValue = transactionCategory?.deductiblePercentage ?? taxCategory?.deductiblePercentage ?? 100;
+                                                        const deductibleAmount = (Math.abs(task.transactionAmount || 0) * (percentageValue / 100));
+                                                        return (
+                                                            <tr key={task.id} onClick={() => navigateToTask(task.id)} className="clickable-row">
+                                                                <td>{new Date(task.openDate).toLocaleDateString()}</td>
+                                                                <td>{task.text}</td>
+                                                                <td className="amount-column expense-text">{percentageValue < 100 ? (<span title={`Original: $${Math.abs(task.transactionAmount || 0).toFixed(2)}`}>${deductibleAmount.toFixed(2)} <span className="deductible-percentage">({percentageValue}%)</span></span>) : (`$${Math.abs(task.transactionAmount || 0).toFixed(2)}`)}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </SimpleAccordion>
+                                ))}
+                            </div>
+                        </SimpleAccordion>
+
+                        {/* Vehicle Expenses */}
+                        {totalVehicleDeduction > 0 && (
+                            <SimpleAccordion className="summary-block-accordion" title={<h5>Vehicle Expenses <span className="expense-text">${totalVehicleDeduction.toFixed(2)}</span></h5>}>
+                                <div className="tax-report-table-container">
+                                    <table className="report-table">
+                                        <thead><tr><th>Description</th><th className="amount-column">Amount</th></tr></thead>
+                                        <tbody>
+                                            {standardMileageDeduction > 0 && <tr><td>Standard Mileage Deduction ({settings.vehicleBusinessMiles} miles)</td><td className="amount-column expense-text">${standardMileageDeduction.toFixed(2)}</td></tr>}
+                                            {(settings.vehicleParkingTollsAmount || 0) > 0 && <tr><td>Business Parking Fees/Tolls</td><td className="amount-column expense-text">${(settings.vehicleParkingTollsAmount || 0).toFixed(2)}</td></tr>}
+                                            {(settings.vehiclePropertyTaxesAmount || 0) > 0 && <tr><td>Property Taxes Paid</td><td className="amount-column expense-text">${(settings.vehiclePropertyTaxesAmount || 0).toFixed(2)}</td></tr>}
+                                            {(settings.vehicleLoanInterestAmount || 0) > 0 && <tr><td>Car Loan Interest Paid</td><td className="amount-column expense-text">${(settings.vehicleLoanInterestAmount || 0).toFixed(2)}</td></tr>}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </SimpleAccordion>
+                        )}
+
+                        {/* Depreciable Assets */}
+                        {(settings.depreciableAssets && settings.depreciableAssets.length > 0) && (
+                            <SimpleAccordion className="summary-block-accordion" title={<h5>Depreciable Assets <span className="expense-text">${totalCurrentYearDepreciation.toFixed(2)}</span></h5>}>
+                                <div className="tax-report-table-container">
+                                    <table className="report-table">
+                                        <thead><tr><th>Description</th><th>Date Acquired</th><th className="amount-column">Cost</th><th className="amount-column">Business Use %</th></tr></thead>
+                                        <tbody>
+                                            {(settings.depreciableAssets || []).map(asset => (<React.Fragment key={asset.id}><tr><td>{asset.description}</td><td>{new Date(asset.dateAcquired).toLocaleDateString()}</td><td className="amount-column">${asset.cost.toFixed(2)}</td><td className="amount-column">{asset.businessUsePercentage || 100}%</td></tr><tr><td colSpan={4}><AssetDepreciationSchedule asset={asset} settings={settings} /></td></tr></React.Fragment>))}
+                                            <tr className="report-table-footer"><td colSpan={2} style={{ textAlign: 'right' }}><strong>Total Asset Cost:</strong></td><td className="amount-column"><strong>${(settings.depreciableAssets || []).reduce((sum, asset) => sum + asset.cost, 0).toFixed(2)}</strong></td><td></td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </SimpleAccordion>
+                        )}
+
+                        {/* Business Gross Summary */}
+                        <div className="summary-block final-net-block" style={{ marginTop: '20px' }}>
+                            <div className="summary-item stacked"><span className="summary-label">Total Business Revenue</span><span className="summary-value income">${businessIncome.toFixed(2)}</span></div>
+                            <div className="summary-item stacked"><span className="summary-label">Total Business Expenses</span><span className="summary-value expense">${(totalDeductibleExpenses + totalVehicleDeduction + totalCurrentYearDepreciation).toFixed(2)}</span></div>
+                            <div className="summary-item stacked summary-final-item"><span className="summary-label">Estimated Business Gross</span><span className={`summary-value ${businessIncome - (totalDeductibleExpenses + totalVehicleDeduction + totalCurrentYearDepreciation) >= 0 ? 'income' : 'expense'}`}>${(businessIncome - (totalDeductibleExpenses + totalVehicleDeduction + totalCurrentYearDepreciation)).toFixed(2)}</span></div>
+                        </div>
                     </div>
                 </SimpleAccordion>
 
-                <SimpleAccordion className="tax-category-accordion" title={
-                    <div className="tax-accordion-title">
-                        <span>Deductible Expense Details</span>
-                        <span className="tax-accordion-total expense-text">
-                            Total: ${taxReportData.filter(c => !c.name.toLowerCase().includes('charitable')).reduce((sum, cat) => sum + cat.total, 0).toFixed(2)}
-                        </span>
-                    </div>
-                }>
+                {/* Other Details Accordion */}
+                <SimpleAccordion className="tax-category-accordion" title={<h4 className="tax-section-title">Other Details</h4>}>
                     <div className="tax-report-category-section">
-                        {taxReportData.filter(cat => !cat.name.toLowerCase().includes('charitable')).map(category => (
-                            <SimpleAccordion key={category.name} className="summary-block-accordion" title={
-                                <h5>
-                                    {category.name} - Total:
-                                    <span className="expense-text">
-                                        ${category.total.toFixed(2)}
-                                        <button className="icon-button copy-btn" title="Copy Value" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(category.total.toFixed(2)); showToast('Copied!'); }}>
-                                            <i className="fas fa-copy"></i>
-                                        </button>
-                                    </span>
-                                </h5>
-                            }>
+                        {/* Reimbursements */}
+                        {(taxIncomeReportData || []).filter(cat => cat.name === 'Reimbursements').map(category => (
+                            <SimpleAccordion key={category.name} className="summary-block-accordion" title={<h5>Reimbursements / Non-Taxable <span className="income-text">${category.total.toFixed(2)}</span></h5>}>
                                 <div className="tax-report-table-container">
                                     <table className="report-table">
                                         <thead><tr><th>Date</th><th>Description</th><th className="amount-column">Amount</th></tr></thead>
                                         <tbody>
                                             {category.tasks.sort((a: Task, b: Task) => a.openDate - b.openDate).map((task: Task) => (
-                                                (() => {
-                                                    const transactionCategory = settings.categories.find(c => c.id === task.categoryId);
-                                                    const taxCategory = settings.taxCategories?.find(tc => tc.id === task.taxCategoryId);
-                                                    const percentageValue = transactionCategory?.deductiblePercentage ?? taxCategory?.deductiblePercentage ?? 100;
-                                                    const deductibleAmount = (Math.abs(task.transactionAmount || 0) * (percentageValue / 100));
-
-                                                    return (
-                                                        <tr key={task.id} onClick={() => navigateToTask(task.id)} className="clickable-row">
-                                                            <td>{new Date(task.openDate).toLocaleDateString()}</td>
-                                                            <td>{task.text}</td>
-                                                            <td className="amount-column expense-text">
-                                                                {percentageValue < 100 ? (
-                                                                    <span title={`Original: $${Math.abs(task.transactionAmount || 0).toFixed(2)}`}>${deductibleAmount.toFixed(2)} <span className="deductible-percentage">({percentageValue}%)</span></span>
-                                                                ) : (
-                                                                    `$${Math.abs(task.transactionAmount || 0).toFixed(2)}`
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })()
+                                                <tr key={task.id} onClick={() => navigateToTask(task.id)} className="clickable-row">
+                                                    <td>{new Date(task.openDate).toLocaleDateString()}</td>
+                                                    <td>{task.text}</td>
+                                                    <td className="amount-column income-text">${(((task.transactionAmount || 0) > 0 ? (task.transactionAmount || 0) : 0) + ((task.completedDuration && (task.manualTime || 0) > 0 && (task.payRate || 0) > 0) ? (((task.manualTime || 0) / (1000 * 60 * 60)) * (task.payRate || 0)) : 0)).toFixed(2)}</td>
+                                                </tr>
                                             ))}
                                         </tbody>
                                     </table>
                                 </div>
                             </SimpleAccordion>
                         ))}
+
+                        {/* Charitable Donations */}
+                        {(() => {
+                            if (!taxReportData) return null;
+                            const allYearExpenses = [...tasks, ...completedTasks].filter(task => new Date(task.openDate).getFullYear() === selectedTaxYear && task.transactionType === 'expense');
+                            const charitableDonations = allYearExpenses.filter(task => task.taxCategoryId && settings.taxCategories?.find(tc => tc.id === task.taxCategoryId)?.name.toLowerCase().includes('charitable')).reduce((acc, task) => { acc.total += Math.abs(task.transactionAmount || 0); acc.tasks.push(task); return acc; }, { total: 0, tasks: [] as Task[] });
+                            if (!charitableDonations || charitableDonations.total === 0) return null;
+                            return (
+                                <SimpleAccordion className="summary-block-accordion" title={<h5>Charitable Donations - Total: <span className="expense-text">${charitableDonations.total.toFixed(2)}</span></h5>}>
+                                    <div className="tax-report-table-container">
+                                        <table className="report-table">
+                                            <thead><tr><th>Date</th><th>Description</th><th className="amount-column">Amount</th></tr></thead>
+                                            <tbody>
+                                                {charitableDonations.tasks.sort((a, b) => a.openDate - b.openDate).map(task => (
+                                                    <tr key={task.id} onClick={() => navigateToTask(task.id)} className="clickable-row">
+                                                        <td>{new Date(task.openDate).toLocaleDateString()}</td>
+                                                        <td>{task.text}</td>
+                                                        <td className="amount-column expense-text">${Math.abs(task.transactionAmount || 0).toFixed(2)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </SimpleAccordion>
+                            );
+                        })()}
                     </div>
                 </SimpleAccordion>
-
-                {w2DataForYear && (w2DataForYear.federalWithholding > 0 || w2DataForYear.socialSecurityWithholding > 0 || w2DataForYear.medicareWithholding > 0) && (
-                    (() => {
-                        const totalWithheld = (w2DataForYear.federalWithholding || 0) + (w2DataForYear.socialSecurityWithholding || 0) + (w2DataForYear.medicareWithholding || 0);
-                        return (
-                            <SimpleAccordion className="tax-category-accordion" title={
-                                <h4 className="tax-section-title">
-                                    W-2 Tax Withheld Details
-                                    <span className="tax-accordion-total">Total: ${totalWithheld.toFixed(2)}</span>
-                                </h4>
-                            }>
-                                <div className="tax-report-category-section">
-                                    <table className="report-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Description</th>
-                                                <th className="amount-column">Amount</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {w2DataForYear.federalWithholding > 0 && (
-                                                <tr>
-                                                    <td>Federal Tax Withheld</td>
-                                                    <td className="amount-column expense-text">${w2DataForYear.federalWithholding.toFixed(2)}</td>
-                                                </tr>
-                                            )}
-                                            {w2DataForYear.socialSecurityWithholding > 0 && (
-                                                <tr>
-                                                    <td>Social Security Tax Withheld</td>
-                                                    <td className="amount-column expense-text">${w2DataForYear.socialSecurityWithholding.toFixed(2)}</td>
-                                                </tr>
-                                            )}
-                                            {w2DataForYear.medicareWithholding > 0 && (
-                                                <tr>
-                                                    <td>Medicare Tax Withheld</td>
-                                                    <td className="amount-column expense-text">${w2DataForYear.medicareWithholding.toFixed(2)}</td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </SimpleAccordion>
-                        );
-                    })()
-                )}
-                {(settings.depreciableAssets && settings.depreciableAssets.length > 0) && (
-                    <SimpleAccordion className="tax-category-accordion" title={
-                        <h4 className="tax-section-title">
-                            Depreciable Assets
-                            <span className="tax-accordion-total">
-                                Total Cost: ${settings.depreciableAssets.reduce((sum, asset) => sum + asset.cost, 0).toFixed(2)}
-                            </span>
-                        </h4>
-                    }>
-                        <div className="tax-report-table-container">
-                            <table className="report-table">
-                                <thead>
-                                    <tr>
-                                        <th>Description</th>
-                                        <th>Date Acquired</th>
-                                        <th className="amount-column">Cost</th>
-                                        <th className="amount-column">Business Use %</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {settings.depreciableAssets.map(asset => (
-                                        <tr key={asset.id}>
-                                            <td>
-                                                {asset.description} {(() => { // Display recovery period
-                                                    let recoveryPeriodText = '';
-                                                    const period = asset.recoveryPeriod || (asset.assetCategory === 'computer_etc' ? '5-year' : asset.assetCategory === 'equipment' ? '7-year' : '');
-                                                    if (period === '5-year') recoveryPeriodText = '(5-Year Property)';
-                                                    else if (period === '7-year') recoveryPeriodText = '(7-Year Property)';
-                                                    return recoveryPeriodText ? <span className="asset-details-subtext" style={{ marginLeft: '8px' }}>{recoveryPeriodText}</span> : null;
-                                                })()}
-                                                <div className="asset-details-subtext">
-                                                    Purchased New: {asset.purchasedNew ? 'Yes' : 'No'} |
-                                                    Bonus Depreciation Taken: {asset.priorYearBonusDepreciationTaken ? 'Yes' : 'No'} |
-                                                    Fully Depreciated: {(() => {
-                                                        const recoveryYears = asset.recoveryPeriod === '7-year' ? 7 : 5;
-                                                        const acquiredDate = new Date(asset.dateAcquired);
-                                                        if (isNaN(acquiredDate.getTime())) return 'No';
-
-                                                        const fullyDepreciatedDate = new Date(acquiredDate);
-                                                        fullyDepreciatedDate.setFullYear(acquiredDate.getFullYear() + recoveryYears);
-
-                                                        return new Date() > fullyDepreciatedDate ? 'Yes' : 'No';
-                                                    })()}
-                                                    {asset.dateSold && ` | Sold: ${new Date(asset.dateSold).toLocaleDateString()}`}
-                                                </div>
-                                            </td>
-                                            <td>{new Date(asset.dateAcquired).toLocaleDateString()}</td>
-                                            <td className="amount-column">${asset.cost.toFixed(2)}</td>
-                                            <td className="amount-column">{asset.businessUsePercentage || 100}%</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </SimpleAccordion>
-                )}
-                {(() => {
-                    const standardMileageDeduction = (settings.vehicleBusinessMiles || 0) * 0.67;
-                    const otherVehicleExpenses = [
-                        { name: 'Business Parking Fees/Tolls', amount: settings.vehicleParkingTollsAmount || 0, categoryId: settings.vehicleParkingTollsTaxCategoryId },
-                        { name: 'Property Taxes Paid', amount: settings.vehiclePropertyTaxesAmount || 0, categoryId: settings.vehiclePropertyTaxesTaxCategoryId },
-                        { name: 'Car Loan Interest Paid', amount: settings.vehicleLoanInterestAmount || 0, categoryId: settings.vehicleLoanInterestTaxCategoryId },
-                    ];
-                    const totalOtherExpenses = otherVehicleExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-                    const totalVehicleDeduction = standardMileageDeduction + totalOtherExpenses;
-
-                    if (totalVehicleDeduction > 0) {
-                        return (
-                            <SimpleAccordion className="tax-category-accordion" title={
-                                <h4 className="tax-section-title">
-                                    Vehicle Expenses
-                                    <span className="tax-accordion-total">
-                                        Total Deduction: ${totalVehicleDeduction.toFixed(2)}
-                                    </span>
-                                </h4>
-                            }>
-                                <div className="tax-report-table-container">
-                                    <table className="report-table">
-                                        <thead><tr><th>Description</th><th className="amount-column">Amount</th></tr></thead>
-                                        <tbody>
-                                            {standardMileageDeduction > 0 && (
-                                                <tr>
-                                                    <td>Standard Mileage Deduction ({settings.vehicleBusinessMiles} miles)</td>
-                                                    <td className="amount-column expense-text">${standardMileageDeduction.toFixed(2)}</td>
-                                                </tr>
-                                            )}
-                                            {otherVehicleExpenses.map(expense => expense.amount > 0 && (
-                                                <tr key={expense.name}>
-                                                    <td>{expense.name}{settings.taxCategories?.find(tc => tc.id === expense.categoryId) && <div className="asset-details-subtext">Tax Category: {settings.taxCategories.find(tc => tc.id === expense.categoryId)?.name}</div>}</td>
-                                                    <td className="amount-column expense-text">${expense.amount.toFixed(2)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </SimpleAccordion>
-                        );
-                    }
-                    return null;
-                })()}
-                {(() => {
-                    if (!taxReportData) return null;
-                    const charitableDonations = taxReportData.find(cat => cat.name.toLowerCase().includes('charitable'));
-                    if (!charitableDonations || charitableDonations.total === 0) return null;
-
-                    return (
-                        <SimpleAccordion className="tax-category-accordion" title={(
-                            <div className="tax-accordion-title">
-                                <span>Charitable Donations</span>
-                                <span className="tax-accordion-total expense-text">
-                                    Total: ${charitableDonations.total.toFixed(2)}
-                                </span>
-                            </div>
-                        )}>
-                            <div className="tax-report-table-container">
-                                <table className="report-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Date</th>
-                                            <th>Description</th>
-                                            <th className="amount-column">Amount</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {charitableDonations.tasks.sort((a, b) => a.openDate - b.openDate).map(task => (
-                                            <tr key={task.id} onClick={() => navigateToTask(task.id)} className="clickable-row">
-                                                <td>{new Date(task.openDate).toLocaleDateString()}</td>
-                                                <td>{task.text}</td>
-                                                <td className="amount-column expense-text">${Math.abs(task.transactionAmount || 0).toFixed(2)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </SimpleAccordion>
-                    );
-                })()}
             </div>
         );
     };

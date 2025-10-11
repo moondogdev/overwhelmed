@@ -1,18 +1,7 @@
 import { Settings, Task } from './types';
 
 export const defaultSettings: Settings = {
-  fontFamily: "Arial",
-  fontColor: "#FFFFFF",
-  shadowColor: "#000000",
-  shadowBlur: 0,
-  shadowOffsetX: 0,
-  shadowOffsetY: 0,
-  isOverlayEnabled: false,
-  overlayColor: "#000000",
-  overlayOpacity: 0.3,
   isDebugModeEnabled: false,
-  minFontSize: 20,
-  maxFontSize: 80,
   browsers: [
     { name: 'Default', path: '' },
     { name: 'Chrome', path: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' },
@@ -27,7 +16,7 @@ export const defaultSettings: Settings = {
     { name: 'Ticket Site', url: 'https://americancreative.freshdesk.com/a/tickets/filters/search?label=Unresolved%20tickets&q[]=status%3Fis_in%3A%5B0%5D&q[]=agent%3Fis_in%3A%5B0%5D&ref=unresolved' },
     { name: 'GitHub', url: 'https://github.com/moondogdev/overwhelmed' },
   ],
-  currentView: 'meme',
+  currentView: 'list',
   accounts: [ // Add default accounts
     { id: 1, name: 'Personal' },
     { id: 2, name: 'Business' },

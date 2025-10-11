@@ -10,10 +10,10 @@ interface UseNavigationProps {
 }
 
 export function useNavigation({ tasks, filteredTasks, settings, setSettings, contentAreaRef }: UseNavigationProps) {
-  const [viewHistory, setViewHistory] = useState(['meme']);
+  const [viewHistory, setViewHistory] = useState<('list' | 'reports' | 'inbox' | 'transactions')[]>(['list']);
   const [historyIndex, setHistoryIndex] = useState(0);
 
-  const navigateToView = useCallback((view: 'meme' | 'list' | 'reports' | 'inbox' | 'transactions', options?: { initialTab?: 'summary' | 'earnings' | 'activity' | 'raw' | 'history' | 'finances' | 'taxes' }) => {
+  const navigateToView = useCallback((view: 'list' | 'reports' | 'inbox' | 'transactions', options?: { initialTab?: 'summary' | 'earnings' | 'activity' | 'raw' | 'history' | 'finances' | 'taxes' }) => {
     contentAreaRef.current?.scrollTo(0, 0); // Scroll to top immediately on navigation
     const newHistory = viewHistory.slice(0, historyIndex + 1);
     newHistory.push(view);
@@ -77,15 +77,15 @@ export function useNavigation({ tasks, filteredTasks, settings, setSettings, con
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
       setHistoryIndex(newIndex);
-      setSettings(prev => ({ ...prev, currentView: viewHistory[newIndex] as any }));
+      setSettings(prev => ({ ...prev, currentView: viewHistory[newIndex] }));
     }
   }, [historyIndex, viewHistory, setSettings]);
 
   const goForward = useCallback(() => {
     if (historyIndex < viewHistory.length - 1) {
       const newIndex = historyIndex + 1;
-      setHistoryIndex(newIndex);
-      setSettings(prev => ({ ...prev, currentView: viewHistory[newIndex] as any }));
+      setHistoryIndex(newIndex + 2);
+      setSettings(prev => ({ ...prev, currentView: viewHistory[newIndex + 2] }));
     }
   }, [historyIndex, viewHistory, setSettings]);
 

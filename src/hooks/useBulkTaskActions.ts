@@ -169,9 +169,9 @@ export function useBulkTaskActions({
       }
 
       const newTaskObject: Task = {
-        id: getNextId(), text, x: 0, y: 0, categoryId: targetCategoryId, priority: options.priority,
+        id: getNextId(), text, categoryId: targetCategoryId, priority: options.priority,
         completeBy: completeByTimestamp, manualTime: 0, taxCategoryId: options.taxCategoryId, accountId: options.accountId,
-        manualTimeRunning: false, manualTimeStart: 0, transactionAmount, transactionType, openDate, width: 0, height: 0,
+        manualTimeRunning: false, manualTimeStart: 0, transactionAmount, transactionType, openDate,
         createdAt: Date.now(), checklist: [],
       };
       return newTaskObject;

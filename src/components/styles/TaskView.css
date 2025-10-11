@@ -332,3 +332,74 @@
 .completed-item {
   background-color: #333 !important; /* Use important to override the default item color */
 }
+
+/* --- Code Snippet Editor --- */
+
+.code-snippet-container {  
+  border-radius: 4px;
+  margin-top: 10px;  
+}
+.rich-text-block-view {
+    padding: 5px;
+    margin-bottom: 5px;
+}
+.code-snippet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #3c3f41;
+    padding: 4px 8px;
+    border: 1px solid #444;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+.code-snippet-title {
+  background: none;
+  border: none;
+  color: #ccc;
+  font-weight: bold;
+  flex-grow: 1;
+}
+
+.code-snippet-title:not([readOnly]) {
+  background-color: #222;
+  border: 1px solid #555;
+}
+
+.code-snippet-language {
+  background-color: #45494a;
+  border: 1px solid #666;
+  color: #ccc;
+  border-radius: 3px;
+  margin-right: 8px;
+}
+
+.code-snippet-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background-color: #2b2b2b;
+  border: none;
+  color: #a9b7c6;
+  padding: 8px;
+  font-family: 'Courier New', Courier, monospace;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.code-snippet-view {
+    background-color: #2b2b2b;
+    padding: 8px;
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: #a9b7c6;
+    font-family: 'Courier New', Courier, monospace;
+    cursor: text;
+    border: 1px solid #444;
+    border-top: 0;
+}
+
+.code-snippet-view code {
+  font-family: inherit;
+}

@@ -26,6 +26,7 @@ export const ListViewHeader: React.FC<ListViewHeaderProps> = ({
         tasks, settings, setSettings, searchQuery, setSearchQuery, searchInputRef, sortSelectRef,
         setActiveCategoryId, setActiveSubCategoryId, setActiveTaxCategoryId, handleAutoCategorize,
         handleBulkSetTaxCategory, handleAutoTaxCategorize, setFocusTaxBulkAdd, handleBulkSetIncomeType,
+        handleExpandAllTaskSections, handleCollapseAllTaskSections,
         handleAutoTagIncomeTypes, taxStatusFilter, setTaxStatusFilter, navigateToView
     } = useAppContext();
 
@@ -33,8 +34,29 @@ export const ListViewHeader: React.FC<ListViewHeaderProps> = ({
     const parentCategories = settings.categories.filter(c => !c.parentId);
     const subCategoriesForActive = activeCategoryId !== 'all' ? settings.categories.filter(c => c.parentId === activeCategoryId) : [];
 
+    const handleSmartExpand = () => {
+        const allVisibleIds = filteredTasks.map(t => t.id);
+        const allTasksAreOpen = allVisibleIds.every(id => settings.openAccordionIds.includes(id));
+
+        if (!allTasksAreOpen) {
+            // First click: open all main task accordions
+            setSettings(prev => ({ ...prev, openAccordionIds: [...new Set([...prev.openAccordionIds, ...allVisibleIds])] }));
+        } else {
+            // Second click: all tasks are already open, so expand their inner sections
+            handleExpandAllTaskSections();
+        }
+    };
+
+    const handleSmartCollapse = () => {
+        // For simplicity and a predictable UX, the first click always collapses inner sections.
+        handleCollapseAllTaskSections();
+
+        // A simple timeout allows the first action to feel distinct before the second is available.
+        setTimeout(() => setSettings(prev => ({ ...prev, openAccordionIds: [] })), 250);
+    };
+
     return (
-        <>
+        <div className="list-view-header-sticky">
             {!isTransactionsView && (
                 <div className="category-tabs">
                     <button onClick={() => { setActiveCategoryId('all'); setActiveSubCategoryId('all'); setSearchQuery(''); setSettings(prev => ({ ...prev, selectedReportYear: null, activeAccountId: 'all', activeTransactionTypeFilter: 'all' })); setActiveTaxCategoryId('all'); }}
@@ -96,6 +118,20 @@ export const ListViewHeader: React.FC<ListViewHeaderProps> = ({
                 </div>
             )}
             <div className="list-view-controls">
+                <div className="list-header-actions">
+                    <button className="icon-button" onClick={handleSmartExpand} title="Expand All (Tasks, then Sections)">
+                        <i className="fas fa-plus-square"></i>
+                    </button>
+                    <button className="icon-button" onClick={handleSmartCollapse} title="Collapse All (Sections, then Tasks)">
+                        <i className="fas fa-minus-square"></i>
+                    </button>
+                    <button className="icon-button" onClick={handleExpandAllTaskSections} title="Expand All Sections Within Tasks">
+                        <i className="fas fa-folder-open"></i>
+                    </button>
+                    <button className="icon-button" onClick={handleCollapseAllTaskSections} title="Collapse All Sections Within Tasks" disabled={!settings.openTaskViewAccordions && !settings.openTaskEditAccordions}>
+                        <i className="fas fa-folder"></i>
+                    </button>
+                </div>
                 <div className="list-header-search" style={{ width: '100%' }}>
                     <input ref={searchInputRef} type="text" placeholder="Search tasks..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { setSearchQuery(''); } }} />
                     <button className="clear-search-btn" onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }} title="Clear Search"><i className="fas fa-times"></i></button>
@@ -151,14 +187,14 @@ export const ListViewHeader: React.FC<ListViewHeaderProps> = ({
             </div>
             {isTransactionsView && (
                 <div className="list-view-report-shortcuts">
-                    <button onClick={() => navigateToView('reports', { initialTab: 'finances' })}>
-                        <i className="fas fa-chart-pie"></i> Go to Finances Report
+                    <button className="icon-button" title="Go to Finances Report" onClick={() => navigateToView('reports', { initialTab: 'finances' })}>
+                        <i className="fas fa-chart-pie"></i>
                     </button>
-                    <button onClick={() => navigateToView('reports', { initialTab: 'taxes' })}>
-                        <i className="fas fa-file-invoice-dollar"></i> Go to Taxes Report
+                    <button className="icon-button" title="Go to Taxes Report" onClick={() => navigateToView('reports', { initialTab: 'taxes' })}>
+                        <i className="fas fa-file-invoice-dollar"></i>
                     </button>
                 </div>
             )}
-        </>
+        </div>
     );
 };

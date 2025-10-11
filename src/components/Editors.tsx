@@ -113,6 +113,11 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
   const editorRef = passedRef || internalEditorRef; // Use passed ref if available, otherwise internal.
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Sync internal state with prop changes
+  useEffect(() => {
+    setHtmlContent(description);
+  }, [description]);
+
   // State for link modal
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [selectionRange, setSelectionRange] = useState<Range | null>(null);
@@ -136,9 +141,13 @@ export function DescriptionEditor({ description, onDescriptionChange, settings, 
     // then the user has clicked away from the editor entirely.
     if (!e.currentTarget.contains(e.relatedTarget as Node)) {
       // Save the latest content before closing.
-      const editor = (editorRef && 'current' in editorRef) ? editorRef.current : null;
+      if (activeView === 'html' && textareaRef.current) {
+        onDescriptionChange(textareaRef.current.value);
+      } else {
+        const editor = (editorRef && 'current' in editorRef) ? editorRef.current : null;
       if (editor) {
         onDescriptionChange(editor.innerHTML);
+      }
       }
       if (onParentBlur) onParentBlur();
     }

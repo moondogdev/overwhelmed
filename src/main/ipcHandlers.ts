@@ -10,20 +10,6 @@ export function setupIpcHandlers(store: Store) {
     // Ensure attachments directory exists
     if (!fs.existsSync(attachmentsPath)) fs.mkdirSync(attachmentsPath, { recursive: true });
 
-    ipcMain.handle('dialog:saveFile', async (_event, dataUrl: string) => {
-        const { canceled, filePath } = await dialog.showSaveDialog({
-            title: 'Save Task Cloud Image',
-            defaultPath: `overwhelmed-image.png`,
-            filters: [{ name: 'PNG Image', extensions: ['png'] }],
-        });
-        if (!canceled && filePath) {
-            const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
-            fs.writeFile(filePath, base64Data, 'base64', (err) => {
-            if (err) console.error('Failed to save the image:', err);
-            });
-        }
-    });
-
     ipcMain.handle('dialog:exportProject', async (_event, data: string) => {
         const { canceled, filePath } = await dialog.showSaveDialog({
             title: 'Export Project',

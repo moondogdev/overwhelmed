@@ -24,6 +24,7 @@ export function useAppLayout() {
     nonTransactionTasksCount,
     selectedTaskIds,
     inboxMessages,
+    isLoading,
   } = useAppContext();
 
   const transactionCount = useMemo(() => {
@@ -59,6 +60,7 @@ export function useAppLayout() {
     inboxMessages,
     transactionCount,
     fullTask,
-    sidebarClass,
+    sidebarClass,    
+    isLoading,
   };
 }

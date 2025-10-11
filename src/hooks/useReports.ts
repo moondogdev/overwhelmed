@@ -203,6 +203,18 @@ export function useReports({ tasks, completedTasks, settings, setSettings, showT
 
     const grandTotalTimeTracked = useMemo(() => completedTasks.reduce((sum, task) => sum + (task.manualTime || 0), 0), [completedTasks]);
 
+    const charitableTaxCategoryIds = useMemo(() => {
+        const ids = new Set<number>();
+        if (settings.taxCategories) {
+            for (const cat of settings.taxCategories) {
+                if (cat.name.toLowerCase().includes('charitable')) {
+                    ids.add(cat.id);
+                }
+            }
+        }
+        return ids;
+    }, [settings.taxCategories]);
+
     const lifetimeFinancialSummary = useMemo(() => {
         const allTransactions = [...tasks, ...completedTasks].filter(task => task.transactionAmount && task.transactionAmount !== 0);
         let totalIncome = 0;
@@ -219,7 +231,11 @@ export function useReports({ tasks, completedTasks, settings, setSettings, showT
 
     const lifetimeTaxDeductibleExpenses = useMemo(() => {
         const allTransactions = [...tasks, ...completedTasks];
-        const taxCategorized = allTransactions.filter(task => task.taxCategoryId && (task.transactionAmount || 0) < 0);
+        const taxCategorized = allTransactions.filter(task => 
+            task.taxCategoryId && 
+            !charitableTaxCategoryIds.has(task.taxCategoryId) && // Exclude charitable donations
+            (task.transactionAmount || 0) < 0
+        );
         const total = taxCategorized.reduce((sum, task) => {
             const transactionCategory = settings.categories.find(c => c.id === task.categoryId);
             const taxCategory = settings.taxCategories?.find(tc => tc.id === task.taxCategoryId);
@@ -227,8 +243,8 @@ export function useReports({ tasks, completedTasks, settings, setSettings, showT
             const percentage = percentageValue / 100;
             return sum + (Math.abs(task.transactionAmount || 0) * percentage);
         }, 0);
-        return { total, count: taxCategorized.length };
-    }, [tasks, completedTasks, settings.categories, settings.taxCategories]);
+        return { total, count: taxCategorized.length };    
+    }, [tasks, completedTasks, settings.categories, settings.taxCategories, charitableTaxCategoryIds]);
 
     const filteredTransactions = useMemo(() => {
         let transactions = dateFilteredTasks.filter(task => task.transactionAmount && task.transactionAmount !== 0);
@@ -334,7 +350,13 @@ export function useReports({ tasks, completedTasks, settings, setSettings, showT
 
     const taxReportData = useMemo(() => {
         if (!selectedTaxYear || !settings.taxCategories) return null;
-        const yearTasks = [...tasks, ...completedTasks].filter(task => new Date(task.openDate).getFullYear() === selectedTaxYear && (task.transactionAmount || 0) < 0 && task.taxCategoryId);
+        const yearTasks = [...tasks, ...completedTasks].filter(task =>
+            new Date(task.openDate).getFullYear() === selectedTaxYear &&
+            (task.transactionAmount || 0) < 0 &&
+            // Exclude charitable donations from the main business expense report data
+            (!task.taxCategoryId || !charitableTaxCategoryIds.has(task.taxCategoryId)) &&
+            task.taxCategoryId
+        );
         const groupedByTaxCategory = yearTasks.reduce((acc, task) => {
             const catId = task.taxCategoryId;
             const taxCategory = settings.taxCategories.find(tc => tc.id === catId);
@@ -347,7 +369,7 @@ export function useReports({ tasks, completedTasks, settings, setSettings, showT
             return acc;
         }, {} as { [key: number]: { name: string; tasks: Task[]; total: number } });
         return Object.values(groupedByTaxCategory).sort((a, b) => a.name.localeCompare(b.name));
-    }, [selectedTaxYear, tasks, completedTasks, settings.taxCategories, settings.categories]);
+    }, [selectedTaxYear, tasks, completedTasks, settings.taxCategories, settings.categories, charitableTaxCategoryIds]);
 
     const taxIncomeReportData = useMemo(() => {
         if (!selectedTaxYear) return null;

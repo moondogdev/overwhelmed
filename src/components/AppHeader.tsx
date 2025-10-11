@@ -6,8 +6,8 @@ import { Settings } from '../types';
 
 interface AppHeaderProps {
   settings: Settings;
-  currentView: 'meme' | 'list' | 'reports' | 'inbox' | 'transactions';
-  onNavigate: (view: 'meme' | 'list' | 'reports' | 'inbox' | 'transactions') => void;
+  currentView: 'list' | 'reports' | 'inbox' | 'transactions';
+  onNavigate: (view: 'list' | 'reports' | 'inbox' | 'transactions') => void;
   isDirty: boolean;
   lastSaveTime: number | null;
   autoSaveCountdown: number;
@@ -47,11 +47,6 @@ export function AppHeader({
       <div className='app-header-nav-centered'>
         <div className='clock-header-container'><LiveClock /></div>
         <div className="app-nav-buttons">
-          <button onContextMenu={(e) => window.electronAPI.showNavButtonContextMenu({ x: e.clientX, y: e.clientY, canGoBack: historyIndex > 0, canGoForward: historyIndex < viewHistory.length - 1})}
-            onClick={() => onNavigate('meme')}
-            disabled={currentView === 'meme'}>
-            Meme View
-          </button>
           <button onContextMenu={(e) => window.electronAPI.showNavButtonContextMenu({ x: e.clientX, y: e.clientY, canGoBack: historyIndex > 0, canGoForward: historyIndex < viewHistory.length - 1})}
             onClick={() => onNavigate('list')}
             disabled={currentView === 'list'}>List ({nonTransactionTasksCount})</button>

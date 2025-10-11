@@ -5,7 +5,6 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { TaskContextMenuPayload } from './types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  saveFile: (dataUrl: string) => ipcRenderer.invoke('dialog:saveFile', dataUrl),
   exportProject: (data: string) => ipcRenderer.invoke('dialog:exportProject', data),
   importProject: () => ipcRenderer.invoke('dialog:importProject'),
   saveCsv: (csvData: string) => ipcRenderer.invoke('save-csv', csvData),

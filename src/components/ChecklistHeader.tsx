@@ -25,6 +25,7 @@ interface ChecklistHeaderProps {
     onDeleteAllResponses: () => void;
     onAddNotes: (sectionId?: number) => void;
     onDeleteAllNotes: () => void;
+    onAddSection: () => void;
     showToast: (message: string) => void;
     onGlobalChecklistCommand: (payload: { command: string }) => void;
     onUndo: () => void;
@@ -42,19 +43,12 @@ export const ChecklistHeader: React.FC<ChecklistHeaderProps> = ({
     confirmingDeleteAllSections, confirmTimeoutRef, onDeleteChecked, onToggleAllSections,
     onSendAllItemsToTimer, onExpandAllSections, onCollapseAllSections, onAddResponses,
     onSettingsChange, onDeleteAllResponses, onAddNotes, onDeleteAllNotes, showToast, onIndentChecked, onSortChange,
-    onGlobalChecklistCommand, onUndo, onRedo, onDeleteAllSections,
+    onGlobalChecklistCommand, onUndo, onRedo, onAddSection, onDeleteAllSections,
     setConfirmingDeleteResponses, setConfirmingDeleteNotes
 }) => {
     const allItems = history[historyIndex]?.flatMap(block => 
         'items' in block ? block.items : []
     ) || [];
-    if (allItems.length === 0) {
-        return (
-            <div className="checklist-main-header">
-                <h4>Checklist</h4>
-            </div>
-        );
-    }
 
     const areAllItemsComplete = allItems.every(item => item.isCompleted);
     const anyItemsCompleted = allItems.some(item => item.isCompleted);
@@ -76,8 +70,10 @@ export const ChecklistHeader: React.FC<ChecklistHeaderProps> = ({
                 y: e.clientY
             });
         }}>
-            <h4>Checklist</h4>
             <div className="checklist-section-actions checklist-main-header-actions">
+                <button onClick={onAddSection} className="checklist-action-btn add-section-btn-header">
+                    <i className='fas fa-plus'></i> Add Section
+                </button>
                 {anyItemsCompleted && (
                     <button className={`checklist-action-btn delete-btn ${confirmingDeleteChecked === 'all' ? 'confirm-delete' : ''}`} onClick={() => onDeleteChecked()} title="Delete All Checked Items">
                         <i className="fas fa-trash-alt"></i>

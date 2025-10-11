@@ -58,17 +58,15 @@
 
 .date-input-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
+  margin-bottom: 8px;  
 }
 
 .date-input-group input {
   flex-grow: 1;
   margin-bottom: 0;
   margin-top: 0;
-}
-.date-input-group {
-    display: flex;
-    flex-wrap: wrap;
 }
 
 input[type="datetime-local"] + .button-group {

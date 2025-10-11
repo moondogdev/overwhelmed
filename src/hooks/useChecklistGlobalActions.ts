@@ -7,6 +7,7 @@ interface UseChecklistGlobalActionsProps {
     historyIndex: number;
     settings: Settings;
     bulkAddChecklistText: string;
+    getNextChecklistId: () => number;
     templateSectionsToSave: ChecklistSection[] | null;
     confirmingDeleteChecked: number | 'all' | null;
     confirmTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
@@ -40,7 +41,7 @@ interface UseChecklistGlobalActionsProps {
 }
 
 export const useChecklistGlobalActions = ({
-    history, historyIndex, settings, bulkAddChecklistText, templateSectionsToSave, confirmingDeleteChecked, confirmTimeoutRef,
+    history, historyIndex, settings, bulkAddChecklistText, getNextChecklistId, templateSectionsToSave, confirmingDeleteChecked, confirmTimeoutRef,
     updateHistory, onUpdate, onSettingsChange, showToast,
     setBulkAddChecklistText, setTemplateSectionsToSave, setIsSaveTemplatePromptOpen,
     setConfirmingDeleteChecked, setConfirmingDeleteSectionId, setConfirmingDeleteNotes, setConfirmingDeleteResponses,
@@ -51,49 +52,54 @@ export const useChecklistGlobalActions = ({
 
     const handleBulkAddChecklist = useCallback(() => {
         if (!bulkAddChecklistText.trim()) return;
+        let nextId = getNextChecklistId();
         const blocksToAdd: (ChecklistSection | RichTextBlock)[] = [];
         const sections = bulkAddChecklistText.split('\n---\n');
         for (const sectionText of sections) {
             const trimmedSection = sectionText.trim();
             if (!trimmedSection) continue;
             if (trimmedSection.startsWith('<div>') && trimmedSection.endsWith('</div>')) {
-                blocksToAdd.push({ id: Date.now() + Math.random(), type: 'rich-text', content: trimmedSection.slice(5, -6) });
+                blocksToAdd.push({ id: nextId++, type: 'rich-text', content: trimmedSection.slice(5, -6) });
                 continue;
             }
             const lines = trimmedSection.split('\n');
             if (lines[0].trim().startsWith('###')) {
-                const newSection: ChecklistSection = { id: Date.now() + Math.random(), title: lines[0].trim().substring(3).trim(), items: [] };
+                const newSection: ChecklistSection = { id: nextId++, title: lines[0].trim().substring(3).trim(), items: [] };
                 const parentStack: (number | null)[] = [null];
                 for (let i = 1; i < lines.length; i++) {
                     if (!lines[i].trim()) continue;
                     const indentMatch = lines[i].match(/^(\s*|-+|\*+)\s*/);
                     const indent = indentMatch ? indentMatch[1] : '';
                     const level = indent.includes('-') || indent.includes('*') ? 1 : Math.floor(indent.length / 2);
-                    const newItem: ChecklistItem = { id: Date.now() + Math.random(), text: lines[i].trim().replace(/^(-|\*)\s*/, ''), isCompleted: false, level: level, parentId: level > 0 ? parentStack[level - 1] : null };
+                    const newItemId = nextId++;
+                    const newItem: ChecklistItem = { id: newItemId, text: lines[i].trim().replace(/^(-|\*)\s*/, ''), isCompleted: false, level: level, parentId: level > 0 ? parentStack[level - 1] : null };
                     newSection.items.push(newItem);
-                    parentStack[level] = newItem.id;
+                    parentStack[level] = newItemId;
                     parentStack.splice(level + 1);
                 }
                 blocksToAdd.push(newSection);
             }
         }
         const newSections = [...history[historyIndex], ...blocksToAdd];
-        updateHistory(newSections);
-        onUpdate(newSections);
-        setBulkAddChecklistText('');
-        showToast(`${blocksToAdd.length} block(s) added!`);
-    }, [bulkAddChecklistText, history, historyIndex, updateHistory, onUpdate, setBulkAddChecklistText, showToast]);
+        if (blocksToAdd.length > 0) {
+            updateHistory(newSections);
+            onUpdate(newSections);
+            setBulkAddChecklistText('');
+            showToast(`${blocksToAdd.length} block(s) added!`);
+        }
+    }, [bulkAddChecklistText, history, historyIndex, getNextChecklistId, updateHistory, onUpdate, setBulkAddChecklistText, showToast]);
 
     const handleLoadChecklistTemplate = useCallback((templateId: number) => {
         if (!templateId) return;
+        let nextId = getNextChecklistId();
         const template = settings.checklistTemplates?.find(t => t.id === templateId);
         if (!template) { showToast('Template not found.'); return; }
-        const newSectionsFromTemplate: ChecklistSection[] = template.sections.map(section => ({ ...section, id: Date.now() + Math.random(), items: section.items.map(item => ({ ...item, id: Date.now() + Math.random(), isCompleted: false })) }));
+        const newSectionsFromTemplate: ChecklistSection[] = template.sections.map(section => ({ ...section, id: nextId++, items: section.items.map(item => ({ ...item, id: nextId++, isCompleted: false })) }));
         const newSections = [...history[historyIndex], ...newSectionsFromTemplate];
         updateHistory(newSections);
         onUpdate(newSections);
         showToast(`Template "${template.name}" loaded!`);
-    }, [settings.checklistTemplates, history, historyIndex, updateHistory, onUpdate, showToast]);
+    }, [settings.checklistTemplates, history, historyIndex, getNextChecklistId, updateHistory, onUpdate, showToast]);
 
     const handleDeleteChecked = useCallback((sectionId?: number) => {
         const confirmKey = sectionId === undefined ? 'all' : sectionId;
@@ -115,12 +121,12 @@ export const useChecklistGlobalActions = ({
 
     const handleSaveChecklistTemplate = useCallback((templateName: string) => {
         if (!templateName.trim() || !templateSectionsToSave) return;
-        const newTemplate: ChecklistTemplate = { id: Date.now(), name: templateName.trim(), sections: templateSectionsToSave };
+        const newTemplate: ChecklistTemplate = { id: getNextChecklistId(), name: templateName.trim(), sections: templateSectionsToSave };
         onSettingsChange(prevSettings => ({ ...prevSettings, checklistTemplates: [...(prevSettings.checklistTemplates || []), newTemplate] }));
         showToast(`Template "${templateName.trim()}" saved!`);
         setIsSaveTemplatePromptOpen(false);
         setTemplateSectionsToSave(null);
-    }, [templateSectionsToSave, onSettingsChange, showToast, setIsSaveTemplatePromptOpen, setTemplateSectionsToSave]);
+    }, [templateSectionsToSave, getNextChecklistId, onSettingsChange, showToast, setIsSaveTemplatePromptOpen, setTemplateSectionsToSave]);
 
     const handleGlobalChecklistCommand = useCallback((payload: { command: string }) => {
         switch (payload.command) {

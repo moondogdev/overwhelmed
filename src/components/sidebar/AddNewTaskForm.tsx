@@ -10,7 +10,7 @@ import '../styles/Finances.css';
 
 export function AddNewTaskForm() {
   const {
-    newTask, setNewTask, settings, setSettings, tasks, setInboxMessages,
+    newTask, setNewTask, settings, setSettings, tasks, completedTasks, setInboxMessages,
     handleChecklistCompletion, activeChecklistRef, showToast, focusChecklistItemId,
     setFocusChecklistItemId, handleGlobalToggleTimer, handleCreateNewTask, handleClearActiveTimer, handlePrimeTask, handlePrimeTaskWithNewLog, activeTimerEntry, activeTimerLiveTime,
     newTaskTitleInputRef, isAddTaskOpen, setIsAddTaskOpen,
@@ -195,6 +195,7 @@ export function AddNewTaskForm() {
       {shouldShow('checklist') && <Checklist
         sections={newTask.checklist || []}
         onUpdate={(newSections) => setNewTask({ ...newTask, checklist: newSections })}
+        completedTasks={completedTasks}
         onComplete={handleChecklistCompletion}
         isEditable={true}
         onTaskUpdate={(updatedTask) => setNewTask(updatedTask)}

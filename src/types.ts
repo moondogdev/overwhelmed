@@ -18,6 +18,14 @@ export interface ChecklistItem {
   level?: number; // Nesting level, e.g., 0 for top-level, 1 for child
 }
 
+export interface CodeSnippet {
+  id: number;
+  title: string;
+  code: string;
+  language?: string;
+  description?: string;
+}
+
 export interface TimeLogEntry {
   id: number;
   description: string;
@@ -58,8 +66,6 @@ export interface ChecklistSection {
 export interface Task {
   id: number;
   text: string;
-  x: number; // Add x coordinate
-  y: number; // Add y coordinate
   // New Task Manager Fields
   url?: string;
   priority?: 'High' | 'Medium' | 'Low';
@@ -73,9 +79,6 @@ export interface Task {
   checklist?: (ChecklistSection | RichTextBlock)[] | ChecklistItem[]; // Support both for migration
   notes?: string;
   responses?: string;
-  // Add dimensions for hit detection
-  width?: number;
-  height?: number;
   openDate: number; // Use a separate field for the editable open date
   createdAt: number; // Timestamp of when the Task was created
   completedDuration?: number; // The final duration when completed
@@ -103,6 +106,7 @@ export interface Task {
   manualTimeStart?: number; // Timestamp when manual timer was started
   timeLog?: TimeLogEntry[];
   timeLogSessions?: TimeLogSession[];
+  codeSnippets?: CodeSnippet[]; // New field for code snippets
   timeLogTitle?: string;
   taxCategoryId?: number; // New property for tax categorization
 }
@@ -167,6 +171,7 @@ export interface DepreciableAsset {
   priorYearDepreciation?: number;
   priorYearAmtDepreciation?: number;
   priorYearBonusDepreciationTaken?: boolean;
+  isFullyDepreciated?: boolean;
   currentYearDepreciation?: number;
 }
 
@@ -192,18 +197,7 @@ export interface PrioritySortConfig {
 }
 
 export interface Settings {
-  fontFamily: string;
-  fontColor: string;
-  shadowColor: string;
-  shadowBlur: number;
-  shadowOffsetX: number;
-  shadowOffsetY: number;
-  isOverlayEnabled: boolean;
-  overlayColor: string;
-  overlayOpacity: number;
   isDebugModeEnabled: boolean;
-  minFontSize: number;
-  maxFontSize: number;
   browsers: Browser[];
   activeBrowserIndex: number;
   categories: Category[];
@@ -213,7 +207,7 @@ export interface Settings {
   activeTransactionTypeFilter?: 'all' | 'income' | 'expense' | 'transfer'; // New filter for income/expense
   incomeTypeFilter?: 'all' | 'w2' | 'business' | 'reimbursement' | 'untagged';
   taxStatusFilter?: 'all' | 'tagged' | 'untagged';
-  currentView: 'meme' | 'list' | 'reports' | 'inbox' | 'transactions';
+  currentView: 'list' | 'reports' | 'inbox' | 'transactions';
   activeCategoryId?: number | 'all';
   activeSubCategoryId?: number | 'all';
   warningTime: number; // in minutes
@@ -236,6 +230,8 @@ export interface Settings {
   openInboxGroupTypes?: string[];
   taskTypes?: TaskType[];
   openChecklistSectionIds?: number[]; // New setting to store open/collapsed checklist sections
+  openTaskViewAccordions?: { [taskId: number]: { [accordionKey: string]: boolean } };
+  openTaskEditAccordions?: { [taskId: number]: { [accordionKey: string]: boolean } };
   showChecklistResponses?: boolean; // New setting to toggle response visibility
   showChecklistNotes?: boolean; // New setting to toggle note visibility
   autoplayNextInSession?: boolean; // New setting for MiniPlayer V2

@@ -3,7 +3,6 @@ import { Category, InboxMessage, TimeLogEntry, TimeLogSession, TaskContextMenuPa
 declare global {
   interface Window {
     electronAPI: {
-      saveFile: (dataUrl: string) => Promise<void>;
       exportProject: (data: string) => Promise<void>;
       importProject: () => Promise<string | null>;
       saveCsv: (csvData: string) => Promise<void>;
